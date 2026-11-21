@@ -1,0 +1,13 @@
+## Interface: 16001
+## Title: GoldFinder
+## Notes: Decide si vender, subastar o guardar lo que llevas, y mide el oro por hora de tu desuello. Solo informa; no compra ni publica solo.
+## Version: 2.0
+## Dependencies: Auctionator
+## OptionalDeps: TradeSkillMaster
+## SavedVariables: GoldFinderDB
+
+GoldFinderData.lua
+GoldFinderRoutes.lua
+GoldFinderTrainers.lua
+GoldFinderRecipes.lua
+GoldFinder.lua
