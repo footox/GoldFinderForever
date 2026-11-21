@@ -25,6 +25,10 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   con los objetos que te recomienda vender." and (verbatim) "y con su boton." Each recommended item has a button
   that sells it to the vendor on click (the existing `SellItem` path); nothing is sold without a click.
 
+- S8. Settings (verbatim): "La de ajustes deberia ser mas estilo Options de wow". Chosen option (verbatim answer
+  "1"): register GoldFinder in the game's Options > AddOns with the native Settings API (same checkboxes, section
+  headers, Defaults and search); the Ajustes tab in /gf becomes a shortcut that opens that page.
+
 ## Tasks
 
 | ID | Specs | Route | Status | Commit |
@@ -34,12 +38,14 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U3 | S6 | pending | pending | |
 | U4 | S6, S7 | pending | pending | |
 | U5 | S6 | pending | pending | |
+| U6 | S8, S5 | delegated (context backstop) | in progress | |
 
 - U1: main window and shared helpers (`Flat`, `Text`, `Btn`, `PAL`, list rows, tabs) in the classic style.
 - U2: guide, tracker, mail, bank, vendor and export frames in the classic style.
 - U3: Ruta and Fabricar as tabs inside the professions window (PanelTabButtonTemplate on ProfessionsFrame).
 - U4: panel attached to the merchant window listing the items recommended to sell to the vendor.
 - U5: auction house tab content focused on what to auction and the shopping list.
+- U6: settings registered in Options > AddOns (native Settings API); Ajustes tab opens it.
 
 ## Log
 
@@ -59,3 +65,8 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   content, Text/Btn mapped to Blizzard font objects and UIPanelButtonTemplate, QuestTitleHighlight row hover,
   tooltip-border summary cards. AH host keeps a 30px header without title. luac OK; offline suites 7/23/5/10 PASS.
   Risk: item 6 (visual, only verifiable in game).
+- L6 (2026-11-20, user, verbatim): "La de ajustes deberia ser mas estilo Options de wow" and a screenshot of the
+  client Options window (Game | AddOns tabs, categories on the left, checkboxes with section headers, Defaults).
+  Then "1". Reference implementation on this client: SkillUpForever/UI/Settings.lua (RegisterVerticalLayoutCategory,
+  RegisterAddOnSetting, RegisterInitializer + CreateCheckboxInitializer, RegisterProxySetting, sliders).
+- L7: U1 follow-up b225f3e: bottom tabs resized with padding 12, min width 70, overlap -8 (were cramped in game).
