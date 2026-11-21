@@ -30,6 +30,7 @@ features/auction/post.lua
 features/auction/tab.lua
 features/professions/tabs.lua
 features/guide/hybrid.lua
+features/route/helpers.lua
 GoldFinderRoutes.lua
 GoldFinderTrainers.lua
 GoldFinderRecipes.lua

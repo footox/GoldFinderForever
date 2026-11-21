@@ -53,8 +53,10 @@ local function loadHelpers()
   local P = loadPlanner()
   env.RecipeLookup, env.BuyPrice, env.SellValue = P.RecipeLookup, P.BuyPrice, P.SellValue
   env.Skin = {}
-  load(block("-- AYUDAS DE RUTA", "-- FIN DE AYUDAS DE RUTA", "\nreturn nil"))
-  return env.Skin.Route, P
+  local fn = assert(loadfile("features/route/helpers.lua"))
+  setfenv(fn, setmetatable({}, { __index = _G }))
+  fn("GoldFinder", GF)
+  return GF.InitRouteHelpers(env), P
 end
 
 local failures = 0
