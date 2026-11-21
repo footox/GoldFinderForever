@@ -1005,6 +1005,12 @@ local function NeededByAny(id)
   return false
 end
 
+-- Cuero (comercio / cuero, clase 7 subclase 6): se anota siempre, para saber donde farmearlo (pestana Cuero).
+local function IsLeather(id)
+  local _, _, _, _, _, classID, subClassID = C_Item.GetItemInfoInstant(id)
+  return classID == 7 and subClassID == 6
+end
+
 local function RecordSources()
   if not GoldFinderDB then return end
   local zone = GetRealZoneText()
@@ -1013,7 +1019,7 @@ local function RecordSources()
   for slot = 1, (GetNumLootItems() or 0) do
     local link = GetLootSlotLink(slot)
     local id = link and tonumber(link:match("item:(%d+)"))
-    if id and NeededByAny(id) then
+    if id and (NeededByAny(id) or IsLeather(id)) then
       local qty = tonumber(select(3, GetLootSlotInfo(slot))) or 1
       GoldFinderDB.sources = GoldFinderDB.sources or {}
       local t = GoldFinderDB.sources[id]
@@ -1039,6 +1045,13 @@ local function SourceText(id)
     parts[#parts + 1] = a.zone .. " (" .. a.n .. (a.mob and (", " .. a.mob) or "") .. ")"
   end
   return "\nLo has conseguido en: " .. table.concat(parts, "; ")
+end
+
+-- Donde farmear un material, con tus propios datos de botin (sustituye a la tabla de farmeo de Zygor): nil si
+-- aun no lo has conseguido en ninguna zona.
+local function FarmText(id)
+  local s = SourceText(id)
+  return s ~= "" and s:sub(2) or nil
 end
 
 -- Recetas (patrones, planos...) de una profesion tuya que aun no sabes: no se venden sin mirar.
@@ -1529,11 +1542,6 @@ local function BagRows()
   return rows, sum
 end
 
--- Farmeo de cada cuero: GoldFinderData.farm (zona, coordenadas, criatura y Desuello necesario).
-local function FarmInfo(id)
-  return GoldFinderData and GoldFinderData.farm and GoldFinderData.farm[id] or nil
-end
-
 local function SkinRank()
   for prof, d in pairs(Char().prof) do
     if prof:lower():find("skin") then return d.rank end
@@ -1570,7 +1578,7 @@ local function LeatherRows()
         else advice = "-" end
         rows[#rows + 1] = {
           id = id, price = entry.m, region = region, advice = advice,
-          stack = math.max(netAH, vendor or 0) * 20, owned = bags + bank, farm = FarmInfo(id),
+          stack = math.max(netAH, vendor or 0) * 20, owned = bags + bank, farm = FarmText(id),
         }
       end
     end
@@ -3688,19 +3696,11 @@ local function CreateUI(parent)
     cuero = function()
       ui.list.setHeaders("Cuero / piel", "Subasta", "Pila de 20", "Consejo")
       local out = {}
-      local rank = SkinRank()
       for _, r in ipairs(LeatherRows()) do
         local name = ItemLink(r.id)
         if r.owned > 0 then name = name .. "  " .. DIM .. "(tienes " .. r.owned .. ")|r" end
         local lines = {}
-        if r.farm then
-          if r.farm.req then
-            local ok = rank and rank >= r.farm.req
-            name = name .. "  " .. (ok and GREEN or "|cffff6666") .. "(Desuello " .. r.farm.req .. ")|r"
-          end
-          local where = r.farm.zone and (r.farm.zone .. (r.farm.x and (" " .. r.farm.x .. ", " .. r.farm.y) or "")) or nil
-          lines[#lines + 1] = "Farmeo (Zygor): " .. (r.farm.kill or "mata criaturas de la zona") .. (where and (" en " .. where) or "")
-        end
+        lines[#lines + 1] = r.farm or "Aun no lo has desollado: GoldFinder anota donde lo consigues."
         if r.region then lines[#lines + 1] = "Precio medio en la region (TSM): " .. Money(r.region) end
         out[#out + 1] = {
           id = r.id, name = name,
