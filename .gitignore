@@ -6,3 +6,5 @@ Thumbs.db
 .idea/
 tools/wago_data/
 dist/
+# Local AI runtime state
+.atl/
