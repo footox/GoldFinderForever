@@ -26,6 +26,8 @@ local DEFAULTS = {
   routeSpan = 25,       -- puntos de habilidad que planifica la ruta
   sellCap = 5,          -- ruta: unidades de cada objeto fabricado que se valoran a precio de subasta (el resto, a precio del vendedor)
   banker = "",        -- nombre del personaje banquero al que se envia lo que hay que subastar
+  trackerMode = "objetivos", -- siguiente paso: "objetivos" (bloque en el seguimiento de objetivos) o "flotante"
+  recipeNotes = true,   -- probabilidad de subir y coste o ganancia por punto en la lista de recetas de profesiones
 }
 
 local function Print(msg)
@@ -587,6 +589,9 @@ local function PlanRoute(prof, pd, target)
   end
 
   local steps, need, learns = {}, {}, {}
+  -- coste neto por punto de cada receta a la habilidad actual (el mismo calculo que elige la ruta): lo leen las
+  -- notas de la lista de recetas de la ventana de profesiones. Negativo = ganancia por punto.
+  local firstEff = {}
   local sk = pd.rank
   while sk < top do
     local best, bestEff, bestP
@@ -606,6 +611,7 @@ local function PlanRoute(prof, pd, target)
         if c.learn and not c.learned then
           eff = eff + (c.learn.cost or 0) / math.max(1, math.min(top, c.x.g) - sk)
         end
+        if sk == pd.rank then firstEff[c.name:lower()] = eff end
         if not best or eff < bestEff - 1e-9 then best, bestEff, bestP = c, eff, pch end
       end
     end
@@ -662,7 +668,7 @@ local function PlanRoute(prof, pd, target)
     sell = sell + st.value
   end
   return { prof = prof, pd = pd, from = pd.rank, to = sk, steps = steps, mats = mats, cost = cost, sell = sell, unknown = unknown, cap = cap,
-    learns = learns, learnCost = learnCost }
+    learns = learns, learnCost = learnCost, eff = firstEff }
 end
 
 ---------------------------------------------------------------------------
@@ -3131,6 +3137,421 @@ function OpenGuide(name)
   RefreshGuide()
 end
 
+---------------------------------------------------------------------------
+-- EN PANTALLA COMO SKILLUP FOREVER: el siguiente paso como bloque del seguimiento de objetivos y, en la lista de
+-- recetas de la ventana de profesiones, la probabilidad de subir y el coste o ganancia por punto de cada receta.
+-- Seguimiento: si SkillUp Forever esta cargado, su ForeverCore publica una columna (ForeverCore.TrackerSection)
+-- con secciones de la plantilla del juego fuera del seguimiento nativo; GoldFinder anade alli su propia seccion,
+-- junto a "Profession reagents", sin tocar el seguimiento del juego. Sin ForeverCore, un marco propio con el estilo
+-- del seguimiento justo debajo de ObjectiveTrackerFrame (solo se ancla a el; nunca se escribe en el ni se engancha).
+-- Recetas: ScrollUtil.AddInitializedFrameCallback y EventRegistry; nada de Blizzard se reemplaza ni se llama nada
+-- protegido. Si SkillUp ya escribe su texto en cada fila, GoldFinder lo pone en el tooltip de la fila.
+-- Las APIs quedan en Skin.Objectives y Skin.RecipeNotes (sin nuevos locales en el bloque principal).
+---------------------------------------------------------------------------
+do
+  -- TEXTOS DE OBJETIVOS Y RECETAS
+  local DOT = " \194\183 "
+  local MAX_MATS = 5
+  local function ObjectiveHeader(e)
+    if e.game then return string.format("%s %d: %s", e.prof, e.rank or 0, tostring(e.recipe)) end
+    if e.trainOnly then return string.format("%s %d: entrena el siguiente rango", e.prof, e.rank or 0) end
+    if e.gather then return string.format("%s %d > %d: %s", e.prof, e.rank or 0, e.upto or 0, tostring(e.zone)) end
+    return string.format("%s %d > %d: %s x%d", e.prof, e.rank or 0, e.upto or 0, tostring(e.what), e.qty or 0)
+  end
+  -- Bloque del seguimiento para una entrada de NextStepList: { id, header, lines = { { key, kind, text } } }.
+  -- kind: learn (receta del instructor), train (rango del instructor), mat (material que falta), more, ready.
+  -- nameOf(id) da el nombre del objeto o nil (aun sin cargar: el segundo resultado avisa de que hay que esperar).
+  local function ObjectiveBlock(e, nameOf, learnText)
+    local lines, waiting = {}, false
+    if e.unknown then
+      lines[#lines + 1] = { key = "learn", kind = "learn",
+        text = "Aprende: " .. ((learnText and learnText(e)) or "aprendela antes de fabricarla") }
+    end
+    local t, st = e.train, e.trainState
+    if t and (st == "ready" or st == "cap" or st == "capblocked") then
+      local text = "Entrena " .. tostring(t.name) .. (t.npc and (" con " .. t.npc) or "")
+        .. (t.zone and (" (" .. t.zone .. ")") or "")
+      if st == "capblocked" then text = text .. " cuando cumplas los requisitos" end
+      lines[#lines + 1] = { key = "train", kind = "train", text = text }
+    end
+    local mats = e.mats or {}
+    local shown, missing = 0, false
+    for _, m in ipairs(mats) do
+      local have = m.have or 0
+      if have < (m.need or 0) then
+        missing = true
+        if shown == MAX_MATS then
+          lines[#lines + 1] = { key = "more", kind = "more", text = "..." }
+          break
+        end
+        shown = shown + 1
+        local nm = nameOf and nameOf(m.id)
+        if not nm then waiting = true; nm = "objeto " .. tostring(m.id) end
+        lines[#lines + 1] = { key = "m" .. tostring(m.id), kind = "mat", text = string.format("%d/%d %s", have, m.need, nm) }
+      end
+    end
+    if not missing and #mats > 0 then
+      lines[#lines + 1] = { key = "ready", kind = "ready", text = "Materiales listos" }
+    end
+    return { id = e.prof, header = ObjectiveHeader(e), lines = lines }, waiting
+  end
+  local function Pct(chance) return tostring(math.floor(chance * 100 + 0.5)) .. "%" end
+  -- Nota de la fila de una receta: "100% · -2s" (coste por punto) o "100% · +2s" (ganancia por punto).
+  local function RecipeNoteText(chance, eff, money)
+    if not chance then return nil end
+    local out = Pct(chance)
+    if eff == nil then return out end
+    if eff >= 0.5 then return out .. DOT .. "|cffff8080-" .. money(math.floor(eff + 0.5)) .. "|r" end
+    if eff <= -0.5 then return out .. DOT .. "|cff80ff80+" .. money(math.floor(-eff + 0.5)) .. "|r" end
+    return out .. DOT .. "0"
+  end
+  -- Las mismas cifras para el tooltip de la fila (cuando SkillUp ya escribe su texto en la fila).
+  local function RecipeNoteLines(chance, eff, money)
+    if not chance then return {} end
+    local lines = { "GoldFinder Forever: " .. Pct(chance) .. " de subir un punto" }
+    if eff ~= nil then
+      if eff <= -0.5 then lines[2] = "Ganancia por punto: " .. money(math.floor(-eff + 0.5))
+      else lines[2] = "Coste por punto: " .. money(math.max(0, math.floor(eff + 0.5))) end
+    end
+    return lines
+  end
+  -- FIN DE TEXTOS DE OBJETIVOS Y RECETAS
+
+  local function NameOf(id)
+    local nm = C_Item.GetItemInfo(id)
+    if not nm and C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(id) end
+    return nm
+  end
+  -- llama a fn con sus argumentos y manda el error al manejador del juego (BugGrabber), sin cortar a los demas
+  local function Safe(_, fn, ...)
+    local n, args = select("#", ...), { ... }
+    return xpcall(function() return fn(unpack(args, 1, n)) end, geterrorhandler())
+  end
+
+  -- SEGUIMIENTO DE OBJETIVOS
+  local OB = { blocks = {} }
+  Skin.Objectives = OB
+  function OB.available() return type(ObjectiveTrackerFrame) == "table" end
+  -- el siguiente paso va al seguimiento (y no a la ventana flotante)
+  function OB.active() return Cfg("trackerMode") ~= "flotante" and OB.available() end
+
+  local SectionMixin = {}
+  function SectionMixin:LayoutContents()
+    if not OB.active() then return end
+    local complete = OBJECTIVE_TRACKER_COLOR and OBJECTIVE_TRACKER_COLOR.Complete or nil
+    for _, b in ipairs(OB.blocks) do
+      local block = self:GetBlock(b.id)
+      block:SetHeader(b.header)
+      for _, l in ipairs(b.lines) do
+        block:AddObjective(l.key, l.text, nil, nil, nil, l.kind == "ready" and complete or nil)
+      end
+      if not self:LayoutBlock(block) then return end
+    end
+  end
+
+  local function TrackerMenu(target, menu)
+    local prof = target and target.kind == "block" and target.id or nil
+    menu:Title(prof or "GoldFinder Forever")
+    menu:Open("Abrir la guia", function() OpenGuide(prof); return true end)
+  end
+  local function TrackerClick(target)
+    OpenGuide(target and target.kind == "block" and target.id or nil)
+    return true
+  end
+
+  -- la seccion en la columna de ForeverCore (SkillUp Forever); nil si no esta
+  local function Section()
+    if OB.tried then return OB.module end
+    -- ForeverCore se publica al entrar al juego (o al salir de combate): se mira en cada pasada hasta tenerlo
+    local fc = rawget(_G, "ForeverCore")
+    local TS = type(fc) == "table" and fc.TrackerSection
+    if not (type(TS) == "table" and type(TS.Create) == "function") then return nil end
+    OB.tried = true
+    local ok, module = pcall(TS.Create, "GoldFinderForeverObjectiveTracker", SectionMixin, {
+      header = "GoldFinder Forever",
+      contract = { menu = TrackerMenu, click = TrackerClick },
+      safeCall = Safe,
+      -- la columna no la acepto: se usa el marco propio
+      onUnattached = function()
+        OB.module = nil
+        xpcall(UpdateTracker, geterrorhandler())
+      end,
+    })
+    if ok and type(module) == "table" then OB.module = module end
+    return OB.module
+  end
+
+  -- MARCO PROPIO con el estilo del seguimiento (sin ForeverCore): cabecera, entradas pulsables y lineas
+  local function Font(name, fallback) return rawget(_G, name) and name or fallback end
+  local function Fallback()
+    local f = OB.frame
+    if f then return f end
+    f = CreateFrame("Frame", "GoldFinderObjectives", UIParent)
+    f:SetSize(260, 30)
+    f:SetFrameStrata("LOW")
+    f.head = f:CreateFontString(nil, "OVERLAY", Font("ObjectiveTrackerHeaderFont", "GameFontNormal"))
+    f.head:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -6)
+    f.head:SetText("GoldFinder Forever")
+    f.rule = f:CreateTexture(nil, "ARTWORK")
+    local atlas = C_Texture and C_Texture.GetAtlasInfo
+    if atlas and atlas("UI-QuestTracker-Primary-Objective-Header") then
+      f.rule:SetAtlas("UI-QuestTracker-Primary-Objective-Header", true)
+      f.rule:SetPoint("TOPLEFT", f, "TOPLEFT", -10, 4)
+    else
+      f.rule:SetColorTexture(1, 0.82, 0, 0.35)
+      f.rule:SetHeight(1)
+      f.rule:SetPoint("TOPLEFT", f.head, "BOTTOMLEFT", 0, -3)
+      f.rule:SetPoint("RIGHT", f, "RIGHT", 0, 0)
+    end
+    f.entries, f.lines = {}, {}
+    OB.frame = f
+    return f
+  end
+  local function Entry(f, i)
+    local b = f.entries[i]
+    if b then return b end
+    b = CreateFrame("Button", nil, f)
+    b:SetSize(240, 16)
+    b.text = b:CreateFontString(nil, "OVERLAY", Font("ObjectiveTrackerLineFont", "GameFontNormalSmall"))
+    b.text:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+    b.text:SetWidth(240)
+    b.text:SetJustifyH("LEFT")
+    b:SetScript("OnClick", function(self) OpenGuide(self.prof) end)
+    b:SetScript("OnEnter", function(self)
+      self.text:SetTextColor(1, 1, 1)
+      GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+      GameTooltip:SetText(self.prof or "GoldFinder Forever", 1, 0.82, 0)
+      GameTooltip:AddLine("Clic: guia de la profesion (/gf guia)", 0.8, 0.8, 0.8)
+      GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function(self)
+      local c = OBJECTIVE_TRACKER_COLOR and OBJECTIVE_TRACKER_COLOR.Header
+      if c then self.text:SetTextColor(c.r, c.g, c.b) else self.text:SetTextColor(1, 0.82, 0) end
+      GameTooltip:Hide()
+    end)
+    f.entries[i] = b
+    return b
+  end
+  local function Line(f, i)
+    local l = f.lines[i]
+    if l then return l end
+    l = f:CreateFontString(nil, "OVERLAY", Font("ObjectiveTrackerLineFont", "GameFontHighlightSmall"))
+    l:SetWidth(230)
+    l:SetJustifyH("LEFT")
+    f.lines[i] = l
+    return l
+  end
+  local function Place(f)
+    local T = ObjectiveTrackerFrame
+    f:ClearAllPoints()
+    local edge
+    if T:IsShown() then
+      edge = (T.IsCollapsed and T:IsCollapsed()) and T.Header or T.NineSlice
+    end
+    if edge and edge.GetBottom and edge:GetBottom() then
+      f:SetPoint("TOPLEFT", edge, "BOTTOMLEFT", 0, -8)
+    else
+      f:SetPoint("TOPLEFT", T, "TOPLEFT", 0, 0)
+    end
+  end
+  local function DrawFallback()
+    local f = Fallback()
+    if #OB.blocks == 0 then f:Hide(); return end
+    Place(f)
+    local hc = OBJECTIVE_TRACKER_COLOR and OBJECTIVE_TRACKER_COLOR.Header
+    local nc = OBJECTIVE_TRACKER_COLOR and OBJECTIVE_TRACKER_COLOR.Normal
+    local cc = OBJECTIVE_TRACKER_COLOR and OBJECTIVE_TRACKER_COLOR.Complete
+    local y, nl = -28, 0
+    for i, b in ipairs(OB.blocks) do
+      local e = Entry(f, i)
+      e.prof = b.id
+      e.text:SetText(b.header)
+      if hc then e.text:SetTextColor(hc.r, hc.g, hc.b) else e.text:SetTextColor(1, 0.82, 0) end
+      local h = math.max(14, e.text:GetStringHeight() or 14)
+      e:SetHeight(h)
+      e:ClearAllPoints()
+      e:SetPoint("TOPLEFT", f, "TOPLEFT", 10, y)
+      e:Show()
+      y = y - h - 2
+      for _, ln in ipairs(b.lines) do
+        nl = nl + 1
+        local l = Line(f, nl)
+        l:SetText("- " .. ln.text)
+        local c = ln.kind == "ready" and cc or nc
+        if c then l:SetTextColor(c.r, c.g, c.b) else l:SetTextColor(0.8, 0.8, 0.8) end
+        l:ClearAllPoints()
+        l:SetPoint("TOPLEFT", f, "TOPLEFT", 20, y)
+        l:Show()
+        y = y - math.max(12, l:GetStringHeight() or 12) - 2
+      end
+      y = y - 8
+    end
+    for i = #OB.blocks + 1, #f.entries do f.entries[i]:Hide() end
+    for i = nl + 1, #f.lines do f.lines[i]:Hide() end
+    f:SetHeight(-y)
+    f:Show()
+  end
+
+  -- Lo llama UpdateTracker con las entradas de NextStepList ya ordenadas (sin sondeo propio). Devuelve true si
+  -- falta algun nombre de objeto por cargar (UpdateTracker reintenta).
+  function OB.refresh(entries)
+    local blocks, waiting = {}, false
+    if OB.active() then
+      for _, e in ipairs(entries or {}) do
+        local b, w = ObjectiveBlock(e, NameOf, LearnText)
+        blocks[#blocks + 1] = b
+        waiting = waiting or w
+      end
+    end
+    OB.blocks = blocks
+    local module = OB.available() and Section() or nil
+    if module then
+      if OB.frame then OB.frame:Hide() end
+      -- la columna de ForeverCore rehace la seccion (fuera de combate); una lista vacia la oculta
+      if module.MarkDirty then pcall(module.MarkDirty, module) end
+    elseif OB.active() then
+      DrawFallback()
+    elseif OB.frame then
+      OB.frame:Hide()
+    end
+    return waiting
+  end
+
+  -- NOTAS EN LA LISTA DE RECETAS
+  local RN = { texts = setmetatable({}, { __mode = "k" }), hooked = setmetatable({}, { __mode = "k" }), owner = {},
+    cache = {} }
+  Skin.RecipeNotes = RN
+  -- SkillUp Forever cargado y con su texto en las filas (su opcion showRowText, por defecto activa)
+  local function SkillUpRowText()
+    local loaded
+    if C_AddOns and C_AddOns.IsAddOnLoaded then loaded = C_AddOns.IsAddOnLoaded("SkillUpForever")
+    elseif IsAddOnLoaded then loaded = IsAddOnLoaded("SkillUpForever") end
+    if not loaded then return false end
+    local db = rawget(_G, "SkillUpForeverDB")
+    return not (type(db) == "table" and db.showRowText == false)
+  end
+  -- profesion abierta (la misma clave con la que CacheProfession la guarda); nil si es ajena o de hermandad
+  local function OpenProf()
+    local T = C_TradeSkillUI
+    if not (T and T.GetBaseProfessionInfo) then return nil end
+    if (T.IsTradeSkillLinked and T.IsTradeSkillLinked()) or (T.IsTradeSkillGuild and T.IsTradeSkillGuild()) then return nil end
+    local base = T.GetBaseProfessionInfo()
+    return base and (base.professionName or base.parentProfessionName) or nil
+  end
+  -- probabilidad y coste por punto de una receta de la profesion abierta. Cache por profesion: se rehace si cambia
+  -- la habilidad o el plan (InvalidateRoutes lo borra con las bolsas, la subasta y las recetas aprendidas).
+  local function Note(info)
+    if not (GoldFinderDB and Cfg("recipeNotes") and info and info.name) or info.learned == false then return nil end
+    local prof = OpenProf()
+    local c = Char()
+    local pd = prof and ProfOn(prof) and c.prof[prof] or nil
+    if not (pd and pd.rank and pd.skillLine) then return nil end
+    local plan = RouteFor(c, prof, pd.rank + (Cfg("routeSpan") or 25)) or false
+    local pc = RN.cache[prof]
+    if not (pc and pc.plan == plan and pc.rank == pd.rank) then
+      pc = { plan = plan, rank = pd.rank, notes = {} }
+      RN.cache[prof] = pc
+    end
+    local key = info.name:lower()
+    local n = pc.notes[key]
+    if n == nil then
+      local x = RecipeLookup(pd.skillLine, info.name)
+      n = x and { chance = SkillUpChance(x, pd.rank), eff = plan and plan.eff and plan.eff[key] or nil } or false
+      pc.notes[key] = n
+    end
+    if not n then return nil end
+    return n.chance, n.eff
+  end
+  local function Leave(self)
+    if GameTooltip:GetOwner() == self and self.gfNoteTip then GameTooltip:Hide() end
+    self.gfNoteTip = nil
+  end
+  function RN.decorate(row, elementData)
+    local data = elementData and elementData.GetData and elementData:GetData()
+    local info = data and data.recipeInfo
+    local fs = RN.texts[row]
+    local text
+    if info and not SkillUpRowText() then
+      local chance, eff = Note(info)
+      text = RecipeNoteText(chance, eff, ShortMoney)
+    end
+    if not text then
+      if fs then fs:Hide() end
+      return
+    end
+    if not fs then
+      fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+      fs:SetJustifyH("RIGHT")
+      RN.texts[row] = fs
+    end
+    fs:ClearAllPoints()
+    local lock = row.LockedIcon
+    if lock and lock.IsShown and lock:IsShown() then
+      fs:SetPoint("RIGHT", lock, "LEFT", -2, 0)
+    else
+      fs:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+    end
+    fs:SetText(text)
+    fs:Show()
+  end
+  -- con SkillUp escribiendo en la fila: las cifras de GoldFinder van al tooltip de la fila (el de SkillUp o el
+  -- del juego, si ya lo muestran; si no, uno propio). Se anaden un instante despues para ir tras su contenido.
+  function RN.enter(_, row, data)
+    if not (row and SkillUpRowText()) then return end
+    local info = data and data.recipeInfo
+    local chance, eff = Note(info)
+    if not chance then return end
+    local lines = RecipeNoteLines(chance, eff, ShortMoney)
+    C_Timer.After(0, function()
+      if not (row:IsVisible() and row:IsMouseOver()) then return end
+      local tip = GameTooltip
+      if tip:IsShown() and tip:GetOwner() == row then
+        tip:AddLine(" ")
+      else
+        tip:SetOwner(row, "ANCHOR_RIGHT")
+        tip:SetText(info.name, 1, 1, 1)
+        row.gfNoteTip = true
+      end
+      for _, l in ipairs(lines) do tip:AddLine(l, 1, 0.82, 0) end
+      tip:Show()
+    end)
+    if not RN.hooked[row] and row.HookScript then
+      RN.hooked[row] = true
+      row:HookScript("OnLeave", Leave)
+    end
+  end
+  -- vuelve a escribir las filas visibles (ajuste cambiado, bolsas, subasta, habilidad): lo llama UpdateTracker
+  function RN.refresh()
+    local box = RN.box
+    if not (box and box.ForEachFrame and ProfessionsFrame and ProfessionsFrame:IsShown()) then return end
+    box:ForEachFrame(function(row, elementData) RN.decorate(row, elementData) end)
+  end
+  function RN.attach()
+    if RN.attached then return end
+    local page = type(ProfessionsFrame) == "table" and ProfessionsFrame.CraftingPage
+    local list = type(page) == "table" and page.RecipeList
+    local box = type(list) == "table" and list.ScrollBox
+    if not (type(box) == "table" and ScrollUtil and ScrollUtil.AddInitializedFrameCallback) then return end
+    RN.attached, RN.box = true, box
+    ScrollUtil.AddInitializedFrameCallback(box, function(_, row, elementData)
+      xpcall(function() RN.decorate(row, elementData) end, geterrorhandler())
+    end, RN.owner)
+    if type(EventRegistry) == "table" and EventRegistry.RegisterCallback then
+      EventRegistry:RegisterCallback("Professions.RecipeListOnEnter", function(owner, row, data)
+        xpcall(function() RN.enter(owner, row, data) end, geterrorhandler())
+      end, RN.owner)
+    end
+    RN.refresh()
+  end
+  -- Blizzard_Professions se carga bajo demanda
+  local ev = CreateFrame("Frame")
+  for _, e in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "TRADE_SKILL_SHOW" }) do pcall(ev.RegisterEvent, ev, e) end
+  ev:SetScript("OnEvent", function(self)
+    if RN.attached then self:UnregisterAllEvents(); return end
+    if ProfessionsFrame then xpcall(RN.attach, geterrorhandler()) end
+  end)
+end
+
 function UpdateTracker(retry)
   if RefreshGuide then xpcall(RefreshGuide, geterrorhandler()) end
   local entries = Cfg("nextSteps") and NextStepList() or {}
@@ -3152,6 +3573,12 @@ function UpdateTracker(retry)
     if a.score ~= b.score then return a.score > b.score end
     return a.prof < b.prof
   end)
+  -- bloque del seguimiento de objetivos (trackerMode "objetivos") y notas de la lista de recetas
+  local OB, onObjectives, obWaiting = Skin.Objectives, false, false
+  if OB then
+    onObjectives = xpcall(function() obWaiting = OB.refresh(entries) end, geterrorhandler()) and OB.active()
+  end
+  if Skin.RecipeNotes then xpcall(Skin.RecipeNotes.refresh, geterrorhandler()) end
   local f = GoldFinderTracker
   if #entries == 0 then
     if f then f:Hide() end
@@ -3194,7 +3621,7 @@ function UpdateTracker(retry)
     else f:SetPoint("LEFT", UIParent, "LEFT", 20, 120) end
   end
 
-  local missing = false
+  local missing = obWaiting and true or false
   local y = -30
   for i, e in ipairs(entries) do
     local r = TrackerRow(f, i)
@@ -3300,7 +3727,8 @@ function UpdateTracker(retry)
   end
   for i = #entries + 1, #trackerRows do trackerRows[i]:Hide() end
   f:SetHeight(-y + 4)
-  f:Show()
+  -- con el bloque en el seguimiento de objetivos la ventana flotante no se muestra (sus avisos siguen igual)
+  if onObjectives then f:Hide() else f:Show() end
   if missing and not retry then
     C_Timer.After(1.5, function() UpdateTracker(true) end)
   end
@@ -3319,7 +3747,7 @@ local function MakeSettings(parent)
   sf:SetPoint("TOPLEFT", outer, "TOPLEFT", 0, 0)
   sf:SetPoint("BOTTOMRIGHT", outer, "BOTTOMRIGHT", -26, 0)
   local v = CreateFrame("Frame", nil, sf)
-  v:SetSize(700, 1069)
+  v:SetSize(700, 1133)
   sf:SetScrollChild(v)
   sf:SetScript("OnSizeChanged", function(_, w) if w and w > 0 then v:SetWidth(w) end end)
   local title = Text(v, 13, PAL.gold); title:SetPoint("TOPLEFT", v, "TOPLEFT", 0, 0); title:SetText("Opciones")
@@ -3340,16 +3768,24 @@ local function MakeSettings(parent)
     { "craftTab", "Pestana Fabricar: que compensa fabricar con tus materiales (valor del objeto fabricado)" },
     { "routeTab", "Pestana Ruta: planificador de ruta de profesion con tus recetas y los precios de la subasta" },
     { "profTabs", "Pestanas de GoldFinder en la ventana de profesiones" },
+    { "recipeNotes", "Notas en la lista de recetas: probabilidad de subir y coste o ganancia por punto" },
+    -- eleccion de dos valores como casilla: marcada = seguimiento de objetivos, sin marcar = ventana flotante
+    { "trackerMode", "Siguiente paso en el seguimiento de objetivos (sin marcar: ventana flotante)",
+      get = function() return Cfg("trackerMode") ~= "flotante" end,
+      set = function(on) GoldFinderDB.trackerMode = on and "objetivos" or "flotante" end },
   }
   v.cbs = {}
   for _, c in ipairs(checks) do
     local cb = CreateFrame("CheckButton", nil, v, "UICheckButtonTemplate")
     cb:SetSize(26, 26)
     cb:SetPoint("TOPLEFT", v, "TOPLEFT", 0, y)
-    cb:SetChecked(Cfg(c[1]) and true or false)
+    cb.get = c.get
+    if c.get then cb:SetChecked(c.get() and true or false) else cb:SetChecked(Cfg(c[1]) and true or false) end
     cb:SetScript("OnClick", function(self)
-      GoldFinderDB[c[1]] = self:GetChecked() and true or false
-      if c[1] == "nextSteps" then UpdateTracker() end
+      if c.set then c.set(self:GetChecked() and true or false)
+      else GoldFinderDB[c[1]] = self:GetChecked() and true or false end
+      if c[1] == "nextSteps" or c[1] == "trackerMode" then UpdateTracker() end
+      if c[1] == "recipeNotes" and Skin.RecipeNotes then pcall(Skin.RecipeNotes.refresh) end
       if c[1] == "shopping" or c[1] == "craftTab" or c[1] == "routeTab" or c[1] == "profTabs" then
         for _, u in ipairs(uiInstances) do
           pcall(u.layoutNav)
@@ -3491,7 +3927,9 @@ local function MakeSettings(parent)
   end
 
   v.refresh = function()
-    for k, cb in pairs(v.cbs) do cb:SetChecked(Cfg(k) and true or false) end
+    for k, cb in pairs(v.cbs) do
+      if cb.get then cb:SetChecked(cb.get() and true or false) else cb:SetChecked(Cfg(k) and true or false) end
+    end
     show()
     show2()
     layoutBankers()
@@ -5070,7 +5508,8 @@ local function RegisterOptions()
 
   -- los mismos efectos que tenia la pagina de Ajustes (y los comandos /gf ruta y /gf tope)
   local function applied(key)
-    if key == "nextSteps" or key == "gamePlan" then tracker() end
+    if key == "nextSteps" or key == "gamePlan" or key == "trackerMode" then tracker() end
+    if key == "recipeNotes" and Skin.RecipeNotes then pcall(Skin.RecipeNotes.refresh) end
     if key == "shopping" or key == "craftTab" or key == "routeTab" or key == "profTabs" then
       for _, u in ipairs(uiInstances) do
         pcall(u.layoutNav)
@@ -5133,7 +5572,18 @@ local function RegisterOptions()
     "Fabricaciones a reservar de cada material (para subir tu profesion).")
 
   header("Ventanas y paneles")
-  check("nextSteps", "Ventana del siguiente paso", "Ventana flotante con el siguiente paso de las guias de profesion.")
+  check("nextSteps", "Ventana del siguiente paso", "Siguiente paso de las guias de profesion (en el seguimiento de objetivos o en una ventana flotante, segun la opcion de abajo).")
+  -- donde va el siguiente paso: deslizador con pasos (el desplegable nativo falla en el cliente Forever)
+  local MODES = { "objetivos", "flotante" }
+  local mode = S.RegisterProxySetting(cat, "GoldFinder_trackerMode", NUM, "Donde se muestra el siguiente paso", 1,
+    function() return Cfg("trackerMode") == "flotante" and 2 or 1 end,
+    function(i)
+      GoldFinderDB.trackerMode = MODES[floor((tonumber(i) or 1) + 0.5)] or "objetivos"
+      applied("trackerMode")
+    end)
+  slider(mode, 1, 2, 1, function(i)
+    return floor(i + 0.5) == 2 and "Ventana flotante" or "Seguimiento de objetivos"
+  end, "Seguimiento de objetivos: un bloque GoldFinder Forever en el seguimiento de la derecha (junto al de SkillUp Forever si lo tienes). Ventana flotante: el panel movible de siempre.")
   check("gamePlan", "Siguiente paso segun la subasta",
     "Siguiente paso segun mis recetas y los precios de la subasta (en vez de la guia).")
   check("readyAlert", "Aviso al reunir los materiales", "Avisar (chat y sonido) cuando reuna los materiales de un paso.")
@@ -5153,6 +5603,8 @@ local function RegisterOptions()
     "Pestana Ruta: planificador de ruta de profesion con tus recetas y los precios de la subasta.")
   check("profTabs", "Pestanas de GoldFinder en la ventana de profesiones",
     "Pestanas Ruta y Fabricar al pie de la ventana de profesiones, con los datos de la profesion abierta (cada una solo si su pestana esta activa).")
+  check("recipeNotes", "Notas en la lista de recetas",
+    "Junto a cada receta de la ventana de profesiones: probabilidad de subir un punto y coste (-) o ganancia (+) por punto segun la ruta. Con SkillUp Forever mostrando su texto en la fila, van en el tooltip de la receta.")
   number("routeSpan", "Puntos que planifica la ruta", 5, 100, 1,
     "Puntos de habilidad que planifica la pestana Ruta, de 5 a 100 (lo mismo que /gf ruta N).")
   number("sellCap", "Unidades a precio de subasta", 0, 1000, 1,

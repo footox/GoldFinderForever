@@ -49,8 +49,8 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U5 | S6 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L16 |
 | U6 | S8, S5 | delegated (context backstop) | done, verified in game | a0f11da |
 | U7 | S9 | inline | done, verified in game | 0ca4681, 40f7164 |
-| U8 | S10a | delegated (context backstop) | in progress | |
-| U9 | S10b | delegated (context backstop) | in progress | |
+| U8 | S10a | delegated (context backstop) | done (offline tests), in-game check pending | see Log L20 |
+| U9 | S10b | delegated (context backstop) | done (offline tests), in-game check pending | see Log L20 |
 
 - U1: main window and shared helpers (`Flat`, `Text`, `Btn`, `PAL`, list rows, tabs) in the classic style.
 - U2: guide, tracker, mail, bank, vendor and export frames in the classic style.
@@ -137,3 +137,10 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   "Profession reagents" block in the objective tracker, chance and cost per point next to each recipe in the
   recipe list, and a richer Route page; GoldFinder's Ruta/Fabricar tabs sit after SkillUp's Route/Supply/Buffs
   without overlap. Then "Las 2": tasks U8 (objective tracker block) and U9 (recipe list annotations).
+- L20: U8/U9 done by a bounded writer. U8: with SkillUp, a "GoldFinder Forever" section through ForeverCore's
+  public TrackerSection API next to "Profession reagents"; without it, a look-alike block GoldFinderObjectives under
+  ObjectiveTrackerFrame (anchor only). Fed by NextStepList via UpdateTracker; setting trackerMode
+  (objetivos/flotante, stepped slider); still requires nextSteps. U9: notes "NN% · ±money" on recipe rows via
+  ScrollUtil.AddInitializedFrameCallback; cost/gain per point from PlanRoute (new plan.eff field, formula
+  unchanged); with SkillUp row text on, GoldFinder adds tooltip lines instead; setting recipeNotes.
+  tests/objective_notes_test.lua 27 PASS (RED first); all suites pass.
