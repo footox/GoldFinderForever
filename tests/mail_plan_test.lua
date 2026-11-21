@@ -2,13 +2,11 @@
 -- (max 12 whole stacks, never below the reserve, locked/bound slots skipped, remaining mails). Run from the addon folder:
 --   "C:\Program Files (x86)\Lua\5.1\lua.exe" tests\mail_plan_test.lua
 
-local src = assert(io.open("GoldFinder.lua")):read("*a")
-local a = assert(src:find("-- PLAN DE CORREO", 1, true), "start marker")
-local b = assert(src:find("-- FIN DE PLAN DE CORREO", 1, true), "end marker")
-local chunk = src:sub(a, b - 1) .. "\nreturn MailPlan"
-local f = assert(loadstring(chunk))
+local GF = {}
+local f = assert(loadfile("core/mail.lua"))
 setfenv(f, setmetatable({}, { __index = _G }))
-local MailPlan = f()
+f("GoldFinder", GF)
+local MailPlan = GF.MailPlan
 
 local failures = 0
 local function check(name, cond)
