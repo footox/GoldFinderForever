@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.1
+
+- Merchant prices are read through a compatibility helper that falls back to C_MerchantFrame.GetItemInfo if
+  GetMerchantItemInfo disappears in a future client patch.
+
 ## 2.1
 
 - No longer uses or ships any Zygor data: own route planner, own profession guide list generated from the game
