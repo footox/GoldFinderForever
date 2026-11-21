@@ -22,6 +22,7 @@ local DEFAULTS = {
   useSkillUp = false,   -- opcional: usar la lista de materiales de SkillUp Forever (si esta instalado) para decidir que guardar
   craftTab = false,     -- opcional: pestana Fabricar (que compensa fabricar con tus materiales)
   routeTab = false,     -- opcional: pestana Ruta (planificador de ruta de profesion)
+  profTabs = true,      -- pestanas Ruta y Fabricar tambien en la ventana de profesiones (si su pestana esta activa)
   routeSpan = 25,       -- puntos de habilidad que planifica la ruta
   sellCap = 5,          -- ruta: unidades de cada objeto fabricado que se valoran a precio de subasta (el resto, a precio del vendedor)
   banker = "",        -- nombre del personaje banquero al que se envia lo que hay que subastar
@@ -3147,7 +3148,7 @@ local function MakeSettings(parent)
   sf:SetPoint("TOPLEFT", outer, "TOPLEFT", 0, 0)
   sf:SetPoint("BOTTOMRIGHT", outer, "BOTTOMRIGHT", -26, 0)
   local v = CreateFrame("Frame", nil, sf)
-  v:SetSize(700, 1037)
+  v:SetSize(700, 1069)
   sf:SetScrollChild(v)
   sf:SetScript("OnSizeChanged", function(_, w) if w and w > 0 then v:SetWidth(w) end end)
   local title = Text(v, 13, PAL.gold); title:SetPoint("TOPLEFT", v, "TOPLEFT", 0, 0); title:SetText("Opciones")
@@ -3167,6 +3168,7 @@ local function MakeSettings(parent)
     { "useSkillUp", "Usar la ruta de SkillUp Forever (si lo tienes) para decidir que materiales guardar" },
     { "craftTab", "Pestana Fabricar: que compensa fabricar con tus materiales (valor del objeto fabricado)" },
     { "routeTab", "Pestana Ruta: planificador de ruta de profesion con tus recetas y los precios de la subasta" },
+    { "profTabs", "Pestanas de GoldFinder en la ventana de profesiones" },
   }
   v.cbs = {}
   for _, c in ipairs(checks) do
@@ -3177,7 +3179,7 @@ local function MakeSettings(parent)
     cb:SetScript("OnClick", function(self)
       GoldFinderDB[c[1]] = self:GetChecked() and true or false
       if c[1] == "nextSteps" then UpdateTracker() end
-      if c[1] == "shopping" or c[1] == "craftTab" or c[1] == "routeTab" then
+      if c[1] == "shopping" or c[1] == "craftTab" or c[1] == "routeTab" or c[1] == "profTabs" then
         for _, u in ipairs(uiInstances) do
           pcall(u.layoutNav)
           if (not Cfg("shopping") and u.current == "compras") or (not Cfg("craftTab") and u.current == "fabricar")
@@ -3400,12 +3402,16 @@ local function RecordVendorPrices()
   end
 end
 
-local function CreateUI(parent)
+-- opts (opcional): embedded = sin pestanas propias (las pone la ventana que lo aloja); only = vistas permitidas;
+-- onNav = se llama en lugar de recolocar las pestanas; back = accion para volver a la pagina del juego.
+local function CreateUI(parent, opts)
   -- native: la ventana propia con marco de Blizzard (retrato, titulo e Inset del ButtonFrameTemplate).
   -- Si no, el contenido va incrustado (pestana de la subasta, que ya tiene su marco) con su propio Inset.
   local native = parent.gfNative
+  local embedded = opts and opts.embedded
   local ui = CreateFrame("Frame", "GoldFinderUI" .. (#uiInstances + 1), parent)
   ui:SetAllPoints(parent)
+  ui.back = opts and opts.back
   ui:SetFrameLevel(parent:GetFrameLevel() + 20)
 
   local header = CreateFrame("Frame", nil, ui)
@@ -3438,7 +3444,7 @@ local function CreateUI(parent)
       inset:SetPoint("TOPLEFT", ui, "TOPLEFT", 4, -60); inset:SetPoint("BOTTOMRIGHT", ui, "BOTTOMRIGHT", -6, 6)
     else
       -- abajo queda sitio para las pestanas, que cuelgan del Inset
-      inset:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -2); inset:SetPoint("BOTTOMRIGHT", ui, "BOTTOMRIGHT", 0, 32)
+      inset:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -2); inset:SetPoint("BOTTOMRIGHT", ui, "BOTTOMRIGHT", 0, embedded and 0 or 32)
     end
   end
   local bReset = Btn(header, "Reiniciar sesion", 110, 22, nil, function()
@@ -3458,6 +3464,7 @@ local function CreateUI(parent)
     { "resumen", "Resumen" }, { "bolsas", "Bolsas" }, { "compras", "Compras" }, { "fabricar", "Fabricar" }, { "ruta", "Ruta" }, { "cuero", "Cuero" },
     { "sesion", "Sesion" }, { "ajustes", "Ajustes" },
   }
+  if embedded then navDefs = {} end
   ui.nav = {}
   ui.Tabs = {}
   for i, def in ipairs(navDefs) do
@@ -3504,6 +3511,7 @@ local function CreateUI(parent)
     end
   end
   ui.layoutNav()
+  if embedded then ui.layoutNav = function() if opts.onNav then opts.onNav() end end end
 
   local area = CreateFrame("Frame", nil, ui)
   area:SetPoint("TOPLEFT", inset, "TOPLEFT", 8, -8)
@@ -3685,7 +3693,7 @@ local function CreateUI(parent)
       local v1 = AHApi()
       local rows = {}
       for prof, pd in pairs(Char().prof) do
-        if ProfOn(prof) and pd.crafts then
+        if ProfOn(prof) and pd.crafts and (not ui.profFilter or ui.profFilter == prof) then
           for name, cr in pairs(pd.crafts) do
             local n, matSell, matBuy, unknownBuy = nil, 0, 0, false
             for _, m in ipairs(cr.r) do
@@ -3744,7 +3752,9 @@ local function CreateUI(parent)
           c1 = r.n > 0 and ("x" .. r.n) or (DIM .. "-|r"),
           c2 = ShortMoney(r.outVal) .. (r.viaAH and "" or (" " .. DIM .. "(vendedor)|r")),
           c3 = gtxt,
-          actions = { { "Abrir", function() OpenProfession({ prof = r.prof, skillLine = r.pd.skillLine }) end } },
+          -- dentro de la ventana de profesiones, Abrir la cerraria: se vuelve a la lista de recetas del juego
+          actions = { ui.back and { "Recetas", ui.back }
+            or { "Abrir", function() OpenProfession({ prof = r.prof, skillLine = r.pd.skillLine }) end } },
         }
       end
       ui.list.setRows(out, "Abre la ventana de cada profesion una vez para que GoldFinder aprenda que fabrica cada receta, y escanea la subasta para tener precios.")
@@ -3756,7 +3766,9 @@ local function CreateUI(parent)
       local span = Cfg("routeSpan") or 25
       local names = {}
       for prof, pd in pairs(Char().prof) do
-        if ProfOn(prof) and pd.crafts and pd.rank and pd.skillLine then names[#names + 1] = prof end
+        if ProfOn(prof) and pd.crafts and pd.rank and pd.skillLine and (not ui.profFilter or ui.profFilter == prof) then
+          names[#names + 1] = prof
+        end
       end
       table.sort(names)
       for _, prof in ipairs(names) do
@@ -3866,10 +3878,15 @@ local function CreateUI(parent)
     ajustes = function() if ui.settings and ui.settings.refresh then ui.settings.refresh() end end,
   }
 
-  ui.current = "resumen"
+  ui.current = opts and opts.only and opts.only[1] or "resumen"
   function ui.open(key, retry)
     if (key == "compras" and not Cfg("shopping")) or (key == "fabricar" and not Cfg("craftTab"))
         or (key == "ruta" and not Cfg("routeTab")) then key = "resumen" end
+    if opts and opts.only then
+      local allowed = false
+      for _, k in ipairs(opts.only) do if k == key then allowed = true end end
+      if not allowed then key = opts.only[1] end
+    end
     ui.current = key
     for k, b in pairs(ui.nav) do
       local on = (k == key)
@@ -3970,6 +3987,237 @@ end
 ---------------------------------------------------------------------------
 -- PESTANA en la casa de subastas (LibAHTab, la misma libreria que Auctionator y TSM)
 ---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+-- VENTANA DE PROFESIONES: pestanas Ruta y Fabricar al pie de ProfessionsFrame (como las de SkillUp Forever).
+-- Todo con hooksecurefunc y HookScript: no se reemplaza ningun manejador de Blizzard ni se llama nada protegido.
+---------------------------------------------------------------------------
+do
+  -- PESTANAS EN LA VENTANA DE PROFESIONES
+  -- Pestanas que tocan para la profesion abierta: solo las profesiones con recetas que fabrican algo
+  -- (recoleccion: ninguna); Ruta solo si su pestana esta activa y hay algo que planificar.
+  local function ProfTabKeys(pd, craftOn, routeOn, hasRoute)
+    local keys = {}
+    if not (pd and type(pd.crafts) == "table" and next(pd.crafts) ~= nil) then return keys end
+    if routeOn and hasRoute then keys[#keys + 1] = "ruta" end
+    if craftOn then keys[#keys + 1] = "fabricar" end
+    return keys
+  end
+  -- FIN DE PESTANAS EN PROFESIONES
+
+  local P = { tabs = {}, hooked = {}, order = { "ruta", "fabricar" }, labels = { ruta = "Ruta", fabricar = "Fabricar" } }
+
+  -- profesion abierta en la ventana, con la misma clave con la que CacheProfession la guarda
+  function P.prof()
+    local T = C_TradeSkillUI
+    if not (T and T.GetBaseProfessionInfo) then return nil end
+    if (T.IsTradeSkillLinked and T.IsTradeSkillLinked()) or (T.IsTradeSkillGuild and T.IsTradeSkillGuild()) then return nil end
+    local base = T.GetBaseProfessionInfo()
+    return base and (base.professionName or base.parentProfessionName) or nil
+  end
+
+  function P.keys()
+    if not (GoldFinderDB and Cfg("profTabs")) then return {} end
+    local prof = P.prof()
+    local c = Char()
+    local pd = prof and ProfOn(prof) and c.prof[prof] or nil
+    local hasRoute = pd and pd.rank and Cfg("routeTab")
+      and RouteFor(c, prof, pd.rank + (Cfg("routeSpan") or 25)) ~= nil
+    return ProfTabKeys(pd, Cfg("craftTab"), Cfg("routeTab"), hasRoute)
+  end
+
+  -- ultima pestana visible al pie de la ventana que no es nuestra (las de Blizzard o las de SkillUp)
+  function P.lastTab(win)
+    local bottom, best, bestRight = win:GetBottom(), nil, nil
+    if not bottom then return nil end
+    local function scan(holder)
+      for _, c in ipairs({ holder:GetChildren() }) do
+        if not c.gfProfTab and c:IsShown() and c:IsObjectType("Button") and c.Text and (c.LeftActive or c.Left) then
+          local top, right = c:GetTop(), c:GetRight()
+          if top and right and math.abs(top - bottom) < 14 and (not bestRight or right > bestRight) then
+            best, bestRight = c, right
+          end
+        end
+      end
+    end
+    scan(win)
+    if type(win.TabSystem) == "table" and win.TabSystem.GetChildren then scan(win.TabSystem) end
+    return best
+  end
+
+  function P.hide()
+    P.current = nil
+    if P.page then P.page:Hide() end
+  end
+
+  -- la pagina del juego vuelve (pestana del juego, otra pagina o la ventana se abre de nuevo)
+  function P.native()
+    P.hide()
+    P.later()
+  end
+
+  -- cualquier pagina o pestana lateral del juego devuelve la ventana a Blizzard
+  function P.hookNative(win)
+    local function hook(fr, script)
+      if type(fr) == "table" and fr.HookScript and not P.hooked[fr] then
+        P.hooked[fr] = true
+        fr:HookScript(script, P.native)
+      end
+    end
+    if type(win.Pages) == "table" then for _, page in ipairs(win.Pages) do hook(page, "OnShow") end end
+    for _, n in ipairs({ "CraftingPage", "BookPage", "SpecPage", "OrdersPage" }) do hook(win[n], "OnShow") end
+    hook(win.ProfessionsOverviewTab, "OnMouseUp")
+    if type(win.rightProfessionTabs) == "table" then
+      for _, t in ipairs(win.rightProfessionTabs) do hook(t, "OnMouseUp") end
+    end
+  end
+
+  function P.sync()
+    local win = ProfessionsFrame
+    if not (P.installed and type(win) == "table") then return end
+    P.hookNative(win)
+    local on = {}
+    if win:IsShown() then for _, k in ipairs(P.keys()) do on[k] = true end end
+    if P.current and not on[P.current] then P.hide() end
+    local prev = P.lastTab(win)
+    for _, k in ipairs(P.order) do
+      local b = P.tabs[k]
+      if b then
+        b:SetShown(on[k] == true)
+        if on[k] then
+          b:ClearAllPoints()
+          if not (prev and pcall(b.SetPoint, b, "LEFT", prev, "RIGHT", 3, 0)) then
+            b:ClearAllPoints(); b:SetPoint("TOPLEFT", win, "BOTTOMLEFT", 11, 4)
+          end
+          prev = b
+        end
+        if b.gfPanel then
+          local fn = (k == P.current) and PanelTemplates_SelectTab or PanelTemplates_DeselectTab
+          if fn then pcall(fn, b) end
+        elseif k == P.current then b:LockHighlight() else b:UnlockHighlight() end
+      end
+    end
+  end
+
+  -- una recolocacion en el siguiente frame, por muchas veces que se pida en este
+  function P.later()
+    if P.queued then return end
+    P.queued = true
+    C_Timer.After(0, function()
+      P.queued = false
+      xpcall(P.sync, geterrorhandler())
+    end)
+  end
+
+  -- tras los eventos de la ventana (CacheProfession ya guardo las recetas): pestanas y, si cambio la profesion, datos
+  function P.update()
+    P.sync()
+    if P.current and P.ui and P.page:IsShown() then
+      local prof = P.prof()
+      if prof ~= P.ui.profFilter then
+        P.ui.profFilter = prof
+        P.ui.refresh()
+      end
+    end
+  end
+
+  function P.soon()
+    if P.waiting then return end
+    P.waiting = true
+    C_Timer.After(0.8, function()
+      P.waiting = false
+      xpcall(P.update, geterrorhandler())
+    end)
+  end
+
+  function P.build(win)
+    if P.ui then return end
+    -- debajo del retrato y la barra del titulo; por encima de la pagina de recetas, que queda tapada
+    local page = CreateFrame("Frame", "GoldFinderProfessionPage", win)
+    page:SetPoint("TOPLEFT", win, "TOPLEFT", 4, -58)
+    page:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -4, 4)
+    page:SetFrameLevel(math.min(win:GetFrameLevel() + 40, 9000))
+    page:EnableMouse(true)
+    local bg = Flat(page, "BACKGROUND", { 0.05, 0.05, 0.05, 0.97 }); bg:SetAllPoints()
+    page:Hide()
+    P.page = page
+    P.ui = CreateUI(page, { embedded = true, only = P.order, onNav = P.later,
+      back = function() P.hide(); P.sync() end })
+  end
+
+  function P.select(key)
+    local win = ProfessionsFrame
+    if not (type(win) == "table" and win:IsShown()) then return end
+    -- si hay una pagina de SkillUp (ForeverCore) elegida, se devuelve la ventana al juego antes de tapar
+    pcall(function()
+      local FT = type(ForeverCore) == "table" and ForeverCore.ProfessionTabs
+      if type(FT) == "table" and FT.Selected and FT.ShowNative and FT.Selected() then FT.ShowNative() end
+    end)
+    P.build(win)
+    P.current = key
+    P.ui.profFilter = P.prof()
+    P.ui.current = key
+    if P.page:IsShown() then P.ui.refresh() else P.page:Show() end
+    P.sync()
+  end
+
+  -- otra pestana de la ventana (SkillUp) elegida: nuestra pagina se va. Las nuestras se ignoran.
+  function P.other(tab, selected)
+    if type(tab) ~= "table" or tab.gfProfTab or not tab.GetParent then return end
+    local win = ProfessionsFrame
+    if not win or tab:GetParent() ~= win then return end
+    if selected and P.current then P.hide() end
+    P.later()
+  end
+
+  function P.install()
+    local win = ProfessionsFrame
+    if P.installed or type(win) ~= "table" or not win.HookScript then return end
+    P.installed = true
+    for _, k in ipairs(P.order) do
+      local b = NewFrame("Button", "GoldFinderProfTab_" .. k, win, "PanelTabButtonTemplate")
+      if b then
+        b.gfPanel = true
+        b:SetText(P.labels[k])
+        if PanelTemplates_TabResize then pcall(PanelTemplates_TabResize, b, 0) end
+      else
+        b = Btn(win, P.labels[k], 90, 22)
+      end
+      b.gfProfTab = true
+      b:SetScript("OnClick", function()
+        if PlaySound and SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then pcall(PlaySound, SOUNDKIT.IG_CHARACTER_INFO_TAB) end
+        P.select(k)
+      end)
+      b:Hide()
+      P.tabs[k] = b
+    end
+    win:HookScript("OnShow", P.later)
+    win:HookScript("OnHide", P.hide)
+    if type(hooksecurefunc) == "function" then
+      if type(PanelTemplates_SelectTab) == "function" then
+        hooksecurefunc("PanelTemplates_SelectTab", function(tab) P.other(tab, true) end)
+      end
+      if type(PanelTemplates_DeselectTab) == "function" then
+        hooksecurefunc("PanelTemplates_DeselectTab", function(tab) P.other(tab, false) end)
+      end
+    end
+    if type(EventRegistry) == "table" and EventRegistry.RegisterCallback then
+      pcall(EventRegistry.RegisterCallback, EventRegistry, "ProfessionsFrame.TabSet", P.native, P)
+      pcall(EventRegistry.RegisterCallback, EventRegistry, "Professions.ProfessionSelected", P.soon, P)
+    end
+    P.sync()
+  end
+
+  -- Blizzard_Professions se carga bajo demanda: se instala en cuanto existe la ventana
+  local ev = CreateFrame("Frame")
+  for _, e in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_DATA_SOURCE_CHANGED" }) do
+    pcall(ev.RegisterEvent, ev, e)
+  end
+  ev:SetScript("OnEvent", function(_, event)
+    if not P.installed and ProfessionsFrame then xpcall(P.install, geterrorhandler()) end
+    if P.installed and event:find("^TRADE_SKILL") then P.soon() end
+  end)
+end
+
 local TAB_ID = "GoldFinderTab"
 local panelBuilt = false
 
@@ -4579,7 +4827,7 @@ local function RegisterOptions()
   -- los mismos efectos que tenia la pagina de Ajustes (y los comandos /gf ruta y /gf tope)
   local function applied(key)
     if key == "nextSteps" or key == "gamePlan" then tracker() end
-    if key == "shopping" or key == "craftTab" or key == "routeTab" then
+    if key == "shopping" or key == "craftTab" or key == "routeTab" or key == "profTabs" then
       for _, u in ipairs(uiInstances) do
         pcall(u.layoutNav)
         if (not Cfg("shopping") and u.current == "compras") or (not Cfg("craftTab") and u.current == "fabricar")
@@ -4659,6 +4907,8 @@ local function RegisterOptions()
   check("craftTab", "Pestana Fabricar", "Pestana Fabricar: que compensa fabricar con tus materiales (valor del objeto fabricado).")
   check("routeTab", "Pestana Ruta",
     "Pestana Ruta: planificador de ruta de profesion con tus recetas y los precios de la subasta.")
+  check("profTabs", "Pestanas de GoldFinder en la ventana de profesiones",
+    "Pestanas Ruta y Fabricar al pie de la ventana de profesiones, con los datos de la profesion abierta (cada una solo si su pestana esta activa).")
   number("routeSpan", "Puntos que planifica la ruta", 5, 100, 1,
     "Puntos de habilidad que planifica la pestana Ruta, de 5 a 100 (lo mismo que /gf ruta N).")
   number("sellCap", "Unidades a precio de subasta", 0, 1000, 1,

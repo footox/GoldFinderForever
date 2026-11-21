@@ -39,7 +39,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 |----|-------|-------|--------|--------|
 | U1 | S2, S3, S5 | delegated (context backstop) | done, verified in game (window) | 642153f, b225f3e |
 | U2 | S4, S5 | pending | pending | |
-| U3 | S6 | pending | pending | |
+| U3 | S6 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L14 |
 | U4 | S6, S7 | delegated (context backstop) | done, verified in game | bbd009a, 454b833 |
 | U5 | S6 | pending | pending | |
 | U6 | S8, S5 | delegated (context backstop) | done, verified in game | a0f11da |
@@ -101,3 +101,10 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 - L13: In game 21:07-21:08: sell panel next to Innkeeper Adegwa with scroll bar, Guardar/Vender per row, total;
   sleeping bag no longer listed; a sale happened; Guardar persisted ids in Char().keep (3385, 17058, 3827, 929...);
   no GoldFinder errors in BugGrabber after /reload.
+- L14: U3 done by a bounded writer. Forever's ProfessionsFrame has no Blizzard bottom tabs (native tabs are on
+  the right side); SkillUp adds a side tab plus bottom tabs only while its page is open. GoldFinder adds "Ruta" and
+  "Fabricar" PanelTabButtonTemplate tabs at the bottom-left, anchored after any visible bottom tab; page
+  GoldFinderProfessionPage covers the recipe area and hides on any other tab (hooksecurefunc on PanelTemplates_*,
+  HookScript on native pages). CreateUI(parent, opts) gains embedded/only/onNav/back and ui.profFilter. Helper
+  ProfTabKeys (tests/prof_tabs_test.lua 9 PASS, RED first). Setting profTabs (default on); tabs also require
+  craftTab/routeTab, which default to off (on in the user's profile). Open question for sharing: default visibility.
