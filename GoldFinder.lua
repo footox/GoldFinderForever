@@ -3056,8 +3056,11 @@ do
   end
   function Skin.GuideBand(it)
     local b, grey, miss = it.band, it.done, false
-    local icon = b.spell and ((C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(b.spell))
-      or (GetSpellTexture and GetSpellTexture(b.spell))) or nil
+    -- icono del objeto que se fabrica: en Forever el icono del hechizo de profesion es el generico de la profesion
+    local rec = b.spell and GoldFinderRecipes and GoldFinderRecipes.spells and GoldFinderRecipes.spells[b.spell]
+    local icon = rec and rec.o and C_Item.GetItemIconByID and C_Item.GetItemIconByID(rec.o) or nil
+    icon = icon or (b.spell and ((C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(b.spell))
+      or (GetSpellTexture and GetSpellTexture(b.spell)))) or nil
     local head = (icon and format("|T%s:16:16:0:-2|t ", tostring(icon)) or "")
       .. (grey and "" or "|cffffd100") .. format("%d-%d", b.from, b.to) .. (grey and "  " or "|r  ")
       .. (b.name or "sin receta conocida en las tablas del juego")
