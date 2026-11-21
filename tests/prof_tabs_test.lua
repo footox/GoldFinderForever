@@ -2,13 +2,11 @@
 -- the open profession. Run from the addon folder:
 --   "C:\Program Files (x86)\Lua\5.1\lua.exe" tests\prof_tabs_test.lua
 
-local src = assert(io.open("GoldFinder.lua")):read("*a")
-local a = assert(src:find("-- PESTANAS EN LA VENTANA DE PROFESIONES", 1, true), "start marker")
-local b = assert(src:find("-- FIN DE PESTANAS EN PROFESIONES", 1, true), "end marker")
-local chunk = src:sub(a, b - 1) .. "\nreturn ProfTabKeys"
-local f = assert(loadstring(chunk))
+local GF = {}
+local f = assert(loadfile("core/proftabs.lua"))
 setfenv(f, setmetatable({}, { __index = _G }))
-local ProfTabKeys = f()
+f("GoldFinder", GF)
+local ProfTabKeys = GF.ProfTabKeys
 
 local failures = 0
 local function check(name, cond)

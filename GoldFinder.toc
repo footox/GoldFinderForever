@@ -17,6 +17,7 @@ core/decision.lua
 core/vendor.lua
 core/mail.lua
 core/auction.lua
+core/proftabs.lua
 core/routeplanner.lua
 adapters/wow.lua
 adapters/bags.lua
@@ -25,6 +26,7 @@ ui/widgets.lua
 features/vendor/panel.lua
 features/mail/panel.lua
 features/auction/post.lua
+features/professions/tabs.lua
 GoldFinderRoutes.lua
 GoldFinderTrainers.lua
 GoldFinderRecipes.lua
