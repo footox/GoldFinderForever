@@ -38,6 +38,12 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   "Profession reagents" block) instead of only the floating panel; (b) per-recipe info in Blizzard's recipe list
   (skill-up chance and cost/gain per point, as SkillUp shows "100% · +2s"), without overlapping SkillUp's own text.
 
+- S11. Auction from the list (user verbatim): "Porque la idea que de lo que se indica que se subaste, en la lista se
+  pueda subastar." and "Y la idea es que ya calcule la cantidad y precio recomendado, como lo hace TSM." Each item
+  GoldFinder marks for auction has a "Subastar" button in the AH tab that posts it with one click at a computed
+  price and quantity (TSM-like operation: market reference, min/normal/max, undercut, post cap), with a tooltip
+  showing price, quantity, deposit and the reason; nothing is posted without a click.
+
 ## Tasks
 
 | ID | Specs | Route | Status | Commit |
@@ -51,6 +57,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U7 | S9 | inline | done, verified in game | 0ca4681, 40f7164 |
 | U8 | S10a | delegated (context backstop) | done, verified in game | c3eab1d, 60be0a1 |
 | U9 | S10b | delegated (context backstop) | done, verified in game | c3eab1d |
+| U10 | S11 | delegated (context backstop) | in progress | |
 
 - U1: main window and shared helpers (`Flat`, `Text`, `Btn`, `PAL`, list rows, tabs) in the classic style.
 - U2: guide, tracker, mail, bank, vendor and export frames in the classic style.
@@ -157,3 +164,5 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 - L23: After /reload with Ashes (22:21): saved fichas are "Ashes Soulbinder" and "Twistice Penguin" (old realm key
   renamed on first login). No GoldFinder errors. Still not seen in game: Fabricar page in the professions window,
   /gf guia restyle, mail and bank panels.
+- L24 (2026-11-20, user, verbatim): "Realmente no se si es funcional lo que muestra." then the S11 quotes. Current
+  "Vender" action in the AH Bolsas rows only prepares the item in Auctionator's Selling tab (two steps). Task U10.
