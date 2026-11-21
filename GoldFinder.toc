@@ -10,6 +10,9 @@
 ## OptionalDeps: TradeSkillMaster
 ## SavedVariables: GoldFinderDB
 
+core/config.lua
+core/money.lua
+adapters/wow.lua
 GoldFinderRoutes.lua
 GoldFinderTrainers.lua
 GoldFinderRecipes.lua
