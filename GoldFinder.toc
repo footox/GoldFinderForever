@@ -9,4 +9,5 @@
 GoldFinderRoutes.lua
 GoldFinderTrainers.lua
 GoldFinderRecipes.lua
+GoldFinderGuides.lua
 GoldFinder.lua

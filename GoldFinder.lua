@@ -2862,13 +2862,17 @@ end
 -- ventana flotante. Clic en un paso: marca su destino; clic derecho: busca sus materiales.
 ---------------------------------------------------------------------------
 local guideRows = {}
-local GUIDE_W = 410
+local GUIDE_W = 580
 local guideProf
 
--- Profesiones con guia: las de fabricar cuyas recetas ya conoce el addon y las de recoleccion con zonas
+-- Profesiones con guia: las de la lista propia (GoldFinderGuides), las de fabricar cuyas recetas ya conoce el
+-- addon y las de recoleccion con zonas
 local function GuideKey(prof)
   local pd = Char().prof[prof]
   if not pd then return nil end
+  for _, g in pairs(GoldFinderGuides or {}) do
+    if (pd.skillLine and g.line == pd.skillLine) or g.name:lower() == prof:lower() then return prof:lower() end
+  end
   if (pd.crafts and next(pd.crafts)) or GatherZones(prof) then return prof:lower() end
   return nil
 end
@@ -2879,61 +2883,228 @@ local function WhereText(d)
   return d.zone or "?"
 end
 
-local function BuildGuide(prof, pd)
-  if not GuideKey(prof) then return nil end
-  local T = TrainList(prof)
-  local rank = pd.rank or 0
-  local maxR = pd.maxRank or rank
-  local items = {}
-  local function addTrain(done)
-    for _, d in ipairs(T or {}) do
-      if (d.max <= maxR) == done then
+-- GUIA HIBRIDA: la lista propia (GoldFinderGuides, generada de las tablas del juego y de Icy Veins) con el
+-- estado del personaje encima: tramos hechos, el actual con lo que falta, y la alternativa mas barata del
+-- planificador con tus precios. Los instructores visitados corrigen la habilidad requerida y el precio.
+local BuildGuide
+do
+  -- MEZCLA DE LA GUIA
+  -- bands: tramos de GoldFinderGuides; st = { rank, known = {nombre en minusculas = true}, trainer = recetas
+  -- anotadas del instructor {nombre = {n, req, cost, npc, zone, x, y}}, recipe(hechizo) -> {r = materiales},
+  -- plan = plan de PlanRoute (o nil), have(id) -> unidades, price(id) -> cobre o nil }.
+  -- Devuelve una fila por tramo con done/current/upcoming, la habilidad requerida (approx si es estimada), lo que
+  -- falta del tramo (left fabricaciones, mats, cost) y alt = { what, n, cost } si el plan elige otra receta mas
+  -- barata para esos puntos.
+  local function GuideMerge(bands, st)
+    local rank = st.rank or 0
+    local function costOf(list, mult)
+      local mats, cost, unknown = {}, 0, false
+      for _, m in ipairs(list or {}) do
+        local need = math.ceil(m[2] * mult - 1e-9)
+        local have = st.have(m[1]) or 0
+        local missing = math.max(0, need - have)
+        local p = st.price(m[1])
+        if missing > 0 then
+          if p then cost = cost + missing * p else unknown = true end
+        end
+        mats[#mats + 1] = { id = m[1], need = need, have = have, missing = missing }
+      end
+      return mats, (not unknown) and cost or nil
+    end
+    local rows = {}
+    for _, b in ipairs(bands) do
+      local key = (b.n or ""):lower()
+      local row = { band = b, from = b.f, to = b.t, name = b.n, spell = b.s, crafts = b.c, learn = b.l,
+        item = b.i, req = b.q, approx = b.a == true, icy = b.src == "icy",
+        known = st.known[key] == true, opt = b.o and { item = b.o, name = b.on } or nil }
+      local rec = b.n and st.trainer[key]
+      if rec and rec.req then
+        row.req, row.approx, row.trainerRec = rec.req, false, rec
+      end
+      row.done = b.t <= rank
+      row.current = (not row.done) and b.f <= rank
+      row.upcoming = b.f > rank
+      if not row.done and b.n then
+        local lo = math.max(b.f, rank)
+        local span = math.max(1, b.t - b.f)
+        row.left = math.max(1, math.ceil((b.c or 1) * (b.t - lo) / span - 1e-9))
+        local x = b.s and st.recipe(b.s)
+        if x then row.mats, row.cost = costOf(x.r, row.left) end
+        local best, bestOv
+        for _, s in ipairs(st.plan and st.plan.steps or {}) do
+          local ov = math.min(s.to, b.t) - math.max(s.from, lo)
+          if ov > 0 and (not best or ov > bestOv) then best, bestOv = s, ov end
+        end
+        if best and best.c.name:lower() ~= key then
+          local _, c = costOf(best.c.cr and best.c.cr.r, best.n or 1)
+          if c and (not row.cost or c < row.cost) then
+            row.alt = { what = best.c.name, n = best.n, cost = c, learn = best.c.learn }
+          end
+        end
+      end
+      rows[#rows + 1] = row
+    end
+    return rows
+  end
+  -- FIN DE MEZCLA DE LA GUIA
+
+  -- Lista propia de la profesion (o nil)
+  local function GuideStatic(prof, pd)
+    for _, g in pairs(GoldFinderGuides or {}) do
+      if (pd.skillLine and g.line == pd.skillLine) or g.name:lower() == prof:lower() then return g end
+    end
+    return nil
+  end
+
+  function BuildGuide(prof, pd)
+    if not GuideKey(prof) then return nil end
+    local T = TrainList(prof)
+    local rank = pd.rank or 0
+    local maxR = pd.maxRank or rank
+    local g = GuideStatic(prof, pd)
+    local items = {}
+    local zones = (g and g.zones) or GatherZones(prof)
+    if zones then
+      for _, z in ipairs(zones) do
+        local from, to, zt, note = z[1] or z.from, z[2] or z.to, z[3] or z.zone, z[4] or z.note
+        local zone = PickZone(zt)
         items[#items + 1] = {
-          kind = "train", d = d, done = done,
-          e = { train = d, trainState = "guide", prof = prof },
+          kind = "gather", st = { upto = to, zone = zone }, done = to <= rank, from = from,
+          e = { gather = true, prof = prof, zone = zone, upto = to, note = note },
         }
       end
-    end
-  end
-  addTrain(true)
-  local zones = GatherZones(prof)
-  if zones then
-    for _, z in ipairs(zones) do
-      local zone = PickZone(z.zone)
-      items[#items + 1] = {
-        kind = "gather", st = { upto = z.to, zone = zone }, done = z.to <= rank, from = z.from,
-        e = { gather = true, prof = prof, zone = zone, upto = z.to, note = z.note },
-      }
-    end
-  else
-    -- pasos de tu ruta desde la habilidad actual; la receta del instructor se marca en su primer paso
-    local plan = RouteFor(Char(), prof, rank + (Cfg("routeSpan") or 25))
-    local learnSeen = {}
-    for _, st in ipairs(plan and plan.steps or {}) do
-      local it = { kind = "craft", st = { upto = st.to, qty = st.n, what = st.c.name }, done = false, from = st.from,
-        mats = StepMats(st) }
-      if st.c.learn and not learnSeen[st.c] then
-        learnSeen[st.c] = true
-        it.unknown = true
-        it.learn = TrainerLearn(st.c.learn)
+    elseif g and g.bands then
+      local known = {}
+      for n in pairs(pd.crafts or {}) do known[n:lower()] = true end
+      for n in pairs(pd.learned or {}) do known[n:lower()] = true end
+      local TR = GoldFinderDB.trainerRecipes and GoldFinderDB.trainerRecipes[UnitFactionGroup("player") or "?"]
+      local R = GoldFinderRecipes and GoldFinderRecipes.spells or {}
+      local plan = pd.crafts and RouteFor(Char(), prof, math.min(300, rank + 75)) or nil
+      local rows = GuideMerge(g.bands, {
+        rank = rank, known = known, trainer = TR and TR[prof] or {}, plan = plan,
+        recipe = function(id) return R[id] end,
+        have = function(id) local bg, bk = Counts(id); return bg + bk end,
+        price = function(id) return (BuyPrice(id)) end,
+      })
+      for _, row in ipairs(rows) do
+        local learn = row.trainerRec and TrainerLearn(row.trainerRec) or nil
+        if not learn and row.learn == "t" then
+          -- sin visita: el instructor del rango que ensena esa habilidad (GoldFinderTrainers o el anotado)
+          for _, d in ipairs(T or {}) do
+            if d.max > (row.req or 0) then
+              learn = { npc = d.npc, zone = d.zone, x = d.x, y = d.y, trainer = true, rank = d.name }
+              break
+            end
+          end
+        elseif row.learn == "i" then
+          learn = { item = row.item }
+        end
+        items[#items + 1] = { kind = "craft", band = row, done = row.done, from = row.from, mats = row.mats,
+          st = { upto = row.to, qty = row.left or row.crafts, what = row.name },
+          unknown = (row.name and not row.known) or nil, learn = learn }
       end
-      items[#items + 1] = it
+    else
+      -- sin lista propia: pasos de tu ruta desde la habilidad actual
+      local plan = RouteFor(Char(), prof, rank + (Cfg("routeSpan") or 25))
+      local learnSeen = {}
+      for _, st in ipairs(plan and plan.steps or {}) do
+        local it = { kind = "craft", st = { upto = st.to, qty = st.n, what = st.c.name }, done = false, from = st.from,
+          mats = StepMats(st) }
+        if st.c.learn and not learnSeen[st.c] then
+          learnSeen[st.c] = true
+          it.unknown = true
+          it.learn = TrainerLearn(st.c.learn)
+        end
+        items[#items + 1] = it
+      end
     end
-  end
-  addTrain(false)
-  local cur
-  if pd.maxRank and rank >= pd.maxRank then
-    for _, it in ipairs(items) do
-      if it.kind == "train" and not it.done then cur = it; break end
+    -- rangos del instructor: cada uno antes del primer tramo que pasa de la habilidad que pide entrenarlo
+    for _, d in ipairs(T or {}) do
+      local rq = TrainReq(prof, d.max)
+      local at = #items + 1
+      for idx, it in ipairs(items) do
+        if it.kind ~= "train" and it.st and it.st.upto > math.max(d.max - 75, (rq and rq.skill) or 0) then
+          at = idx; break
+        end
+      end
+      table.insert(items, at, { kind = "train", d = d, done = d.max <= maxR,
+        e = { train = d, trainState = "guide", prof = prof } })
     end
-  end
-  if not cur then
-    for _, it in ipairs(items) do
-      if it.kind ~= "train" and not it.done and (not cur or it.st.upto < cur.st.upto) then cur = it end
+    local cur
+    if pd.maxRank and rank >= pd.maxRank then
+      for _, it in ipairs(items) do
+        if it.kind == "train" and not it.done then cur = it; break end
+      end
     end
+    if not cur then
+      for _, it in ipairs(items) do
+        if it.kind ~= "train" and not it.done and (not cur or it.st.upto < cur.st.upto) then cur = it end
+      end
+    end
+    if cur then cur.current = true end
+    return items
   end
-  if cur then cur.current = true end
-  return items
+
+  -- Textos de un tramo de la lista propia: cabecera (habilidad, icono, receta, fabricaciones) y lineas secundarias
+  -- (como se aprende, receta opcional, alternativa con tus precios y lo que falta del tramo actual).
+  -- Devuelve head, sub (lista de lineas) y true si algun nombre de objeto aun no estaba cargado.
+  local function ItemName(id)
+    local nm = C_Item.GetItemInfo(id)
+    if nm then return nm, false end
+    if C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(id) end
+    return "item:" .. id, true
+  end
+  function Skin.GuideBand(it)
+    local b, grey, miss = it.band, it.done, false
+    local icon = b.spell and ((C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(b.spell))
+      or (GetSpellTexture and GetSpellTexture(b.spell))) or nil
+    local head = (icon and format("|T%s:16:16:0:-2|t ", tostring(icon)) or "")
+      .. (grey and "" or "|cffffd100") .. format("%d-%d", b.from, b.to) .. (grey and "  " or "|r  ")
+      .. (b.name or "sin receta conocida en las tablas del juego")
+      .. (b.name and format("  |cffb3b3b3x%d|r", it.st.qty or b.crafts or 0) or "")
+      .. (b.icy and "  |cff8a8a96(Icy Veins)|r" or "")
+    local sub = {}
+    if grey or not b.name then return head, sub, miss end
+    if not b.known then
+      if b.learn == "i" then
+        local nm, m = ItemName(b.item)
+        miss = miss or m
+        sub[#sub + 1] = format("|cffff9966Receta de vendedor/botin:|r %s (pide %d)", nm, b.req or 0)
+      elseif b.learn == "u" then
+        sub[#sub + 1] = format("|cffff9966Origen desconocido|r (no sale en las tablas del juego; habilidad aprox. %d)",
+          b.req or 0)
+      else
+        local l = it.learn
+        local who = (l and l.npc) and (l.npc .. " en " .. WhereText(l)) or "el instructor de la profesion"
+        local cost = b.trainerRec and b.trainerRec.cost and b.trainerRec.cost > 0 and (", " .. Money(b.trainerRec.cost)) or ""
+        sub[#sub + 1] = format("|cffff9966Aprendela con|r %s (pide %d%s)%s", who, b.req or 0, cost,
+          b.approx and " |cff8a8a96(habilidad aprox.)|r" or "")
+      end
+    elseif it.current then
+      sub[#sub + 1] = "|cff59eb8dYa sabes esta receta|r"
+    end
+    if b.opt then
+      local nm, m = ItemName(b.opt.item)
+      miss = miss or m
+      sub[#sub + 1] = format("Opcional, mas barata: %s (%s, receta de vendedor/botin)", b.opt.name or "?", nm)
+    end
+    if b.alt then
+      sub[#sub + 1] = format("|cff59eb8dCon tus precios conviene:|r %s x%d (coste ~%s%s)", b.alt.what, b.alt.n or 0,
+        ShortMoney(b.alt.cost), b.cost and (" frente a ~" .. ShortMoney(b.cost)) or "")
+    end
+    if it.current and b.mats and #b.mats > 0 then
+      local parts = {}
+      for _, m in ipairs(b.mats) do
+        local nm, mm = ItemName(m.id)
+        miss = miss or mm
+        if m.missing > 0 then parts[#parts + 1] = format("|cffffa640%s %d|r", nm, m.missing) end
+      end
+      sub[#sub + 1] = (#parts > 0) and ("Te falta: " .. table.concat(parts, ", ")
+        .. (b.cost and (" (~" .. ShortMoney(b.cost) .. ")") or ""))
+        or "|cff59eb8dListo: tienes los materiales del tramo|r"
+    end
+    return head, sub, miss
+  end
 end
 
 local function GuideRow(content, i)
@@ -2967,6 +3138,13 @@ local function GuideRow(content, i)
   r.text:SetWordWrap(true)
   r.text:SetJustifyV("TOP")
   r.text:SetSpacing(3)
+  -- lineas secundarias del tramo (aprender, alternativa, materiales): letra menor y apagada
+  r.sub = Text(r, 11, PAL.text)
+  r.sub:SetPoint("TOPLEFT", r.text, "BOTTOMLEFT", 0, -3)
+  r.sub:SetWidth(GUIDE_W - 14 - 36)
+  r.sub:SetWordWrap(true)
+  r.sub:SetJustifyV("TOP")
+  r.sub:SetSpacing(2)
   r.barBg = Flat(r, "BORDER", { 1, 1, 1, 0.10 })
   r.barBg:SetHeight(4)
   r.barBg:SetPoint("BOTTOMLEFT", 28, 2)
@@ -2977,6 +3155,11 @@ local function GuideRow(content, i)
   r:SetScript("OnClick", function(self, btn)
     local it = self.item
     if not it or it.kind == "tip" then return end
+    if it.kind == "section" then
+      GoldFinderGuide.cmpOpen = not GoldFinderGuide.cmpOpen
+      RefreshGuide()
+      return
+    end
     if btn == "RightButton" then
       if it.mats and #it.mats > 0 then SearchMaterials({ mats = it.mats }) end
     elseif it.e and Destination(it.e) then
@@ -3282,8 +3465,11 @@ function RefreshGuide()
     b:ClearAllPoints()
     if b.gfTab then
       b:SetText(name)
+      -- ancho segun el texto (sin tope); solo si no caben todas se limita el ancho de cada una
       local maxW = math.floor((GUIDE_W + 34 - 20 + 8 * (tn - 1)) / tn)
-      if PanelTemplates_TabResize then pcall(PanelTemplates_TabResize, b, 12, nil, math.min(70, maxW), maxW) end
+      if PanelTemplates_TabResize then
+        pcall(PanelTemplates_TabResize, b, 16, nil, 70, (tn > 4) and maxW or nil)
+      end
       if i == 1 then b:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 11, 2)
       else b:SetPoint("LEFT", f.tabs[i - 1], "RIGHT", -8, 0) end
       local fn = (name == guideProf) and PanelTemplates_SelectTab or PanelTemplates_DeselectTab
@@ -3308,14 +3494,11 @@ function RefreshGuide()
   local pd = guideProf and Char().prof[guideProf]
   local items = pd and BuildGuide(guideProf, pd) or nil
   if items then
+    -- comparacion de rutas: seccion propia al final, plegada por defecto (clic en la cabecera la abre)
     local okR, summary = pcall(RouteSummary, guideProf, GuideKey(guideProf), pd)
     if okR and summary then
-      -- justo debajo del paso actual (arriba del todo quedaria fuera de pantalla al desplazarse al paso actual)
-      local at = 0
-      for idx, it in ipairs(items) do
-        if it.current then at = idx; break end
-      end
-      table.insert(items, at + 1, { kind = "tip", text = summary })
+      items[#items + 1] = { kind = "section", open = f.cmpOpen }
+      if f.cmpOpen then items[#items + 1] = { kind = "tip", text = summary } end
     end
   end
   if items then
@@ -3351,9 +3534,16 @@ function RefreshGuide()
     local r = GuideRow(f.content, i)
     r.item = it
     local grey = it.done
-    local lines = {}
+    local lines, sub = {}, nil
     if it.kind == "tip" then
       lines[1] = it.text
+    elseif it.kind == "section" then
+      lines[1] = format("|cffffd100%s Comparar rutas|r  |cff8a8a96(%s)|r", it.open and "[-]" or "[+]",
+        it.open and "clic para plegar" or "tu ruta frente a Icy Veins con tus precios; clic para abrir")
+    elseif it.band then
+      local head, sl, miss = Skin.GuideBand(it)
+      lines[1], sub = head, sl
+      if miss then missing = true end
     elseif it.kind == "train" then
       local d = it.d
       local rq = TrainReq(guideProf, d.max)
@@ -3367,10 +3557,10 @@ function RefreshGuide()
       lines[1] = (grey and "" or "|cffffd100") .. it.st.upto .. (grey and "  " or "|r  ")
         .. format("Crea %d %s", it.st.qty, it.st.what)
     end
-    if not grey and not it.current and it.unknown then
+    if not grey and not it.current and it.unknown and not it.band then
       lines[1] = lines[1] .. "  |cffff6666(receta pendiente)|r"
     end
-    if it.current and it.mats and #it.mats > 0 then
+    if it.current and it.mats and #it.mats > 0 and not it.band then
       local parts, ready = {}, true
       for _, m in ipairs(it.mats) do
         local nm = C_Item.GetItemInfo(m.id)
@@ -3384,7 +3574,7 @@ function RefreshGuide()
       end
       lines[#lines + 1] = (ready and "|cff59eb8dListo:|r " or "") .. table.concat(parts, "  ")
     end
-    if it.current and it.unknown then
+    if it.current and it.unknown and not it.band then
       lines[#lines + 1] = "|cffff6666No sabes esta receta:|r " .. LearnText({ learn = it.learn })
     end
     if it.current and it.kind == "gather" then
@@ -3398,16 +3588,27 @@ function RefreshGuide()
         end
       end
     end
-    r.text:SetFont(STANDARD_TEXT_FONT, it.current and 13 or (grey and 11 or 12), "")
+    -- cabecera del tramo mas fuerte (13-14) que las lineas secundarias (11, apagadas)
+    r.text:SetFont(STANDARD_TEXT_FONT, it.current and 14 or (grey and 11 or (it.band and 13 or 12)), "")
     r.text:SetText(table.concat(lines, "\n"))
     if grey then r.text:SetTextColor(0.42, 0.44, 0.50)
     elseif it.kind == "train" then r.text:SetTextColor(1, 0.65, 0.25)
     else r.text:SetTextColor(0.92, 0.92, 0.92) end
     local h = (r.text:GetStringHeight() or 16) + (it.current and 14 or 8)
+    if sub and #sub > 0 then
+      r.sub:SetFont(STANDARD_TEXT_FONT, 11, "")
+      r.sub:SetTextColor(0.72, 0.72, 0.76)
+      r.sub:SetText(table.concat(sub, "\n"))
+      r.sub:Show()
+      h = h + (r.sub:GetStringHeight() or 12) + 3
+    else
+      r.sub:SetText("")
+      r.sub:Hide()
+    end
     r:SetHeight(h)
     r:ClearAllPoints()
     r:SetPoint("TOPLEFT", f.content, "TOPLEFT", 0, -y)
-    if it.kind == "tip" then r.check:Hide(); r.dot:Hide()
+    if it.kind == "tip" or it.kind == "section" then r.check:Hide(); r.dot:Hide()
     elseif it.done then r.check:Show(); r.dot:Hide()
     else r.check:Hide(); r.dot:Show() end
     if it.current then
@@ -3426,11 +3627,13 @@ function RefreshGuide()
       r.bg:Hide(); r.curBar:Hide(); r.barBg:Hide(); r.bar:Hide()
     end
     r:Show()
-    y = y + h + 4
+    y = y + h + 8
   end
   for i = #items + 1, #guideRows do guideRows[i]:Hide() end
   f.content:SetHeight(y + 8)
-  f:SetHeight(math.min(520, math.max(200, y + (f.padH or 78))))   -- se ajusta a los pasos
+  -- se ajusta a los pasos, sin pasar del alto de la pantalla (la lista se desplaza)
+  local maxH = math.max(300, math.min(640, ((UIParent and UIParent:GetHeight()) or 768) - 120))
+  f:SetHeight(math.min(maxH, math.max(200, y + (f.padH or 78))))
   f.curTop = curTop
   if f.needScroll then
     f.needScroll = false

@@ -69,7 +69,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U7 | S9 | inline | done, verified in game | 0ca4681, 40f7164 |
 | U8 | S10a | delegated (context backstop) | done, verified in game | c3eab1d, 60be0a1 |
 | U9 | S10b | delegated (context backstop) | done, verified in game | c3eab1d |
-| U12 | S13 | delegated (context backstop) | in progress | |
+| U12 | S13 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L36 |
 | U11 | S12 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L31 |
 | U10 | S11 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L25 |
 
@@ -232,3 +232,11 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 - L35 (2026-11-20, user, verbatim): "Tambien vi que la Guia de las profesiones, cambio bastante.", "Creo solo es
   visual.", "Y no se puede hacer algo hibrido?. Pero tener nuestra propia lista." and "si, vamos con ese enfoque".
   Task U12.
+- L36: U12 done by a bounded writer: tools/gen_guides.py generates GoldFinderGuides.lua (15 KB; LW 22 bands, Tailoring
+  16, BS 15, Alchemy 13, Engineering 14, Enchanting 11, Cooking 8, First Aid 9; zones for Mining/Herbalism/Skinning)
+  from wago.tools tables + GoldFinderRoutes (LW 1-225 Icy Veins). Item-taught by recipe item name with exact
+  RequiredSkillRank; trainer required skill estimated (y - median delta per profession, marked approx). Overlay:
+  GuideMerge (markers "-- MEZCLA DE LA GUIA" .. "-- FIN DE MEZCLA DE LA GUIA"), done/current/upcoming, learn lines,
+  optional cheaper item recipe, "Con tus precios conviene", missing materials; window 614 px, scrolls, collapsible
+  "Comparar rutas", tabs sized to text, 8 px row spacing. tests/guide_test.lua 20 PASS (RED first). Known limits:
+  estimated trainer skill; some quest/rep recipes may pass as trainer; Cooking recipes mostly vendor-sold.
