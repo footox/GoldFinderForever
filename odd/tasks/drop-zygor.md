@@ -31,8 +31,8 @@ Branch: `feat/drop-zygor`. Delivery: ask-on-risk. Test runner: none (no Lua test
 | T2 | S2 | inline | done (offline tests), in-game check pending | see Log L6 |
 | T3 | S2, S3 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L8 |
 | T4 | S4, S5 | inline | done (offline tests), in-game check pending | see Log L9 |
-| T5 | S6 | inline | pending | |
-| T6 | S1 | inline | pending | |
+| T5 | S6 | inline | done (offline tests), in-game check pending | a9e9b3f |
+| T6 | S1 | inline | done, in-game check pending | see Log L11 |
 
 - T1: record trainer offerings per profession (recipe, required skill, cost, trainer, zone) on trainer window open.
 - T2: route planner also considers recorded learnable trainer recipes and adds a "learn" step with its cost.
@@ -80,5 +80,11 @@ parallel-writer reason exists; all inline.
   10 PASS; RED observed first (old TrainList returned the Zygor trainer). Deferred: QuestieDB vendor recipes have
   no consumer now, because route steps only use known and trainer recipes; using vendor patterns in the planner
   is a later enhancement.
+- L10: T5: `RecordSources` also records leather (item class 7/6) per zone and mob even when no profession needs
+  it; the leather tab shows `FarmText(id)` ("Lo has conseguido en: ...") or a hint when there is no data. The
+  Zygor skinning requirement tag is dropped. tests/sources_test.lua: 5 PASS.
+- L11: T6: GoldFinderData.lua removed from the .toc and the repo. No code references GoldFinderData; only three
+  comments mention Zygor as history. All offline suites pass (7 + 23 + 10 + 5). Note: the initial commit
+  84d5cd6 still contains GoldFinderData.lua in git history; rewrite or squash history before publishing the repo.
 - L3: Engram mirror pending: the Engram server only resolves project `repository` (its cwd is J:\Repository),
   so `goldfinder` cannot be written yet.

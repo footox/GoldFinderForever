@@ -6,7 +6,6 @@
 ## OptionalDeps: TradeSkillMaster
 ## SavedVariables: GoldFinderDB
 
-GoldFinderData.lua
 GoldFinderRoutes.lua
 GoldFinderTrainers.lua
 GoldFinderRecipes.lua
