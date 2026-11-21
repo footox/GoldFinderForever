@@ -29,6 +29,10 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   "1"): register GoldFinder in the game's Options > AddOns with the native Settings API (same checkboxes, section
   headers, Defaults and search); the Ajustes tab in /gf becomes a shortcut that opens that page.
 
+- S9. Name (verbatim): "y hay que cambiar a GoldFinder Forever". Chosen (verbatim "si" to option 1): only the
+  visible name changes (toc Title, window title, Options category, chat prefix); folder, SavedVariables and
+  ADDON_LOADED name stay "GoldFinder" so saved data is kept.
+
 ## Tasks
 
 | ID | Specs | Route | Status | Commit |
@@ -39,12 +43,14 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U4 | S6, S7 | pending | pending | |
 | U5 | S6 | pending | pending | |
 | U6 | S8, S5 | delegated (context backstop) | in progress | |
+| U7 | S9 | inline | in progress (toc done) | |
 
 - U1: main window and shared helpers (`Flat`, `Text`, `Btn`, `PAL`, list rows, tabs) in the classic style.
 - U2: guide, tracker, mail, bank, vendor and export frames in the classic style.
 - U3: Ruta and Fabricar as tabs inside the professions window (PanelTabButtonTemplate on ProfessionsFrame).
 - U4: panel attached to the merchant window listing the items recommended to sell to the vendor.
 - U5: auction house tab content focused on what to auction and the shopping list.
+- U7: visible name "GoldFinder Forever" (toc Title now; window title, Options category, chat prefix after U6).
 - U6: settings registered in Options > AddOns (native Settings API); Ajustes tab opens it.
 
 ## Log
