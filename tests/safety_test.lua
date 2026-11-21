@@ -130,6 +130,10 @@ reserves(); S.bags[200] = 18
 check("SellQty agrees: 1", SellQty(200) == 1)
 reserves(); S.bags[200] = 5; S.bank[200] = 20
 check("SellQty: bank counts toward the reserve, bags cap", SellQty(200) == 5)
+-- R2: withBank = total surplus over the reserve (17), for crafting with what you own
+check("SellQty withBank: total surplus", SellQty(200, true) == 25 - 17)
+reserves(); S.bags[200] = 0; S.bank[200] = 20
+check("SellQty: bank only, nothing to sell from bags", SellQty(200) == 0 and SellQty(200, true) == 3)
 reserves(); S.cfg.crossChars = false; S.bags[200] = 18
 check("crossChars off: only own reserve (8 to sell)", SellQty(200) == 8 and Decide(200, 18, 0, false).reserve == 10)
 reserves()

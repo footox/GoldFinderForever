@@ -561,7 +561,7 @@ local function PlanRoute(prof, pd, target)
     local unitBuy = 0
     for _, m in ipairs(cr.r) do unitBuy = unitBuy + m[2] * (buyP(m[1]) or 0) end
     cands[#cands + 1] = { name = name, x = x, cr = cr, o = cr.o, outVal = outVal, outVend = outVend, unitBuy = unitBuy,
-      made = 0, learn = learn }
+      made = 0, q = cr.q or 1, learn = learn }
   end
   local known = {}
   for name, cr in pairs(pd.crafts) do
@@ -592,9 +592,11 @@ local function PlanRoute(prof, pd, target)
 
   local cap = math.max(0, Cfg("sellCap") or 5)
   -- Valor medio de las proximas n fabricaciones de c: precio de subasta hasta cap unidades, despues el del vendedor.
+  -- cap cuenta unidades (fabricaciones x q), no fabricaciones; outVal y outVend ya son por fabricacion (x q).
   local function nextValue(c, n)
-    local ah = math.min(n, math.max(cap - c.made, 0))
-    return (ah * c.outVal + (n - ah) * c.outVend) / n
+    local units = n * c.q
+    local ah = math.min(units, math.max(cap - c.made * c.q, 0))
+    return (ah * c.outVal + (units - ah) * c.outVend) / c.q / n
   end
 
   local steps, need, learns = {}, {}, {}
@@ -608,19 +610,23 @@ local function PlanRoute(prof, pd, target)
       local pch = SkillUpChance(c.x, sk)
       if pch > 0 and c.learn and not c.learned and sk < (c.learn.req or 0) then pch = 0 end
       if pch > 0 then
-        local cost = 0
+        local cost, unpriced = 0, false
         for _, m in ipairs(c.cr.r) do
           local h = held(m[1])
           local use = math.min(h, m[2])
           local buy = m[2] - use
-          cost = cost + use * sellV(m[1]) + buy * (buy > 0 and (buyP(m[1]) or 1e7) or 0)
+          local bp = buy > 0 and buyP(m[1]) or nil
+          if buy > 0 and not bp then unpriced = true end
+          cost = cost + use * sellV(m[1]) + buy * (buy > 0 and (bp or 1e7) or 0)
         end
         local eff = (cost - nextValue(c, 1 / (pch * c.x.k))) / (pch * c.x.k)
-        -- Aprenderla se paga una vez: se reparte entre los puntos que aun puede dar antes de ponerse gris.
+        -- Aprenderla se paga una vez: se reparte entre los puntos que aun puede dar antes de ponerse gris, sin
+        -- depender del objetivo (todas las vistas eligen la misma receta con la misma habilidad).
         if c.learn and not c.learned then
-          eff = eff + (c.learn.cost or 0) / math.max(1, math.min(top, c.x.g) - sk)
+          eff = eff + (c.learn.cost or 0) / math.max(1, c.x.g - sk)
         end
-        if sk == pd.rank then firstEff[c.name:lower()] = eff end
+        -- sin precio de algun material: la penalizacion solo sirve para elegir; la nota dice "sin precio" (false)
+        if sk == pd.rank then firstEff[c.name:lower()] = (not unpriced) and eff or false end
         if not best or eff < bestEff - 1e-9 then best, bestEff, bestP = c, eff, pch end
       end
     end
@@ -669,15 +675,19 @@ local function PlanRoute(prof, pd, target)
   local sold = {}
   for _, st in ipairs(steps) do
     st.n = math.ceil(st.crafts - 1e-9)
+    -- cap cuenta unidades: una receta que da q objetos vende q por fabricacion
+    local q = st.c.q
+    local units = st.n * q
     local used = sold[st.c] or 0
-    local ah = math.min(st.n, math.max(cap - used, 0))
-    st.value = ah * st.c.outVal + (st.n - ah) * st.c.outVend
+    local ah = math.min(units, math.max(cap - used, 0))
+    st.value = (ah * st.c.outVal + (units - ah) * st.c.outVend) / q
     st.ahUnits = ah
-    sold[st.c] = used + st.n
+    sold[st.c] = used + units
     sell = sell + st.value
   end
-  return { prof = prof, pd = pd, from = pd.rank, to = sk, steps = steps, mats = mats, cost = cost, sell = sell, unknown = unknown, cap = cap,
-    learns = learns, learnCost = learnCost, eff = firstEff }
+  -- truncated: ninguna receta (sabida o del instructor) da puntos desde "to"; la ruta no llega al objetivo
+  return { prof = prof, pd = pd, from = pd.rank, to = sk, target = top, truncated = sk < top, steps = steps, mats = mats,
+    cost = cost, sell = sell, unknown = unknown, cap = cap, learns = learns, learnCost = learnCost, eff = firstEff }
 end
 
 ---------------------------------------------------------------------------
@@ -714,7 +724,12 @@ end
 -- Material que gasta la ruta de alguna profesion del personaje en sus proximos ROUTE_WINDOW puntos:
 -- { need = unidades que pide la ruta, upto = habilidad hasta la que sirve, prof } o nil.
 local function RouteNeedFor(c, id)
-  for prof, pd in pairs(c.prof or {}) do
+  -- la profesion que mas pide (orden alfabetico en empates: el resultado no depende del orden de pairs)
+  local profs, best = {}, nil
+  for prof in pairs(c.prof or {}) do profs[#profs + 1] = prof end
+  table.sort(profs)
+  for _, prof in ipairs(profs) do
+    local pd = c.prof[prof]
     if pd.rank and not (c.off and c.off[prof]) and not SuOwned(c, prof) then
       local plan = RouteFor(c, prof, pd.rank + ROUTE_WINDOW)
       if plan then
@@ -731,11 +746,13 @@ local function RouteNeedFor(c, id)
           plan.needIdx = idx
         end
         local n = idx[id]
-        if n and n.need > 0 then return { need = n.need, upto = n.upto, prof = prof } end
+        if n and n.need > 0 and not (best and best.need >= n.need) then
+          best = { need = n.need, upto = n.upto, prof = prof }
+        end
       end
     end
   end
-  return nil
+  return best
 end
 
 -- Materiales de un paso del plan (receta x fabricaciones) con lo que tienes (bolsas + banco)
@@ -1366,8 +1383,10 @@ do
 
   -- Cuantas unidades conviene vender o publicar: las que tienes en bolsas menos lo que hay que reservar
   -- (fijado a mano, herramientas, materiales de tus profesiones y, si esta activado, de tus otros personajes).
-  function SellQty(id)
+  -- withBank: cuenta tambien el banco (lo que te sobra en total, p. ej. para fabricar), no solo lo de las bolsas.
+  function SellQty(id, withBank)
     local bags, bank = Counts(id)
+    if withBank then bags, bank = bags + bank, 0 end
     if bags <= 0 then return 0 end
     if Char().keep[id] or IsProfessionTool(id) then return 0 end
     local r = Reserve(id)
@@ -2507,14 +2526,154 @@ local function SearchMaterials(e)
   if not ok then Print("No pude buscar en Auctionator: " .. tostring(err)) end
 end
 
+-- AYUDAS DE RUTA: textos y calculos que comparten la guia, las compras, el aviso de receta aprendida y Fabricar.
+-- Quedan en Skin.Route (sin nuevos locales en el bloque principal).
+do
+  local RK = {}
+  Skin.Route = RK
+
+  -- Receta recien aprendida (NEW_RECIPE_LEARNED): se apunta solo en la profesion que la ensena (por la linea de
+  -- habilidad de GoldFinderRecipes o por lo anotado del instructor) y, si la profesion ya tiene recetas guardadas,
+  -- se anade a crafts con los datos de GoldFinderRecipes para que la ruta la siga usando sin abrir la ventana.
+  -- Devuelve la profesion o nil.
+  function RK.LearnRecipe(c, recipeID, name, faction)
+    if not (c and c.prof and name) then return nil end
+    local spells = GoldFinderRecipes and GoldFinderRecipes.spells
+    local byId = spells and recipeID and spells[recipeID] or nil
+    local TR = GoldFinderDB.trainerRecipes and GoldFinderDB.trainerRecipes[faction or "?"]
+    local key = name:lower()
+    local profs = {}
+    for prof in pairs(c.prof) do profs[#profs + 1] = prof end
+    table.sort(profs)
+    for _, prof in ipairs(profs) do
+      local pd = c.prof[prof]
+      local x
+      if pd.skillLine then
+        if byId then x = (byId.s == pd.skillLine) and byId or nil
+        else x = RecipeLookup(pd.skillLine, name) end
+      end
+      local rec = TR and TR[prof] and TR[prof][key]
+      if x or rec then
+        pd.learned = pd.learned or {}
+        pd.learned[name] = true
+        x = x or (rec and pd.skillLine and RecipeLookup(pd.skillLine, rec.n)) or nil
+        if type(pd.crafts) == "table" and not pd.crafts[name] and x and x.r and x.o then
+          local r = {}
+          for i, m in ipairs(x.r) do r[i] = { m[1], m[2] } end
+          pd.crafts[name] = { r = r, o = x.o, q = x.q or 1 }
+        end
+        return prof
+      end
+    end
+    return nil
+  end
+
+  -- Profesion de fabricacion sin plan: por que (o nil si no hay nada que hacer).
+  function RK.NoRouteReason(pd)
+    if not pd.crafts then return "Abre la ventana de la profesion una vez" end
+    local top = pd.maxRank or 300
+    if pd.rank and pd.rank >= top then
+      if top >= 300 then return nil end
+      return "Entrena el siguiente rango para seguir"
+    end
+    return "Ninguna receta (sabida o del instructor) sube tu habilidad: visita al instructor"
+  end
+
+  -- Ruta hasta el tope que no llega (faltan recetas): texto para las compras; nil si llega.
+  function RK.CapReason(r)
+    if not (r and r.truncated) then return nil end
+    return format("ruta hasta %d (faltan recetas para llegar a %d: visita al instructor)", r.to, r.cap)
+  end
+
+  -- Comparacion de tu ruta (coste del plan: BuyPrice + aprender recetas, y lo que recupera vendiendo) con las otras
+  -- guias (mismo BuyPrice). Devuelve las lineas y la ruta cuyos materiales mostrar (nil: ninguna).
+  -- Sin precio de algun material, o si tu ruta no llega al objetivo, no se declara ganadora.
+  function RK.RouteVerdict(mine, others, cap)
+    local out, head = {}, {}
+    local all = { mine }
+    for _, o in ipairs(others) do all[#all + 1] = o end
+    local anyUnknown = false
+    for _, o in ipairs(all) do
+      head[#head + 1] = format("%s %s%s", o.name, Money(o.cost), o.unknown > 0 and (" (+" .. o.unknown .. " sin precio)") or "")
+      if o.unknown > 0 then anyUnknown = true end
+    end
+    out[#out + 1] = format("|cff6bb5ffRutas hasta %d con tus precios (compras):|r %s", cap, table.concat(head, "  |  "))
+    local sell = mine.sell or 0
+    local mineNet = mine.cost - sell
+    if sell > 0 then
+      out[#out + 1] = format("Tu ruta recupera ~%s vendiendo lo fabricado: al final %s ~%s.", Money(sell),
+        mineNet < 0 and "ganas" or "te cuesta", Money(math.abs(mineNet)))
+    end
+    local cheapest = others[1]
+    for i = 2, #others do
+      if others[i].cost < cheapest.cost then cheapest = others[i] end
+    end
+    if mine.truncated then
+      out[#out + 1] = format("Ojo: tu ruta solo llega a %d (faltan recetas para llegar a %d: visita al instructor). Materiales de %s:",
+        mine.to or 0, cap, cheapest.name)
+      return out, cheapest
+    end
+    if anyUnknown then
+      out[#out + 1] = "Hay materiales sin precio: escanea la subasta antes de elegir ruta por coste."
+      return out, nil
+    end
+    -- Tu ruta elige recetas que recuperan oro vendiendo lo fabricado; de las otras guias no se sabe que se vende,
+    -- asi que solo se declara ganadora una ruta cuando lo es pase lo que pase: la tuya si compra menos, la otra si
+    -- cuesta menos que lo que a ti te queda despues de vender. Si no, se muestran los numeros y decides tu.
+    if mine.cost <= cheapest.cost then
+      out[#out + 1] = format("Conviene |cffffd100tu ruta|r: compras ~%s menos.", Money(cheapest.cost - mine.cost))
+      return out, mine
+    elseif cheapest.cost < mineNet then
+      out[#out + 1] = format("Conviene la de |cffffd100%s|r: cuesta ~%s menos aun contando lo que tu recuperas vendiendo.",
+        cheapest.name, Money(mineNet - cheapest.cost))
+    else
+      out[#out + 1] = format("|cffffd100%s|r pide menos compra; tu ruta pide mas pero recupera vendiendo. Materiales de %s:",
+        cheapest.name, cheapest.name)
+    end
+    return out, cheapest
+  end
+
+  -- Fabricar una receta: ganancia por fabricacion con tus materiales (gain: lo que sacarias vendiendolos) y
+  -- comprandolos (gainBuy: BuyPrice, lo mas barato de subasta y vendedor), cuantas puedes hacer solo con lo que te
+  -- sobra (SellQty con el banco: sin lo reservado para tu ruta) y el total de esas n valorado como la ruta: solo
+  -- sellCap unidades a precio de subasta, el resto a precio del vendedor. noPrice = algun material sin precio.
+  function RK.CraftProfit(cr)
+    local v1 = AHApi()
+    local n, matSell, matBuy, noPrice = nil, 0, 0, false
+    for _, m in ipairs(cr.r) do
+      local can = math.floor((SellQty(m[1], true) or 0) / m[2])
+      n = n and math.min(n, can) or can
+      local bp = BuyPrice(m[1])
+      if not bp then noPrice = true end
+      matSell = matSell + m[2] * SellValue(m[1])
+      matBuy = matBuy + m[2] * (bp or 0)
+    end
+    local ahOut = v1 and v1.GetAuctionPriceByItemID(CALLER, cr.o) or nil
+    if ahOut and ahOut <= 0 then ahOut = nil end
+    -- un objeto que se liga al recogerlo no se puede subastar
+    if select(14, C_Item.GetItemInfo(cr.o)) == 1 then ahOut = nil end
+    local q = cr.q or 1
+    local vend = VendorPrice(cr.o) or 0
+    local unit = math.max(ahOut and ahOut * (1 - AH_CUT) or 0, vend)
+    local outVal = unit * q
+    n = n or 0
+    local units = n * q
+    local ahU = math.min(units, math.max(0, Cfg("sellCap") or 5))
+    return { n = n, q = q, outVal = outVal, viaAH = ahOut ~= nil, noPrice = noPrice,
+      gain = outVal - matSell, gainBuy = (not noPrice) and (outVal - matBuy) or nil,
+      total = ahU * unit + (units - ahU) * vend - n * matSell }
+  end
+end
+-- FIN DE AYUDAS DE RUTA
+
 -- COSTE HASTA EL TOPE: materiales de tu ruta desde tu habilidad hasta el tope de rango (75, 150, 225...),
--- descontando lo que ya tienes (bolsas + banco). Es una estimacion.
+-- descontando lo que ya tienes (bolsas + banco). Es una estimacion. truncated: la ruta no llega al tope (to).
 local function CapCost(prof, pd)
   if not pd.rank then return nil end
   local cap = pd.maxRank or 300
   local plan = RouteFor(Char(), prof, cap)
   if not plan then return nil end
-  local r = { cap = cap, cost = 0, unknown = 0, n = 0, mats = {} }
+  local r = { cap = cap, to = plan.to, truncated = plan.truncated, cost = 0, unknown = 0, n = 0, mats = {} }
   for _, m in ipairs(plan.mats) do
     if m.missing > 0 then
       r.n = r.n + 1
@@ -3302,8 +3461,8 @@ local function RoutePlan(need)
     local bags, bank = Counts(id)
     local miss = math.ceil(q) - bags - bank
     if miss > 0 then
-      local price = v1 and v1.GetAuctionPriceByItemID(CALLER, id) or nil
-      if price and price <= 0 then price = nil end
+      -- el mismo precio de compra que el planificador (lo mas barato de subasta y vendedor)
+      local price = BuyPrice(id)
       local buy = price and price * miss or nil
       if buy then cost = cost + buy else unknown = unknown + 1 end
       local it = sess.items and sess.items[id]
@@ -3372,62 +3531,44 @@ local function RouteSummary(prof, key, pd)
     end
   end
 
-  local options = {}
-  local zrows, zc, zu = RoutePlan(OwnRouteNeed(prof, cap))
-  local own = RouteFor(Char(), prof, cap)
-  options[1] = { name = "Tu ruta", rows = zrows, cost = zc, unknown = zu, sell = own and own.sell or 0 }
+  local others = {}
   for _, r in ipairs(routes) do
     if r.steps and #r.steps > 0 then
       local rows, c, u = RoutePlan(OtherRouteNeed(r, pd.rank, cap))
-      options[#options + 1] = { name = r.name, rows = rows, cost = c, unknown = u }
+      others[#others + 1] = { name = r.name, rows = rows, cost = c, unknown = u }
     end
   end
+  local own = RouteFor(Char(), prof, cap)
 
-  if #options > 1 then
-    if #zrows > 0 or zc > 0 then
-      -- las rutas piden materiales: se comparan por lo que hay que comprar. Tu ruta elige recetas que recuperan
-      -- oro vendiendo lo fabricado; de las otras guias no se sabe que se vende, asi que solo se declara ganadora
-      -- una ruta cuando lo es pase lo que pase: la tuya si compra menos, la otra si cuesta menos que lo que a
-      -- ti te queda despues de vender. Si no, se muestran los numeros y decides tu.
-      local mine = options[1]
-      local mineNet = mine.cost - mine.sell
-      local head = {}
-      for _, o in ipairs(options) do
-        head[#head + 1] = format("%s %s%s", o.name, Money(o.cost), o.unknown > 0 and (" (+" .. o.unknown .. " sin precio)") or "")
-      end
-      out[#out + 1] = format("|cff6bb5ffRutas hasta %d con tus precios (compras):|r %s", cap, table.concat(head, "  |  "))
-      if mine.sell > 0 then
-        out[#out + 1] = format("Tu ruta recupera ~%s vendiendo lo fabricado: al final %s ~%s.", Money(mine.sell),
-          mineNet < 0 and "ganas" or "te cuesta", Money(math.abs(mineNet)))
-      end
-      local cheapest = options[2]
-      for i = 3, #options do
-        if options[i].cost < cheapest.cost then cheapest = options[i] end
-      end
-      local best
-      if mine.cost <= cheapest.cost then
-        best = mine
-        out[#out + 1] = format("Conviene |cffffd100tu ruta|r: compras ~%s menos.", Money(cheapest.cost - mine.cost))
-      elseif cheapest.cost < mineNet then
-        best = cheapest
-        out[#out + 1] = format("Conviene la de |cffffd100%s|r: cuesta ~%s menos aun contando lo que tu recuperas vendiendo.",
-          cheapest.name, Money(mineNet - cheapest.cost))
-      else
-        best = cheapest
-        out[#out + 1] = format("|cffffd100%s|r pide menos compra; tu ruta pide mas pero recupera vendiendo. Materiales de %s:",
-          cheapest.name, cheapest.name)
-      end
-      for _, l in ipairs(PlanText(best.rows)) do out[#out + 1] = l end
-      if #best.rows == 0 then out[#out + 1] = "   Ya tienes todos los materiales de esa ruta." end
-    else
-      -- tu ruta no pide materiales (profesion de recoleccion): la otra guia ofrece una alternativa comprando
-      for i = 2, #options do
-        local o = options[i]
+  if not GatherZones(prof) then
+    -- profesion de fabricacion: tu ruta (coste del plan con BuyPrice y lo que cuesta aprender) contra las otras guias
+    if not own then
+      local why = Skin.Route.NoRouteReason(pd)
+      if why then out[#out + 1] = "|cff6bb5ffTu ruta:|r " .. why .. "." end
+      for _, o in ipairs(others) do
         if #o.rows > 0 then
-          out[#out + 1] = format("|cff6bb5ffAlternativa %s en vez de recolectar:|r comprar ~%s%s", o.name, Money(o.cost),
+          out[#out + 1] = format("|cff6bb5ff%s hasta %d:|r comprar ~%s%s", o.name, cap, Money(o.cost),
             o.unknown > 0 and (" (+" .. o.unknown .. " materiales sin precio)") or "")
           for _, l in ipairs(PlanText(o.rows)) do out[#out + 1] = l end
         end
+      end
+    elseif #others > 0 then
+      local mine = { name = "Tu ruta", rows = RoutePlan(OwnRouteNeed(prof, cap)), cost = own.cost, unknown = own.unknown,
+        sell = own.sell, truncated = own.truncated, to = own.to }
+      local lines, best = Skin.Route.RouteVerdict(mine, others, cap)
+      for _, l in ipairs(lines) do out[#out + 1] = l end
+      if best then
+        for _, l in ipairs(PlanText(best.rows)) do out[#out + 1] = l end
+        if #best.rows == 0 then out[#out + 1] = "   Ya tienes todos los materiales de esa ruta." end
+      end
+    end
+  else
+    -- profesion de recoleccion: la otra guia ofrece una alternativa comprando
+    for _, o in ipairs(others) do
+      if #o.rows > 0 then
+        out[#out + 1] = format("|cff6bb5ffAlternativa %s en vez de recolectar:|r comprar ~%s%s", o.name, Money(o.cost),
+          o.unknown > 0 and (" (+" .. o.unknown .. " materiales sin precio)") or "")
+        for _, l in ipairs(PlanText(o.rows)) do out[#out + 1] = l end
       end
     end
   end
@@ -3816,6 +3957,7 @@ do
     if not chance then return nil end
     local out = Pct(chance)
     if eff == nil then return out end
+    if eff == false then return out .. DOT .. "sin precio" end
     if eff >= 0.5 then return out .. DOT .. "|cffff8080-" .. money(math.floor(eff + 0.5)) .. "|r" end
     if eff <= -0.5 then return out .. DOT .. "|cff80ff80+" .. money(math.floor(-eff + 0.5)) .. "|r" end
     return out .. DOT .. "0"
@@ -3824,7 +3966,9 @@ do
   local function RecipeNoteLines(chance, eff, money)
     if not chance then return {} end
     local lines = { "GoldFinder Forever: " .. Pct(chance) .. " de subir un punto" }
-    if eff ~= nil then
+    if eff == false then
+      lines[2] = "Coste por punto: sin precio (escanea la subasta)"
+    elseif eff ~= nil then
       if eff <= -0.5 then lines[2] = "Ganancia por punto: " .. money(math.floor(-eff + 0.5))
       else lines[2] = "Coste por punto: " .. money(math.max(0, math.floor(eff + 0.5))) end
     end
@@ -4069,7 +4213,10 @@ do
     local n = pc.notes[key]
     if n == nil then
       local x = RecipeLookup(pd.skillLine, info.name)
-      n = x and { chance = SkillUpChance(x, pd.rank), eff = plan and plan.eff and plan.eff[key] or nil } or false
+      -- eff false = algun material sin precio (la nota dice "sin precio")
+      local eff
+      if plan and plan.eff then eff = plan.eff[key] end
+      n = x and { chance = SkillUpChance(x, pd.rank), eff = eff } or false
       pc.notes[key] = n
     end
     if not n then return nil end
@@ -5013,10 +5160,11 @@ local function CreateUI(parent, opts)
       for prof, pd in pairs(Char().prof) do
         if ProfOn(prof) then
           local c = CapCost(prof, pd)
-          if c and c.n > 0 then
+          if c and (c.n > 0 or c.truncated) then
+            local short = Skin.Route.CapReason(c)
             capRows[#capRows + 1] = {
-              name = format("%s %d > %d", prof, pd.rank, c.cap),
-              reason = format("%d materiales por comprar%s (estimacion segun tu ruta)",
+              name = format("%s %d > %d", prof, pd.rank, c.truncated and c.to or c.cap),
+              reason = (short and (short .. "\n") or "") .. format("%d materiales por comprar%s (estimacion segun tu ruta)",
                 c.n, c.unknown > 0 and (", " .. c.unknown .. " sin precio") or ""),
               c1 = c.n .. " mat.", c2 = "",
               c3 = Money(c.cost) .. (c.unknown > 0 and "+" or ""),
@@ -5035,32 +5183,16 @@ local function CreateUI(parent, opts)
 
     fabricar = function()
       ui.list.setHeaders("Fabricar", "Puedes", "Vale c/u", "Ganancia c/u")
-      local v1 = AHApi()
       local rows = {}
       for prof, pd in pairs(Char().prof) do
         if ProfOn(prof) and pd.crafts and (not ui.profFilter or ui.profFilter == prof) then
           for name, cr in pairs(pd.crafts) do
-            local n, matSell, matBuy, unknownBuy = nil, 0, 0, false
-            for _, m in ipairs(cr.r) do
-              local b, k = Counts(m[1])
-              local can = math.floor((b + k) / m[2])
-              n = n and math.min(n, can) or can
-              local ah = v1 and v1.GetAuctionPriceByItemID(CALLER, m[1]) or nil
-              if ah and ah <= 0 then ah = nil end
-              matSell = matSell + m[2] * math.max(ah and ah * (1 - AH_CUT) or 0, VendorPrice(m[1]) or 0)
-              if ah then matBuy = matBuy + m[2] * ah else unknownBuy = true end
-            end
-            local ahOut = v1 and v1.GetAuctionPriceByItemID(CALLER, cr.o) or nil
-            if ahOut and ahOut <= 0 then ahOut = nil end
-            -- un objeto que se liga al recogerlo no se puede subastar
-            if select(14, C_Item.GetItemInfo(cr.o)) == 1 then ahOut = nil end
-            local q = cr.q or 1
-            local outVal = math.max(ahOut and ahOut * (1 - AH_CUT) or 0, VendorPrice(cr.o) or 0) * q
-            if outVal > 0 then
+            local p = Skin.Route.CraftProfit(cr)
+            if p.outVal > 0 then
               rows[#rows + 1] = {
-                prof = prof, pd = pd, name = name, out = cr.o, q = q, n = n or 0, outVal = outVal, d = cr.d,
-                x = RecipeLookup(pd.skillLine, name), skill = pd.rank or 0,
-                viaAH = ahOut ~= nil, gain = outVal - matSell, gainBuy = (not unknownBuy) and (outVal - matBuy) or nil,
+                prof = prof, pd = pd, name = name, out = cr.o, q = p.q, n = p.n, outVal = p.outVal, d = cr.d,
+                x = RecipeLookup(pd.skillLine, name), skill = pd.rank or 0, total = p.total, noPrice = p.noPrice,
+                viaAH = p.viaAH, gain = p.gain, gainBuy = p.gainBuy,
               }
             end
           end
@@ -5068,25 +5200,34 @@ local function CreateUI(parent, opts)
       end
       table.sort(rows, function(a, b)
         if (a.n > 0) ~= (b.n > 0) then return a.n > 0 end
-        if a.n > 0 then return a.gain * a.n > b.gain * b.n end
+        if a.n > 0 then return a.total > b.total end
         return (a.gainBuy or -1e12) > (b.gainBuy or -1e12)
       end)
       local out = {}
       for i, r in ipairs(rows) do
         if i > 80 then break end
-        local gtxt = (r.gain >= 0 and GREEN .. "+" or "|cffff6666-") .. Money(math.abs(r.gain)) .. "|r"
+        -- sin materiales propios: la ganancia comprandolos; algun material sin precio: "sin precio"
+        local g = r.n > 0 and r.gain or r.gainBuy
+        local gtxt = (r.noPrice or not g) and (DIM .. "sin precio|r")
+          or ((g >= 0 and GREEN .. "+" or "|cffff6666-") .. Money(math.abs(g)) .. "|r")
         local chance = r.x and SkillUpChance(r.x, r.skill) or nil
         local color = r.x and RecipeColor(r.x, r.skill) or r.d
         local lines = {
           format("%s%s|r: materiales sueltos valen %s%s", DIM, r.prof, Money(r.outVal - r.gain),
-            r.gainBuy and (" | comprandolos en la subasta ganarias " .. (r.gainBuy >= 0 and "+" or "-") .. Money(math.abs(r.gainBuy))) or ""),
+            r.gainBuy and (" | comprandolos ganarias " .. (r.gainBuy >= 0 and "+" or "-") .. Money(math.abs(r.gainBuy)))
+              or " | algun material sin precio (escanea la subasta)"),
         }
         if chance and chance > 0 and r.gainBuy then
           local psu = r.gainBuy / chance
           lines[#lines + 1] = format("Probabilidad de subir habilidad: %d%% | por cada subida (comprando los materiales): %s%s",
             math.floor(chance * 100 + 0.5), psu >= 0 and "+" or "-", Money(math.abs(psu)))
         end
-        if r.n > 0 then lines[#lines + 1] = format("Con lo que llevas: %d fabricaciones = %s en total", r.n, (r.gain >= 0 and "+" or "-") .. Money(math.abs(r.gain * r.n))) end
+        if r.n > 0 then
+          lines[#lines + 1] = format("Con lo que te sobra (sin lo reservado para tu ruta): %d fabricaciones = %s en total",
+            r.n, (r.total >= 0 and "+" or "-") .. Money(math.abs(r.total)))
+          lines[#lines + 1] = format("%sSolo %d unidades valen precio de subasta (/gf tope); el resto, lo que paga el vendedor.|r",
+            DIM, Cfg("sellCap") or 5)
+        end
         out[#out + 1] = {
           id = r.out,
           name = (C_Item.GetItemInfo(r.out) or ItemLink(r.out)) .. (r.q > 1 and (" x" .. r.q) or "")
@@ -5117,7 +5258,7 @@ local function CreateUI(parent, opts)
       end
       table.sort(names)
       for _, prof in ipairs(names) do
-        local plan = PlanRoute(prof, Char().prof[prof], Char().prof[prof].rank + span)
+        local plan = RouteFor(Char(), prof, Char().prof[prof].rank + span)
         if plan then
           local net = plan.cost - plan.sell
           out[#out + 1] = {
@@ -6656,14 +6797,14 @@ f:SetScript("OnEvent", function(_, event, arg1)
   elseif event == "LOOT_OPENED" then
     pcall(RecordSources)
   elseif event == "NEW_RECIPE_LEARNED" then
-    InvalidateRoutes()
-    -- recien aprendida en el entrenador: se apunta sin esperar a abrir la ventana de la profesion
+    -- recien aprendida en el entrenador: se apunta en su profesion (y en sus recetas, para la ruta) sin esperar a
+    -- abrir la ventana de la profesion
     local ok, info = pcall(function() return C_TradeSkillUI.GetRecipeInfo(arg1) end)
     if ok and info and info.name then
-      for _, pd in pairs(Char().prof) do
-        if pd.learned and next(pd.learned) then pd.learned[info.name] = true end
-      end
+      xpcall(function() Skin.Route.LearnRecipe(Char(), arg1, info.name, UnitFactionGroup("player") or "?") end,
+        geterrorhandler())
     end
+    InvalidateRoutes()
     ScheduleCache()
     xpcall(UpdateTracker, geterrorhandler())
   elseif event == "ZONE_CHANGED_NEW_AREA" then

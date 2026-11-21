@@ -245,3 +245,10 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   orange/yellow one including item-taught recipes; the current recipe stays a candidate so the switch is not undone.
   Result: First Aid Silk 145-180, Heavy Silk 180-210 (manual), Mageweave 210-240 (manual); Cooking Goldthorn Tea
   197-227, Spotted Yellowtail 227-289. Guide icons now load uncached items before drawing (a415ab1).
+- L38: R2 done by a bounded writer (helpers in "-- AYUDAS DE RUTA" .. "-- FIN DE AYUDAS DE RUTA", exposed on
+  Skin.Route): truncated routes flagged in Compras and comparison; LearnRecipe keeps a trainer-learned recipe in the
+  owning profession's crafts; learn cost amortized over g - sk (same choice in every view); comparison priced with
+  BuyPrice incl. learn cost, no winner with unknown prices; cap / never-opened messages for crafting professions;
+  RouteNeedFor = max across professions; plan.eff false when unpriced ("sin precio" notes); sellCap counted in units;
+  Fabricar uses CraftProfit (buy gain when none owned, BuyPrice, surplus only, capped AH value); Ruta view via
+  RouteFor. tests/r2_test.lua 28 PASS (RED first); no existing expectation changed.
