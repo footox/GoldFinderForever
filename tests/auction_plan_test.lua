@@ -65,7 +65,9 @@ p = plan({ lowest = 1100, market = 1000, vendor = 0, available = 2, minPct = 95,
 check("settings: undercut 5 -> 1095, max 1200", p.post and p.unit == 1095 and p.max == 1200)
 
 p = plan({ lowest = 800, vendor = 0, available = 2 })
-check("no market: the lowest is the reference (undercut it)", p.post and p.unit == 799)
+-- changed (R1): without a market reference the lowest alone is not trusted for one-click posting
+check("no market: no one-click (needs a reference)", not p.post
+  and p.reason == "sin precio de referencia: usa Auctionator (Mayus+clic)")
 
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")

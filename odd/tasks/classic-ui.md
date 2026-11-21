@@ -195,3 +195,10 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 - L28 (2026-11-20, user, verbatim): "Tambien falta la ventaja que sale o integración la opción de enviar los objetos
   de subasta al Banquero." Verified: RefreshMail only lists items ("Solo informa"). Task U11, queued after R1
   (same file; R1 changes the reserves the button must respect).
+- L29: R1 done by a bounded writer: TOOL_IDS + class 2/20 tools KEEP; no Auctionator price consults TSM, else NONE
+  "sin datos de subasta: escanea" (gray stays VENDOR); reserve = own max(route, reagents, SkillUp) + SUM over alts
+  (OtherNeed(id, true)); Decide sets reserve/reserveFor/sellQty, BagRows/tooltip/summary value only the surplus;
+  BuyPrice = min(AH, vendorBuy); AuctionPlan disables variants (non-commodity weapons/armor) and no-reference cases;
+  "Publicado" only on AUCTION_HOUSE_AUCTION_CREATED; multisell busy guard; ReagentInfoFor guards c.off.
+  tests/safety_test.lua 40 PASS (6 FAIL against HEAD = RED); one auction_plan expectation changed (no market now
+  disables one-click). Risk: items 1 and 6 (irreversible sales/posts; independent verifier requested).

@@ -457,8 +457,8 @@ end
 
 local function ReagentInfoFor(c, id)
   local best
-  for prof, data in pairs(c.prof) do
-    local e = (not c.off[prof] and not SuOwned(c, prof)) and data.reagents and data.reagents[id] or nil
+  for prof, data in pairs(c.prof or {}) do
+    local e = (not (c.off and c.off[prof]) and not SuOwned(c, prof)) and data.reagents and data.reagents[id] or nil
     if e then
       local need = (e.per or 1) * (Cfg("reserve") or 20)
       if not best or need > best.need then best = { need = need, recipe = e.recipe, prof = prof } end
@@ -512,9 +512,12 @@ end
 local function BuyPrice(id)
   local v1 = AHApi()
   local ah = v1 and v1.GetAuctionPriceByItemID(CALLER, id) or nil
-  if ah and ah > 0 then return ah, false end
+  if ah and ah <= 0 then ah = nil end
   local vb = GoldFinderDB.vendorBuy and GoldFinderDB.vendorBuy[id]
-  if vb and vb > 0 then return vb, false end
+  if vb and vb <= 0 then vb = nil end
+  -- lo mas barato de la subasta y del vendedor que lo vende (precio visto en su ventana)
+  if ah and vb then return math.min(ah, vb), false end
+  if ah or vb then return ah or vb, false end
   local vs = VendorPrice(id)
   if vs and vs > 0 then return vs * 4, true end   -- el vendedor suele vender a 4 veces lo que paga
   return nil
@@ -838,8 +841,12 @@ local function StockOf(first, id)
   return found and n or nil
 end
 
-local function OtherNeed(id)
+-- Lo que piden tus otros personajes. OtherNeed(id): el que mas pide ({ need, prof, upto, su, who }, para el texto
+-- "para <alt>"). OtherNeed(id, true): la suma de todos para la reserva ({ need = suma, who = "A, B", n, list, first }).
+-- Cada personaje cuenta una vez, con la misma regla (SkillUp, ruta o materiales de recetas).
+local function OtherNeed(id, all)
   local mine = Char()
+  local list, sum, best = {}, 0, nil
   for key, c in pairs(GoldFinderDB.chars or {}) do
     if c ~= mine and c.prof then
       local who = key:match("^([^-]+)") or key
@@ -852,12 +859,20 @@ local function OtherNeed(id)
       end
       z = z or RouteNeedFor(c, id) or ReagentInfoFor(c, id)
       if z then
-        z.who = who
-        return z
+        local e = { need = z.need, prof = z.prof, upto = z.upto, su = z.su, who = who }
+        list[#list + 1] = e
+        sum = sum + e.need
+        if not best or e.need > best.need then best = e end
       end
     end
   end
-  return nil
+  if not best then return nil end
+  if not all then return best end
+  table.sort(list, function(x, y) return x.who < y.who end)
+  local names = {}
+  for i, e in ipairs(list) do names[i] = e.who end
+  return { need = sum, who = table.concat(names, ", "), n = #list, list = list, first = best,
+    su = best.su, prof = best.prof, upto = best.upto }
 end
 
 -- Siguiente paso calculado con tus propias recetas y los precios de la subasta: la receta mas barata
@@ -1179,116 +1194,184 @@ end
 
 ---------------------------------------------------------------------------
 -- DECISION: vender, subastar o guardar (un solo sitio para tooltip y bolsas)
--- Orden: 1 fijado por ti, 2 lo usa tu profesion, 3 vendedor paga mas que la
--- subasta, 4 precio bajo (esperar), 5 subasta si compensa, 6 vendedor.
+-- Orden: 1 fijado por ti, 2 herramienta de profesion, 3 lo usa tu profesion, 4 vendedor paga mas que la
+-- subasta, 5 precio bajo (esperar), 6 subasta si compensa, 7 vendedor.
+-- Reserva: la tuya es la mayor de ruta, materiales de recetas y SkillUp (estiman el mismo consumo, no se suman);
+-- la de tus otros personajes es la suma de lo que pide cada uno. Total = tuya + otros personajes.
 ---------------------------------------------------------------------------
-local function Decide(id, bags, bank, bound)
-  local v1 = AHApi()
-  local ah = (not bound and v1) and v1.GetAuctionPriceByItemID(CALLER, id) or nil
-  if ah and ah <= 0 then ah = nil end
-  local vendor = VendorPrice(id) or 0
-  local ahNet = ah and ah * (1 - AH_CUT) or 0
-  local have = bags + bank
-  local d = { ahNet = ahNet, vendor = vendor, unit = math.max(ahNet, vendor), verdict = "NONE" }
+local Decide, SellQty
+do
+  -- REGLAS DE VENTA
+  -- herramientas de profesion clasicas (sin efecto "Usar:", el vendedor las paga y no suelen tener precio de
+  -- subasta): nunca se recomiendan al vendedor. Las canas de pescar se detectan tambien por subclase (arma 2, sub 20).
+  local TOOL_IDS = {
+    [2901] = true,   -- Mining Pick
+    [7005] = true,   -- Skinning Knife
+    [5956] = true,   -- Blacksmith Hammer
+    [6219] = true,   -- Arclight Spanner
+    [10498] = true,  -- Gyromatic Micro-Adjustor
+    [6256] = true,   -- Fishing Pole
+    [6218] = true,   -- Runed Copper Rod
+    [6339] = true,   -- Runed Silver Rod
+    [11130] = true,  -- Runed Golden Rod
+    [11145] = true,  -- Runed Truesilver Rod
+    [16207] = true,  -- Runed Arcanite Rod
+  }
+  local function IsProfessionTool(id)
+    if TOOL_IDS[id] then return true end
+    local _, _, _, _, _, classID, subClassID = C_Item.GetItemInfoInstant(id)
+    return classID == 2 and subClassID == 20
+  end
 
-  if GoldFinderDB and Char().keep[id] then
-    d.verdict, d.reason, d.manual = "KEEP", "lo fijaste tu", true
-    return d
+  local function Quality(id)
+    local q = C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(id)
+    if q == nil then q = select(3, C_Item.GetItemInfo(id)) end
+    return q
   end
-  local su = SkillUpNeed(id)
-  if su and have <= su.need then
-    d.verdict = "KEEP"
-    d.need = su.need
-    d.reason = format("SkillUp: ruta de %s hasta habilidad %s (tienes %d de %d)",
-      table.concat(su.profs, ", "), tostring(su.target or "?"), have, su.need)
-    return d
-  end
-  local z = RouteNeedFor(Char(), id)
-  if z and have <= z.need then
-    d.verdict = "KEEP"
-    d.need = z.need
-    d.reason = format("%s: tu ruta pide %d hasta habilidad %d (tienes %d)", z.prof, z.need, z.upto, have)
-    return d
-  end
-  local rg = ReagentInfo(id)
-  if rg and have <= rg.need then
-    d.verdict = "KEEP"
-    d.need = rg.need
-    d.reason = format("%s: %s (tienes %d de %d)", rg.prof, rg.recipe, have, rg.need)
-    return d
-  end
-  local recipe = RecipeToLearn(id)
-  if recipe then
-    d.verdict, d.reason = "KEEP", recipe
-    return d
-  end
-  if Cfg("crossChars") then
-    local ro = RecipeForOthers(id)
-    if ro then
-      d.verdict = "KEEP"
-      d.reason = format("receta que %s aun no sabe (%s %d%s): %s", ro.who, ro.prof, ro.rank,
-        ro.req and (", pide " .. ro.req) or "", ro.ready and "ya puede aprenderla" or "aun le falta habilidad")
-      d.forOther = ro.who
-      return d
-    end
-    local o = OtherNeed(id)
-    if o and have <= o.need then
-      d.verdict = "KEEP"
-      if o.su then
-        d.reason = format("%s necesita %d mas para su ruta de %s (SkillUp): enviaselos por correo", o.who, o.need, o.prof)
-      else
-        d.reason = format("lo necesita %s (%s%s): tienes %d de %d", o.who, o.prof,
-          o.upto and (" hasta habilidad " .. o.upto) or "", have, o.need)
+
+  -- sin precio de Auctionator: TSM decide si compensa la subasta; sin ningun dato no se manda al vendedor
+  -- (salvo la basura gris). Devuelve veredicto, motivo y valor por unidad.
+  local function NoAuctionVerdict(vendor, tsm, quality, qty)
+    if quality == 0 then return "VENDOR", nil, vendor end
+    if tsm and tsm > 0 then
+      local net = tsm * (1 - AH_CUT)
+      if net > vendor * 1.10 and (net - vendor) * math.max(qty, 1) >= Cfg("minGain") then
+        return "AH", "sin precio actual de Auctionator: valor de TSM (escanea antes de publicar)", net
       end
-      d.forOther = o.who
+      return "VENDOR", nil, vendor
+    end
+    return "NONE", "sin datos de subasta: escanea", 0
+  end
+  -- FIN DE REGLAS DE VENTA
+
+  -- reserva de un objeto: { own, alts, total, label, su, z, rg, o }
+  local function Reserve(id)
+    local r = { su = SkillUpNeed(id), z = RouteNeedFor(Char(), id), rg = ReagentInfo(id) }
+    r.o = Cfg("crossChars") and OtherNeed(id, true) or nil
+    r.own = math.max(r.su and r.su.need or 0, r.z and r.z.need or 0, r.rg and r.rg.need or 0)
+    r.alts = r.o and r.o.need or 0
+    r.total = r.own + r.alts
+    local names, seen = {}, {}
+    local function add(n) if n and not seen[n] then seen[n] = true; names[#names + 1] = n end end
+    if r.su then for _, p in ipairs(r.su.profs or {}) do add(p) end end
+    if r.z then add(r.z.prof) end
+    if r.rg then add(r.rg.prof) end
+    if r.o then add(r.o.who) end
+    r.label = #names > 0 and table.concat(names, ", ") or nil
+    return r
+  end
+
+  function Decide(id, bags, bank, bound)
+    local v1 = AHApi()
+    local ah = (not bound and v1) and v1.GetAuctionPriceByItemID(CALLER, id) or nil
+    if ah and ah <= 0 then ah = nil end
+    local vendor = VendorPrice(id) or 0
+    local ahNet = ah and ah * (1 - AH_CUT) or 0
+    local have = bags + bank
+    local d = { ahNet = ahNet, vendor = vendor, unit = math.max(ahNet, vendor), verdict = "NONE", sellQty = 0 }
+
+    if GoldFinderDB and Char().keep[id] then
+      d.verdict, d.reason, d.manual = "KEEP", "lo fijaste tu", true
       return d
     end
-  end
-  -- objetos de uso (bolsa de dormir, juguetes...): nunca al vendedor; si valen en la subasta, se sigue evaluando
-  local utility = IsUtilityItem(id)
-  if utility then d.reason = "objeto de uso: no se recomienda venderlo" end
-  if vendor > 0 and vendor >= ahNet and not utility then
-    d.verdict, d.unit = "VENDOR", vendor
+    if IsProfessionTool(id) then
+      d.verdict, d.reason = "KEEP", "herramienta de profesion"
+      return d
+    end
+    local r = Reserve(id)
+    d.reserve, d.reserveFor = r.total, r.label
+    -- lo que se puede vender o publicar: lo de las bolsas que no hace falta para la reserva
+    d.sellQty = math.max(0, math.min(bags, have - r.total))
+    if r.own > 0 and have <= r.own then
+      local su, z, rg = r.su, r.z, r.rg
+      d.verdict, d.need = "KEEP", r.own
+      if su and su.need >= have then
+        d.reason = format("SkillUp: ruta de %s hasta habilidad %s (tienes %d de %d)",
+          table.concat(su.profs, ", "), tostring(su.target or "?"), have, su.need)
+      elseif z and z.need >= have then
+        d.reason = format("%s: tu ruta pide %d hasta habilidad %d (tienes %d)", z.prof, z.need, z.upto, have)
+      else
+        d.reason = format("%s: %s (tienes %d de %d)", rg.prof, rg.recipe, have, rg.need)
+      end
+      return d
+    end
+    local recipe = RecipeToLearn(id)
+    if recipe then
+      d.verdict, d.reason = "KEEP", recipe
+      return d
+    end
+    if Cfg("crossChars") then
+      local ro = RecipeForOthers(id)
+      if ro then
+        d.verdict = "KEEP"
+        d.reason = format("receta que %s aun no sabe (%s %d%s): %s", ro.who, ro.prof, ro.rank,
+          ro.req and (", pide " .. ro.req) or "", ro.ready and "ya puede aprenderla" or "aun le falta habilidad")
+        d.forOther = ro.who
+        return d
+      end
+      local o = r.o
+      if o and have <= r.total then
+        local one = o.first or o
+        d.verdict, d.need = "KEEP", r.total
+        if (o.n or 1) > 1 then
+          d.reason = format("lo necesitan %s: tienes %d de %d (reserva total)", o.who, have, r.total)
+        elseif one.su then
+          d.reason = format("%s necesita %d mas para su ruta de %s (SkillUp): enviaselos por correo", one.who, one.need, one.prof)
+        else
+          d.reason = format("lo necesita %s (%s%s): tienes %d de %d", one.who, one.prof,
+            one.upto and (" hasta habilidad " .. one.upto) or "", have, r.total)
+        end
+        d.forOther = o.who
+        return d
+      end
+    end
+    local qty = math.max(d.sellQty, 1)
+    -- objetos de uso (bolsa de dormir, juguetes...): nunca al vendedor; si valen en la subasta, se sigue evaluando
+    local utility = IsUtilityItem(id)
+    if utility then d.reason = "objeto de uso: no se recomienda venderlo" end
+    if vendor > 0 and vendor >= ahNet and not utility then
+      if ah or bound then
+        d.verdict, d.unit = "VENDOR", vendor
+        return d
+      end
+      local tsm = TSMValue("DBMarket", id)
+      if not (tsm and tsm > 0) then tsm = TSMValue("DBRegionMarketAvg", id) end
+      local verdict, why, unit = NoAuctionVerdict(vendor, tsm, Quality(id), qty)
+      d.verdict, d.reason, d.unit = verdict, why, unit
+      if verdict == "AH" then
+        d.ahNet = unit
+        d.toBanker = ToBanker() or nil
+      end
+      return d
+    end
+    if ah then
+      local ref = RefPrice(id)
+      if ref and ah <= ref * 0.85 and ahNet * qty >= Cfg("minGain") then
+        d.verdict, d.reason = "KEEP", "precio bajo ahora: espera a que suba"
+        return d
+      end
+      local worth = ahNet > vendor * 1.10 and (ahNet - vendor) * qty >= Cfg("minGain")
+      if vendor == 0 or worth then
+        d.verdict, d.unit = "AH", ahNet
+        d.toBanker = ToBanker() or nil
+        return d
+      end
+    end
+    if vendor > 0 and not utility then d.verdict, d.unit = "VENDOR", vendor end
     return d
   end
-  if ah then
-    local ref = RefPrice(id)
-    if ref and ah <= ref * 0.85 and ahNet * math.max(bags, 1) >= Cfg("minGain") then
-      d.verdict, d.reason = "KEEP", "precio bajo ahora: espera a que suba"
-      return d
-    end
-    local worth = ahNet > vendor * 1.10 and (ahNet - vendor) * math.max(bags, 1) >= Cfg("minGain")
-    if vendor == 0 or worth then
-      d.verdict, d.unit = "AH", ahNet
-      d.toBanker = ToBanker() or nil
-      return d
-    end
-  end
-  if vendor > 0 and not utility then d.verdict, d.unit = "VENDOR", vendor end
-  return d
-end
 
--- Cuantas unidades conviene publicar: las que tienes en bolsas menos lo que hay que reservar
--- (fijado a mano, materiales de tus profesiones y, si esta activado, de tus otros personajes).
--- El precio lo calcula Auctionator con una busqueda en vivo de la subasta.
-local function SellQty(id)
-  local bags, bank = Counts(id)
-  if bags <= 0 then return 0 end
-  if Char().keep[id] then return 0 end
-  local reserve = 0
-  local z = RouteNeedFor(Char(), id)
-  if z then reserve = math.max(reserve, z.need) end
-  local rg = ReagentInfo(id)
-  if rg then reserve = math.max(reserve, rg.need) end
-  local suN = SkillUpNeed(id)
-  if suN then reserve = math.max(reserve, suN.need) end
-  if Cfg("crossChars") then
-    local o = OtherNeed(id)
-    if o then reserve = math.max(reserve, o.need) end
+  -- Cuantas unidades conviene vender o publicar: las que tienes en bolsas menos lo que hay que reservar
+  -- (fijado a mano, herramientas, materiales de tus profesiones y, si esta activado, de tus otros personajes).
+  function SellQty(id)
+    local bags, bank = Counts(id)
+    if bags <= 0 then return 0 end
+    if Char().keep[id] or IsProfessionTool(id) then return 0 end
+    local r = Reserve(id)
+    return math.max(0, math.min(bags, bags + bank - r.total))
   end
-  local surplus = bags + bank - reserve
-  return math.max(0, math.min(bags, surplus))
 end
+-- FIN DE DECISION
 
 ---------------------------------------------------------------------------
 -- TOOLTIP
@@ -1341,7 +1424,10 @@ local function TipAdvice(tooltip, data)
   local id = data.id
   local bags, bank = Counts(id)
   local d = Decide(id, bags, bank, false)
-  if d.verdict == "NONE" then return end
+  if d.verdict == "NONE" then
+    if d.reason then tooltip:AddLine("GoldFinder: " .. d.reason, 0.6, 0.6, 0.6) end
+    return
+  end
 
   if d.verdict == "KEEP" then
     tooltip:AddLine("|cff6cb4ffGoldFinder: GUARDAR|r  " .. d.reason, 1, 1, 1)
@@ -1367,10 +1453,18 @@ local function TipAdvice(tooltip, data)
   tooltip:AddLine(format("%sGoldFinder: %s|r  subasta %s (neto) | vendedor %s",
     color, d.verdict == "AH" and "SUBASTA" or "VENDEDOR",
     d.ahNet > 0 and Money(d.ahNet) or "sin datos", d.vendor > 0 and Money(d.vendor) or "-"), 1, 1, 1)
-  if bags > 0 and d.ahNet > 0 and d.vendor > 0 then
-    local gain = (d.ahNet - d.vendor) * bags
+  -- solo se valora y se vende lo que sobra de la reserva (tus profesiones y las de tus otros personajes)
+  local n = d.sellQty or bags
+  local held = math.min(d.reserve or 0, bags + bank)
+  if held > 0 then
+    tooltip:AddLine(format("  %d reservados para %s: %s %d de tus %d en bolsas.", held, d.reserveFor or "tus profesiones",
+      d.verdict == "AH" and "se subastan" or "se venden", n, bags), 0.42, 0.71, 1, true)
+  end
+  if d.reason and d.verdict == "AH" then tooltip:AddLine("  " .. d.reason, 0.7, 0.7, 0.7, true) end
+  if n > 0 and d.ahNet > 0 and d.vendor > 0 then
+    local gain = (d.ahNet - d.vendor) * n
     tooltip:AddLine(format("  Tus %d u.: subasta %s | vendedor %s | diferencia %s%s",
-      bags, Money(d.ahNet * bags), Money(d.vendor * bags), gain >= 0 and "+" or "-", Money(math.abs(gain))),
+      n, Money(d.ahNet * n), Money(d.vendor * n), gain >= 0 and "+" or "-", Money(math.abs(gain))),
       0.8, 0.8, 0.8)
     if d.verdict == "VENDOR" and d.ahNet > d.vendor then
       tooltip:AddLine("  La subasta gana poco: no compensa publicarlo.", 1, 0.8, 0.4)
@@ -1558,8 +1652,10 @@ local function BagRows()
   for id, e in pairs(items) do
     local _, bank = Counts(id)
     local d = Decide(id, e.bags, bank, e.bound)
-    d.id, d.count, d.bank, d.bound, d.value = id, e.bags, bank, e.bound, d.unit * e.bags
-    if d.verdict == "AH" then d.sellQty = SellQty(id) end
+    -- vender y subastar: solo lo que sobra de la reserva (Decide ya lo calcula igual que SellQty)
+    local selling = d.verdict == "AH" or d.verdict == "VENDOR"
+    d.id, d.count, d.bank, d.bound = id, e.bags, bank, e.bound
+    d.value = d.unit * (selling and d.sellQty or e.bags)
     if d.verdict == "AH" and d.toBanker and not e.bound then
       sum.nBank = (sum.nBank or 0) + 1
       sum.bankValue = (sum.bankValue or 0) + d.value
@@ -1749,7 +1845,8 @@ do
   -- PLAN DE SUBASTA
   -- Funcion pura. input: lowest (la subasta mas barata ahora), market (valor de mercado), vendor (lo que paga el
   -- vendedor), available (unidades sin reservar), soldPerDay (ventas al dia en la region, opcional) y los ajustes
-  -- minPct, maxPct, undercut, capDays; cut = comision de la subasta; money = formato del dinero para los textos.
+  -- minPct, maxPct, undercut, capDays; cut = comision de la subasta; money = formato del dinero para los textos;
+  -- variant = equipo con variantes (no se publica con un clic). Sin market tampoco se publica con un clic.
   -- Devuelve { post, unit, qty, reason, min, normal, max, cap }.
   local function AuctionPlan(input)
     local money = input.money or tostring
@@ -1758,9 +1855,12 @@ do
     local market = (input.market and input.market > 0) and input.market or nil
     local vendor = input.vendor or 0
     local p = { post = false, unit = 0, qty = 0 }
-    -- sin valor de mercado, la referencia es la propia subasta mas barata
-    local ref = market or lowest
-    if not ref then p.reason = "sin precio: escanea"; return p end
+    -- equipo con variantes (sufijos "de la ..." o nivel de objeto): el precio por id no vale para la variante
+    if input.variant then p.reason = "precio por variante: usa Auctionator (Mayus+clic)"; return p end
+    if not (market or lowest) then p.reason = "sin precio: escanea"; return p end
+    -- sin valor de mercado (TSM o historial de varios dias) la subasta mas barata sola no es fiable
+    if not market then p.reason = "sin precio de referencia: usa Auctionator (Mayus+clic)"; return p end
+    local ref = market
     -- minimo: % del mercado, y nunca menos de lo que paga el vendedor despues de la comision
     local vendorFloor = vendor > 0 and math.ceil(vendor * 1.05 / (1 - cut)) or 0
     p.min = math.max(math.floor(ref * (input.minPct or 60) / 100), vendorFloor, 1)
@@ -1788,7 +1888,7 @@ do
       local cap = math.max(1, math.ceil(spd * (input.capDays or 2)))
       if avail > cap then
         p.qty, p.cap = cap, cap
-        why = why .. string.format("; tope de %d (en la region se venden ~%.1f al dia)", cap, spd)
+        why = why .. string.format("; tope de %d por publicacion (en la region se venden ~%.1f al dia)", cap, spd)
       end
     end
     p.post, p.reason = true, why
@@ -1800,6 +1900,9 @@ do
   local function Hours() return (tonumber(Cfg("postDuration")) or 24) <= 12 and 12 or 24 end
   local function AHOpen() return AuctionHouseFrame and AuctionHouseFrame:IsShown() and C_AuctionHouse and true or false end
   local function Pos(v) return (type(v) == "number" and v > 0) and v or nil end
+  -- estado de la ultima publicacion: on = varias unidades en curso (como multisellInProgress de Auctionator),
+  -- serial = para el tiempo maximo de espera, msg = texto "Publicado" que se imprime cuando la subasta la crea
+  local busy = { on = false, serial = 0, msg = nil }
 
   -- primer hueco de las bolsas con ese objeto que la subasta acepta (solo con la subasta abierta)
   local function FindLoc(id)
@@ -1838,13 +1941,18 @@ do
       local ok, n = pcall(C_AuctionHouse.GetAvailablePostCount, loc)
       if ok and type(n) == "number" then available = math.min(available, n) end
     end
+    -- armas y armaduras: Auctionator las guarda por variante (nivel de objeto, sufijo), no por id
+    local classID = select(6, C_Item.GetItemInfoInstant(id))
     local p = AuctionPlan({
+      variant = (classID == 2 or classID == 4) and not (loc and IsCommodity(loc)),
       lowest = lowest, market = market, vendor = VendorPrice(id) or 0, available = available,
       soldPerDay = spd and spd / 1000, cut = AH_CUT, money = Money,
       minPct = tonumber(Cfg("postMinPct")), maxPct = tonumber(Cfg("postMaxPct")),
       undercut = tonumber(Cfg("postUndercut")), capDays = tonumber(Cfg("postCapDays")),
     })
     p.hours, p.lowest, p.market = Hours(), lowest, market
+    -- publicacion de varias unidades en curso (la subasta las crea de una en una): no se publica otra hasta acabar
+    if p.post and busy.on then p.post, p.reason = false, "publicacion en curso: espera a que termine" end
     if loc and p.qty > 0 then
       local ok, dep
       if IsCommodity(loc) then
@@ -1902,28 +2010,53 @@ do
     local commodity = IsCommodity(loc)
     local fn = commodity and C_AuctionHouse.PostCommodity or C_AuctionHouse.PostItem
     if type(fn) ~= "function" then Print("Este cliente no permite publicar desde GoldFinder."); return end
+    -- varias unidades de un objeto que no es mercancia: la subasta las crea de una en una (multisell);
+    -- los botones Subastar quedan desactivados hasta que acaba, falla o pasa el tiempo maximo
+    busy.on, busy.serial = not commodity and p.qty > 1, busy.serial + 1
+    local serial = busy.serial
+    -- tiempo maximo: si la subasta no avisa (o no confirmas), se olvida esta publicacion
+    C_Timer.After(math.max(30, p.qty * 2), function()
+      if busy.serial == serial and (busy.on or busy.msg) then busy.on, busy.msg = false, nil; RefreshShown() end
+    end)
+    local name = C_Item.GetItemInfo(id) or ("objeto " .. id)
+    busy.msg = format("Publicado: %d x %s a %s c/u (%d h)", p.qty, name, Money(p.unit), p.hours)
     local ok, res
     if commodity then ok, res = pcall(fn, loc, dur, p.qty, p.unit)
     else ok, res = pcall(fn, loc, dur, p.qty, nil, p.unit) end
-    if not ok then Print("La casa de subastas rechazo la publicacion: " .. tostring(res)); return end
-    -- si el cliente pide confirmar (dialogo de Blizzard), el marco de venta necesita la publicacion pendiente
+    if not ok then
+      busy.on, busy.msg = false, nil
+      Print("La casa de subastas rechazo la publicacion: " .. tostring(res))
+      RefreshShown()
+      return
+    end
+    -- si el cliente pide confirmar (dialogo de Blizzard), el marco de venta necesita la publicacion pendiente;
+    -- "Publicado" se imprime solo cuando la subasta avisa de que la creo (AUCTION_HOUSE_AUCTION_CREATED)
     if res then
       pcall(function()
         local sf = commodity and AuctionHouseFrame.CommoditiesSellFrame or AuctionHouseFrame.ItemSellFrame
         if commodity then sf:CachePendingPost(loc, dur, p.qty, p.unit)
         else sf:CachePendingPost(loc, dur, p.qty, nil, p.unit) end
       end)
+      Print("Confirma la publicacion en la ventana de Blizzard")
     end
-    local name = C_Item.GetItemInfo(id) or ("objeto " .. id)
-    Print(format("Publicado: %d x %s a %s c/u (%d h)", p.qty, name, Money(p.unit), p.hours))
-    C_Timer.After(1, RefreshShown)
+    RefreshShown()
   end
 
-  -- avisos de la subasta: error al publicar y lista al dia cuando se crea la subasta
+  -- avisos de la subasta: publicado (cuando la subasta la crea), error al publicar, progreso de varias unidades
   local ev = CreateFrame("Frame")
-  for _, e in ipairs({ "AUCTION_HOUSE_AUCTION_CREATED", "AUCTION_HOUSE_POST_ERROR" }) do pcall(ev.RegisterEvent, ev, e) end
-  ev:SetScript("OnEvent", function(_, e)
-    if e == "AUCTION_HOUSE_POST_ERROR" then Print("La casa de subastas no acepto la publicacion.") end
+  for _, e in ipairs({ "AUCTION_HOUSE_AUCTION_CREATED", "AUCTION_HOUSE_POST_ERROR", "AUCTION_MULTISELL_UPDATE",
+    "AUCTION_MULTISELL_FAILURE" }) do pcall(ev.RegisterEvent, ev, e) end
+  ev:SetScript("OnEvent", function(_, e, a1, a2)
+    if e == "AUCTION_HOUSE_POST_ERROR" then
+      busy.on, busy.msg = false, nil
+      Print("La casa de subastas no acepto la publicacion.")
+    elseif e == "AUCTION_HOUSE_AUCTION_CREATED" then
+      if busy.msg then Print(busy.msg); busy.msg = nil end
+    elseif e == "AUCTION_MULTISELL_UPDATE" then
+      if a1 and a2 and a1 >= a2 then busy.on = false end
+    elseif e == "AUCTION_MULTISELL_FAILURE" then
+      busy.on = false
+    end
     RefreshShown()
   end)
 
@@ -4537,10 +4670,16 @@ local function CreateUI(parent, opts)
         elseif r.verdict ~= "KEEP" and r.verdict ~= "NONE" then
           acts[#acts + 1] = { "Fijar", function() Char().keep[r.id] = true; ui.refresh() end }
         end
+        -- unidades reservadas (tus profesiones y otros personajes): se muestran, y solo se vende o publica el resto
+        local reserved
+        if (r.verdict == "AH" or r.verdict == "VENDOR") and (r.sellQty or r.count) < r.count then
+          reserved = format("%d reservados para %s: se %s %d.", r.count - r.sellQty, r.reserveFor or "tus profesiones",
+            r.verdict == "AH" and "subastan" or "venden", r.sellQty)
+          if r.reason then reserved = reserved .. " " .. r.reason end
+        end
         out[#out + 1] = {
           id = r.id, name = name, shift = shift,
-          reason = r.reason or ((r.sellQty and r.sellQty > 0 and r.sellQty < r.count)
-            and format("Se publicaran como mucho %d de tus %d: el resto queda reservado.", r.sellQty, r.count) or nil),
+          reason = reserved or r.reason,
           c1 = "x" .. r.count .. (r.bank > 0 and (" +" .. r.bank .. "b") or ""),
           c2 = c2, c3 = r.verdict == "KEEP" and (DIM .. Money(r.value) .. "|r") or Money(r.value), actions = acts,
         }

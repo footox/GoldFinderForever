@@ -1,0 +1,195 @@
+-- Offline tests for the sell/keep safety rules (Lua 5.1): profession tools are never sold, items without auction
+-- data are not sent to the vendor, reservations add up (own max + every alt), BuyPrice takes the cheaper source,
+-- and the one-click Subastar refuses variant gear and items without a market reference. Run from the addon folder:
+--   "C:\Program Files (x86)\Lua\5.1\lua.exe" tests\safety_test.lua
+
+local src = assert(io.open("GoldFinder.lua")):read("*a")
+
+local failures = 0
+local function check(name, cond)
+  if cond then print("PASS " .. name) else print("FAIL " .. name); failures = failures + 1 end
+end
+
+---------------------------------------------------------------------------
+-- Decide / SellQty with stubbed WoW APIs
+---------------------------------------------------------------------------
+local a = assert(src:find("-- REGLAS DE VENTA", 1, true), "start marker")
+local b = assert(src:find("-- FIN DE DECISION", 1, true), "end marker")
+-- the block sits inside "do ... end" (its closing end is before the end marker)
+local chunk = "do\n" .. src:sub(a, b - 1) .. "\nreturn Decide, SellQty"
+
+local S   -- per-test state
+local function reset()
+  S = { ah = {}, vendor = {}, tsm = {}, quality = {}, class = {}, bags = {}, bank = {},
+        su = {}, route = {}, reagent = {}, alts = {}, cfg = { minGain = 2000, crossChars = true }, keep = {} }
+end
+reset()
+local env = setmetatable({
+  CALLER = "GoldFinder", AH_CUT = 0.05, GoldFinderDB = {}, format = string.format,
+  AHApi = function() return { GetAuctionPriceByItemID = function(_, id) return S.ah[id] end } end,
+  VendorPrice = function(id) return S.vendor[id] end,
+  TSMValue = function(source, id) return S.tsm[source .. ":" .. id] end,
+  Cfg = function(k) return S.cfg[k] end,
+  Char = function() return { keep = S.keep } end,
+  Counts = function(id) return S.bags[id] or 0, S.bank[id] or 0 end,
+  SkillUpNeed = function(id) return S.su[id] end,
+  RouteNeedFor = function(_, id) return S.route[id] end,
+  ReagentInfo = function(id) return S.reagent[id] end,
+  RecipeToLearn = function() return nil end,
+  RecipeForOthers = function() return nil end,
+  OtherNeed = function(id, all)
+    local list = S.alts[id]
+    if not list or #list == 0 then return nil end
+    local best, sum, names = nil, 0, {}
+    for _, z in ipairs(list) do
+      sum = sum + z.need
+      names[#names + 1] = z.who
+      if not best or z.need > best.need then best = z end
+    end
+    if all then return { need = sum, who = table.concat(names, ", "), n = #list, list = list, first = best } end
+    return best
+  end,
+  IsUtilityItem = function() return false end,
+  RefPrice = function() return nil end,
+  ToBanker = function() return nil end,
+  C_Item = {
+    GetItemInfoInstant = function(id) local c = S.class[id] or {}; return id, nil, nil, nil, nil, c[1], c[2] end,
+    GetItemQualityByID = function(id) return S.quality[id] end,
+    GetItemInfo = function() return nil end,
+  },
+}, { __index = _G })
+local f = assert(loadstring(chunk))
+setfenv(f, env)
+local Decide, SellQty = f()
+
+-- 1a. profession tools: never to the vendor
+for _, id in ipairs({ 2901, 7005, 5956, 6219, 6218, 6339, 11130, 11145, 16207 }) do
+  reset(); S.vendor[id] = 20; S.quality[id] = 1
+  local d = Decide(id, 1, 0, false)
+  check("tool " .. id .. " is KEEP (herramienta de profesion)", d.verdict == "KEEP" and d.reason == "herramienta de profesion")
+end
+reset(); S.vendor[6256] = 5; S.quality[6256] = 1; S.class[6256] = { 2, 20 }
+check("fishing pole (weapon subclass 20) is KEEP", Decide(6256, 1, 0, false).verdict == "KEEP")
+reset(); S.vendor[777] = 5; S.quality[777] = 1; S.class[777] = { 2, 20 }
+check("any fishing pole by class is KEEP", Decide(777, 1, 0, false).reason == "herramienta de profesion")
+check("tool: nothing to sell", SellQty(777) == 0)
+
+-- 1b. no Auctionator price
+reset(); S.vendor[100] = 50; S.quality[100] = 1
+local d = Decide(100, 3, 0, false)
+check("unknown white item: NONE, not VENDOR", d.verdict == "NONE" and d.reason == "sin datos de subasta: escanea")
+reset(); S.vendor[100] = 50; S.quality[100] = 0
+check("unknown gray junk: still VENDOR", Decide(100, 3, 0, false).verdict == "VENDOR")
+reset(); S.vendor[100] = 50; S.quality[100] = 1
+check("bound item without AH price: VENDOR", Decide(100, 3, 0, true).verdict == "VENDOR")
+reset(); S.vendor[100] = 100; S.quality[100] = 1; S.tsm["DBMarket:100"] = 10000
+d = Decide(100, 5, 0, false)
+check("no AH price but TSM worth it: AH at TSM net", d.verdict == "AH" and d.unit == 9500 and d.ahNet == 9500)
+reset(); S.vendor[100] = 100; S.quality[100] = 1; S.tsm["DBRegionMarketAvg:100"] = 10000
+check("TSM region fallback is used", Decide(100, 5, 0, false).verdict == "AH")
+reset(); S.vendor[100] = 100; S.quality[100] = 1; S.tsm["DBMarket:100"] = 108
+check("TSM barely above vendor: VENDOR", Decide(100, 5, 0, false).verdict == "VENDOR")
+reset(); S.vendor[100] = 50; S.ah[100] = 40
+check("previous behaviour: AH below vendor is VENDOR", Decide(100, 3, 0, false).verdict == "VENDOR")
+
+-- 2. reservations: own = max(route, reagent, SkillUp); alts = sum of every alt; total = own + alts
+local function reserves()
+  reset()
+  S.ah[200] = 100000; S.vendor[200] = 10; S.quality[200] = 1
+  S.route[200] = { need = 10, prof = "Leatherworking", upto = 120 }
+  S.reagent[200] = { need = 8, prof = "Leatherworking", recipe = "Armor Kit" }
+  S.su[200] = { need = 5, profs = { "Leatherworking" }, target = 110 }
+  S.alts[200] = { { need = 4, who = "Ashes", prof = "Tailoring" }, { need = 3, who = "Bob", prof = "Tailoring" } }
+end
+reserves()
+d = Decide(200, 17, 0, false)
+check("17 held vs 10 own + 4 + 3 alts: KEEP", d.verdict == "KEEP" and d.reserve == 17)
+reserves()
+d = Decide(200, 18, 0, false)
+check("18 held: AH with 1 surplus", d.verdict == "AH" and d.sellQty == 1 and d.reserve == 17)
+check("reserve label names prof and alts", d.reserveFor and d.reserveFor:find("Leatherworking", 1, true)
+  and d.reserveFor:find("Ashes", 1, true) and d.reserveFor:find("Bob", 1, true))
+reserves(); S.bags[200] = 18
+check("SellQty agrees: 1", SellQty(200) == 1)
+reserves(); S.bags[200] = 5; S.bank[200] = 20
+check("SellQty: bank counts toward the reserve, bags cap", SellQty(200) == 5)
+reserves(); S.cfg.crossChars = false; S.bags[200] = 18
+check("crossChars off: only own reserve (8 to sell)", SellQty(200) == 8 and Decide(200, 18, 0, false).reserve == 10)
+reserves()
+d = Decide(200, 10, 0, false)
+check("own max not summed: 10 held is KEEP for own route", d.verdict == "KEEP" and d.reason:find("ruta", 1, true))
+reserves()
+d = Decide(200, 12, 0, false)
+check("12 held: KEEP for the alts", d.verdict == "KEEP" and d.forOther ~= nil)
+reserves(); S.keep[200] = true; S.bags[200] = 50
+check("manual keep: SellQty 0", SellQty(200) == 0 and Decide(200, 50, 0, false).verdict == "KEEP")
+
+-- real OtherNeed: largest alt for the label, sum of every alt (each once) for the reserve
+a = assert(src:find("local function OtherNeed", 1, true), "OtherNeed start")
+b = assert(src:find("local function GamePlan", 1, true), "OtherNeed end")
+local me = { prof = {} }
+local needs = { Ashes = 4, Bob = 6 }
+local oenv = setmetatable({
+  Char = function() return me end,
+  Cfg = function() return false end,
+  StockOf = function() return 0 end,
+  RouteNeedFor = function(c, id) return needs[c.name] and { need = needs[c.name], prof = "Tailoring", upto = 100 } end,
+  ReagentInfoFor = function() return nil end,
+  GoldFinderDB = { chars = { ["Me-Realm"] = me, ["Ashes-Realm"] = { name = "Ashes", prof = {} },
+    ["Bob-Realm"] = { name = "Bob", prof = {} }, ["Cid-Realm"] = { name = "Cid", prof = {} } } },
+}, { __index = _G })
+f = assert(loadstring(src:sub(a, b - 1) .. "\nreturn OtherNeed"))
+setfenv(f, oenv)
+local OtherNeed = f()
+local one, all = OtherNeed(1), OtherNeed(1, true)
+check("OtherNeed: largest alt for the label", one.who == "Bob" and one.need == 6)
+check("OtherNeed all: sum of every alt", all.need == 10 and all.n == 2 and all.who == "Ashes, Bob")
+needs = {}
+check("OtherNeed: nobody needs it", OtherNeed(1) == nil and OtherNeed(1, true) == nil)
+
+---------------------------------------------------------------------------
+-- BuyPrice: cheaper of AH and known vendor price
+---------------------------------------------------------------------------
+a = assert(src:find("local recipeIdx", 1, true), "planner start marker")
+b = assert(src:find("-- FIN DEL PLANIFICADOR DE RUTA", 1, true), "planner end marker")
+local prices, vsell = {}, {}
+local penv = setmetatable({
+  CALLER = "GoldFinder", AH_CUT = 0.05, GoldFinderDB = { vendorBuy = {} },
+  AHApi = function() return { GetAuctionPriceByItemID = function(_, id) return prices[id] end } end,
+  VendorPrice = function(id) return vsell[id] end,
+  Counts = function() return 0, 0 end,
+  Cfg = function() return nil end,
+}, { __index = _G })
+f = assert(loadstring(src:sub(a, b - 1) .. "\nreturn BuyPrice"))
+setfenv(f, penv)
+local BuyPrice = f()
+prices[1], penv.GoldFinderDB.vendorBuy[1] = 100, 60
+check("vendor cheaper than AH: vendor price", BuyPrice(1) == 60)
+prices[2], penv.GoldFinderDB.vendorBuy[2] = 50, 60
+check("AH cheaper than vendor: AH price", BuyPrice(2) == 50)
+prices[3] = 70
+check("only AH known", BuyPrice(3) == 70)
+penv.GoldFinderDB.vendorBuy[4] = 30
+check("only vendor known", BuyPrice(4) == 30)
+vsell[5] = 10
+local p5, est = BuyPrice(5)
+check("nothing known: vendor x4 estimate", p5 == 40 and est == true)
+
+---------------------------------------------------------------------------
+-- AuctionPlan: one-click refused for variant gear and without a market reference
+---------------------------------------------------------------------------
+a = assert(src:find("-- PLAN DE SUBASTA", 1, true), "plan start marker")
+b = assert(src:find("-- FIN DE PLAN DE SUBASTA", 1, true), "plan end marker")
+f = assert(loadstring(src:sub(a, b - 1) .. "\nreturn AuctionPlan"))
+setfenv(f, setmetatable({}, { __index = _G }))
+local AuctionPlan = f()
+local p = AuctionPlan({ lowest = 900, market = 1000, vendor = 0, available = 3, variant = true })
+check("variant gear: no one-click", not p.post and p.reason == "precio por variante: usa Auctionator (Mayus+clic)")
+p = AuctionPlan({ lowest = 800, vendor = 0, available = 2 })
+check("no market reference: no one-click",
+  not p.post and p.reason == "sin precio de referencia: usa Auctionator (Mayus+clic)")
+p = AuctionPlan({ lowest = 900, market = 1000, vendor = 0, available = 20, soldPerDay = 3.2 })
+check("cap wording: per post", p.reason:find("tope de 7 por publicacion", 1, true) ~= nil)
+
+if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
+print("ALL PASS")
