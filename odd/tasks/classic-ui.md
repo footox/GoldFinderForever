@@ -294,3 +294,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   dist/GoldFinder-<version>.zip from the .toc file list + LICENSE + CHANGELOG; README (es + en summary), CHANGELOG
   2.1; toc 2.1 with Notes-enUS, Author, X-License, OptionalDeps QuestieDB/SkillUpForever. dist/ ignored. Nothing
   uploaded; the user creates the CurseForge project.
+- L47 (2026-11-21, user, verbatim): "Pero el skillUpForever no debe ser necesario y el tsm." and "Seria actionator y
+  el Questie". toc: Dependencies Auctionator, QuestieDB (the database GoldFinder reads); OptionalDeps TradeSkillMaster,
+  Questie, SkillUpForever. README requirements updated. This supersedes S5's "QuestieDB optional at runtime" for
+  the packaged addon; code stays guarded.

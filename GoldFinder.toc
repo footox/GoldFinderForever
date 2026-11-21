@@ -5,8 +5,8 @@
 ## Author: footox
 ## Version: 2.1
 ## X-License: MIT
-## Dependencies: Auctionator
-## OptionalDeps: TradeSkillMaster, QuestieDB, SkillUpForever
+## Dependencies: Auctionator, QuestieDB
+## OptionalDeps: TradeSkillMaster, Questie, SkillUpForever
 ## SavedVariables: GoldFinderDB
 
 GoldFinderRoutes.lua
