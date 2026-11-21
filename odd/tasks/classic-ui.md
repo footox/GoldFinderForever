@@ -62,7 +62,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U7 | S9 | inline | done, verified in game | 0ca4681, 40f7164 |
 | U8 | S10a | delegated (context backstop) | done, verified in game | c3eab1d, 60be0a1 |
 | U9 | S10b | delegated (context backstop) | done, verified in game | c3eab1d |
-| U11 | S12 | pending (after R1) | pending | |
+| U11 | S12 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L31 |
 | U10 | S11 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L25 |
 
 - U1: main window and shared helpers (`Flat`, `Text`, `Btn`, `PAL`, list rows, tabs) in the classic style.
@@ -202,3 +202,12 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   "Publicado" only on AUCTION_HOUSE_AUCTION_CREATED; multisell busy guard; ReagentInfoFor guards c.off.
   tests/safety_test.lua 40 PASS (6 FAIL against HEAD = RED); one auction_plan expectation changed (no market now
   disables one-click). Risk: items 1 and 6 (irreversible sales/posts; independent verifier requested).
+- L30: Independent Fable verification of R1 (96b3fc9): rules 1, 3, 4, 5 OK. Findings for one correction batch (R1b):
+  no vendor price + no AH price skips TSM and the "escanea" reason; each alt's need is the first non-nil source, not
+  the max like the own reserve; Subastar enabled on TSM-only AH verdict (should require an Auctionator scan); stale
+  busy.msg can print a false "Publicado" after a cancelled confirmation; NONE "escanea" rows vanish from lists.
+- L31: U11 done by a bounded writer: "Enviar al banquero" in the mail panel; pure MailPlan (markers
+  "-- PLAN DE CORREO" .. "-- FIN DE PLAN DE CORREO"): whole stacks within surplus, max 12, skipped reasons, mails
+  remaining; attaches via PickupContainerItem + ClickSendMailItemButton only with MailFrame and SendMailFrame shown,
+  refuses if attachments/money/COD present, sends after re-checking; MAIL_SEND_SUCCESS/FAILED/CLOSED handled.
+  tests/mail_plan_test.lua 16 PASS (RED first). Risk: item 1 (a sent mail cannot be undone); verifier requested.
