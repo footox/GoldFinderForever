@@ -3341,17 +3341,15 @@ do
     f.lines[i] = l
     return l
   end
+  -- a la izquierda del seguimiento de objetivos, alineado arriba (como SkillUp): debajo se salia de la pantalla
+  -- cuando la lista de misiones es larga
   local function Place(f)
     local T = ObjectiveTrackerFrame
     f:ClearAllPoints()
-    local edge
-    if T:IsShown() then
-      edge = (T.IsCollapsed and T:IsCollapsed()) and T.Header or T.NineSlice
-    end
-    if edge and edge.GetBottom and edge:GetBottom() then
-      f:SetPoint("TOPLEFT", edge, "BOTTOMLEFT", 0, -8)
+    if T and T.GetLeft and T:GetLeft() then
+      f:SetPoint("TOPRIGHT", T, "TOPLEFT", -12, 0)
     else
-      f:SetPoint("TOPLEFT", T, "TOPLEFT", 0, 0)
+      f:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -260, -260)
     end
   end
   local function DrawFallback()
