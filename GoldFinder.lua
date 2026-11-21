@@ -3570,11 +3570,42 @@ end
 
 -- opts (opcional): embedded = sin pestanas propias (las pone la ventana que lo aloja); only = vistas permitidas;
 -- onNav = se llama en lugar de recolocar las pestanas; back = accion para volver a la pagina del juego.
+-- auction = pestana de la casa de subastas: solo lo que se usa alli (Bolsas con la subasta primero, Compras, Cuero)
+-- y Ajustes como boton de la cabecera.
 local function CreateUI(parent, opts)
+  -- VISTAS DE LA CASA DE SUBASTAS
+  -- Compras sale en la subasta si su pestana esta activa o si faltan materiales para el paso actual
+  -- (es donde se compran); el resto de vistas (Resumen, Fabricar, Ruta, Sesion) viven en otras ventanas.
+  local function AHViewKeys(shoppingOn, missing)
+    local keys = { "bolsas" }
+    if shoppingOn or missing then keys[#keys + 1] = "compras" end
+    keys[#keys + 1] = "cuero"
+    return keys
+  end
+  -- filas de Bolsas con lo que se subasta aqui primero; luego subasta via banquero o ligado, vendedor, guardar.
+  -- Orden estable: dentro de cada grupo se mantiene el orden de BagRows. No modifica la lista recibida.
+  local function AHBagOrder(rows)
+    local rank = { AH = 1, VENDOR = 3, KEEP = 4, NONE = 5 }
+    local out, pos = {}, {}
+    for i, r in ipairs(rows) do out[i] = r; pos[r] = i end
+    local function rk(r)
+      if r.verdict == "AH" and (r.toBanker or r.bound) then return 2 end
+      return rank[r.verdict] or 6
+    end
+    table.sort(out, function(x, y)
+      local rx, ry = rk(x), rk(y)
+      if rx ~= ry then return rx < ry end
+      return pos[x] < pos[y]
+    end)
+    return out
+  end
+  -- FIN DE VISTAS DE LA CASA DE SUBASTAS
+
   -- native: la ventana propia con marco de Blizzard (retrato, titulo e Inset del ButtonFrameTemplate).
   -- Si no, el contenido va incrustado (pestana de la subasta, que ya tiene su marco) con su propio Inset.
   local native = parent.gfNative
   local embedded = opts and opts.embedded
+  local auction = opts and opts.auction
   local ui = CreateFrame("Frame", "GoldFinderUI" .. (#uiInstances + 1), parent)
   ui:SetAllPoints(parent)
   ui.back = opts and opts.back
@@ -3624,6 +3655,15 @@ local function CreateUI(parent, opts)
   local bExport = Btn(header, "Exportar a TSM", 110, 22, nil, function() ShowTSMExport() end)
   bExport:SetPoint("RIGHT", bScan, "LEFT", -8, 0)
   bExport:Hide()
+  if auction then
+    -- en la subasta no hay pestana Ajustes: un boton abre la pagina de Opciones > AddOns
+    local bOpts = Btn(header, "Ajustes", 80, 22, nil, function()
+      if not (OpenOptions and OpenOptions()) then Print("Escribe /gf ajustes para abrir las opciones.") end
+    end)
+    bOpts:SetPoint("RIGHT", bScan, "LEFT", -8, 0)
+    bExport:ClearAllPoints(); bExport:SetPoint("RIGHT", bOpts, "LEFT", -8, 0)
+    ui.status:SetPoint("RIGHT", header, "RIGHT", -330, 0)
+  end
 
   -- pestanas abajo, como en la ventana de personaje (PanelTabButtonTemplate). Sin la plantilla, botones.
   local navDefs = {
@@ -3655,12 +3695,44 @@ local function CreateUI(parent, opts)
     ui.Tabs[i] = b
   end
 
+  -- subasta: vistas que tocan ahora (Compras tambien sin su pestana si faltan materiales del paso actual)
+  local function ahAllowed(key)
+    for _, k in ipairs(ui.ahKeys or {}) do if k == key then return true end end
+    return false
+  end
+  function ui.ahUpdate()
+    local shop = Cfg("shopping") and true or false
+    local missing = false
+    if not shop then
+      pcall(function()
+        for _, e in ipairs(NextStepList()) do
+          if e.unknown and e.learn and e.learn.item then
+            local bags, bank = Counts(e.learn.item)
+            if (bags or 0) + (bank or 0) < 1 then missing = true end
+          end
+          for _, m in ipairs(e.mats or {}) do
+            if (m.need or 0) > (m.have or 0) then missing = true end
+          end
+        end
+      end)
+    end
+    ui.ahKeys = AHViewKeys(shop, missing)
+  end
+  if auction then ui.ahUpdate() end
+
   function ui.layoutNav()
     local prev
+    if auction then ui.ahUpdate() end
     for _, def in ipairs(navDefs) do
       local b = ui.nav[def[1]]
-      if (def[1] == "compras" and not Cfg("shopping")) or (def[1] == "fabricar" and not Cfg("craftTab"))
-          or (def[1] == "ruta" and not Cfg("routeTab")) then
+      local hide
+      if auction then
+        hide = not ahAllowed(def[1])
+      else
+        hide = (def[1] == "compras" and not Cfg("shopping")) or (def[1] == "fabricar" and not Cfg("craftTab"))
+          or (def[1] == "ruta" and not Cfg("routeTab"))
+      end
+      if hide then
         b:Hide()
       else
         b:ClearAllPoints()
@@ -3738,6 +3810,8 @@ local function CreateUI(parent, opts)
     bolsas = function()
       ui.list.setHeaders("Objeto", "Cant.", "Decision", "Valor")
       local allRows = BagRows()
+      -- en la subasta lo que se puede subastar alli va arriba (en /gf queda el orden de siempre)
+      if auction then allRows = AHBagOrder(allRows) end
       local rows, hidden = {}, 0
       for _, r in ipairs(allRows) do
         -- los objetos sin precio (ligados, de mision, piedra de hogar...) no se listan
@@ -4044,9 +4118,11 @@ local function CreateUI(parent, opts)
     ajustes = function() if ui.settings and ui.settings.refresh then ui.settings.refresh() end end,
   }
 
-  ui.current = opts and opts.only and opts.only[1] or "resumen"
+  ui.current = auction and "bolsas" or (opts and opts.only and opts.only[1]) or "resumen"
   function ui.open(key, retry)
-    if (key == "compras" and not Cfg("shopping")) or (key == "fabricar" and not Cfg("craftTab"))
+    if auction then
+      if not ahAllowed(key) then key = (ui.ahKeys and ui.ahKeys[1]) or "bolsas" end
+    elseif (key == "compras" and not Cfg("shopping")) or (key == "fabricar" and not Cfg("craftTab"))
         or (key == "ruta" and not Cfg("routeTab")) then key = "resumen" end
     if opts and opts.only then
       local allowed = false
@@ -4082,6 +4158,8 @@ local function CreateUI(parent, opts)
   function ui.refresh()
     local parts = { ScanAgeText(), TSM_API and "TSM activo" or "TSM no detectado" }
     ui.status:SetText(table.concat(parts, "   |   "))
+    -- en la subasta, Compras aparece o desaparece segun lo que falte para el paso actual
+    if auction then pcall(ui.layoutNav) end
     ui.open(ui.current)
   end
 
@@ -4395,7 +4473,8 @@ local function BuildTab()
   local panel = CreateFrame("Frame", nil, AuctionHouseFrame)
   panel:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPLEFT", 14, -64)
   panel:SetPoint("BOTTOMRIGHT", AuctionHouseFrame, "BOTTOMRIGHT", -14, 36)
-  CreateUI(panel)
+  -- solo lo que se usa en la subasta: Bolsas (subasta primero), Compras y Cuero; Ajustes en la cabecera
+  CreateUI(panel, { auction = true })
   LibAHTab:CreateTab(TAB_ID, panel, "GoldFinder", "GoldFinder")
   panelBuilt = true
 

@@ -41,7 +41,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U2 | S4, S5 | delegated (context backstop) | done (offline checks), in-game check pending | see Log L15 |
 | U3 | S6 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L14 |
 | U4 | S6, S7 | delegated (context backstop) | done, verified in game | bbd009a, 454b833 |
-| U5 | S6 | pending | pending | |
+| U5 | S6 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L16 |
 | U6 | S8, S5 | delegated (context backstop) | done, verified in game | a0f11da |
 | U7 | S9 | inline | done, verified in game | 0ca4681, 40f7164 |
 
@@ -113,3 +113,8 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   backdrop, title "GoldFinder Forever: siguiente paso", native close, plus/minus and book icon buttons with
   tooltips; mail, bank, vendor recipes and TSM export with dialog backdrops. Suites pass; no single-backslash texture
   paths; no new globals.
+- L16: U5 done by a bounded writer: CreateUI(panel, { auction = true }) in BuildTab. AH tab views: Bolsas (AH
+  verdict rows first via AHBagOrder), Compras (when `shopping` is on or the current step misses materials), Cuero;
+  Ajustes as a header button opening the options page. Helpers AHViewKeys/AHBagOrder between markers
+  "-- VISTAS DE LA CASA DE SUBASTAS" .. "-- FIN DE VISTAS DE LA CASA DE SUBASTAS"; tests/ah_tab_test.lua 7 PASS
+  (RED first). /gf unchanged.
