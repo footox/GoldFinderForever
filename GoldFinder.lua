@@ -65,6 +65,7 @@ local LEGACY_OWNER = "Twistice"   -- personaje al que pertenecen los datos guard
 -- En WoW Forever UnitName devuelve el nombre y el APELLIDO (no hay reino): el nombre completo es "Nombre Apellido",
 -- el que hace falta para enviar correo o cuchichear. La ficha de cada personaje se guarda con ese nombre completo;
 -- las fichas antiguas ("Nombre-Reino") se renombran la primera vez que entra ese personaje.
+-- FICHAS DE PERSONAJE
 local function FullName()
   local n, sn = UnitName("player")
   n = n or "?"
@@ -100,83 +101,110 @@ local function ResolveFullName(name)
   return name
 end
 
-local function Char()
-  GoldFinderDB.chars = GoldFinderDB.chars or {}
-  local name = UnitName("player") or "?"
-  local full = FullName()
-  local c = GoldFinderDB.chars[full]
-  if not c then
-    for k, v in pairs(GoldFinderDB.chars) do
-      local n2 = k:match("^([^-]+)%-")
-      if n2 and n2 == name then
-        c = v
-        GoldFinderDB.chars[k] = nil
-        break
-      end
+local Char, CleanPhantomChars
+do
+  -- Une la ficha src en dst: lo que dst ya tiene se queda; profesiones, objetos fijados y sesion se suman.
+  local function MergeInto(dst, src)
+    dst.prof, dst.keep = dst.prof or {}, dst.keep or {}
+    for pn, pd in pairs(src.prof or {}) do if not dst.prof[pn] then dst.prof[pn] = pd end end
+    for id, v in pairs(src.keep or {}) do if dst.keep[id] == nil then dst.keep[id] = v end end
+    if src.off then
+      dst.off = dst.off or {}
+      for pn, v in pairs(src.off) do if dst.off[pn] == nil then dst.off[pn] = v end end
     end
-    if not c then c = { prof = {}, keep = {} } end
-    GoldFinderDB.chars[full] = c
+    if src.session and not dst.session then dst.session = src.session end
+    if src.suNeed and not dst.suNeed then dst.suNeed, dst.suTracked = src.suNeed, src.suTracked end
   end
-  c.prof, c.keep, c.off = c.prof or {}, c.keep or {}, c.off or {}
 
-  -- Datos de versiones antiguas (comunes a la cuenta): se unen a la ficha de su personaje.
-  -- El juego devuelve solo el primer nombre, asi que se compara el principio.
-  local L = GoldFinderDB.legacy
-  if L and LEGACY_OWNER and name:sub(1, #LEGACY_OWNER) == LEGACY_OWNER then
-    for k, v in pairs(L.prof or {}) do
-      local cur = c.prof[k]
-      if not cur then
-        c.prof[k] = v
-      elseif not cur.learned and v.learned then
-        v.rank = cur.rank or v.rank
-        v.skillLine = cur.skillLine or v.skillLine
-        c.prof[k] = v
+  function Char()
+    GoldFinderDB.chars = GoldFinderDB.chars or {}
+    local chars = GoldFinderDB.chars
+    local name = FirstName(UnitName("player") or "?")
+    local full = FullName()
+    local c = chars[full]
+    if not c then
+      -- fichas antiguas "Nombre-Reino" (y fantasmas "Nombre-" o "Nombre-?"): se unen todas en la del nombre
+      -- completo; manda la que tiene reino, el resto solo completa lo que falta.
+      local olds = {}
+      for k, v in pairs(chars) do
+        local n2, r2 = k:match("^([^-]+)%-(.*)$")
+        if n2 and n2 == name and type(v) == "table" then
+          olds[#olds + 1] = { k = k, v = v, real = (r2 ~= "" and r2 ~= "?") }
+        end
       end
+      table.sort(olds, function(a, b)
+        if a.real ~= b.real then return a.real end
+        return a.k < b.k
+      end)
+      c = olds[1] and olds[1].v or { prof = {}, keep = {} }
+      for i = 2, #olds do MergeInto(c, olds[i].v) end
+      for _, o in ipairs(olds) do chars[o.k] = nil end
+      chars[full] = c
     end
-    for k, v in pairs(L.keep or {}) do c.keep[k] = v end
-    if L.session and not c.session then c.session = L.session end
-    GoldFinderDB.legacy = nil
-  end
-  return c
-end
+    c.prof, c.keep, c.off = c.prof or {}, c.keep or {}, c.off or {}
 
--- Une y borra las fichas duplicadas sin reino ("Nombre-" o "Nombre-?") que crearon versiones anteriores.
-local function CleanPhantomChars()
-  local chars = GoldFinderDB and GoldFinderDB.chars
-  if not chars then return end
-  for key, c in pairs(chars) do
-    local name, realm = key:match("^([^-]+)-(.*)$")
-    if name and (realm == "" or realm == "?") then
+    -- Datos de versiones antiguas (comunes a la cuenta): se unen a la ficha de su personaje (nombre de pila exacto).
+    local L = GoldFinderDB.legacy
+    if L and LEGACY_OWNER and name == LEGACY_OWNER then
+      for k, v in pairs(L.prof or {}) do
+        local cur = c.prof[k]
+        if not cur then
+          c.prof[k] = v
+        elseif not cur.learned and v.learned then
+          v.rank = cur.rank or v.rank
+          v.skillLine = cur.skillLine or v.skillLine
+          c.prof[k] = v
+        end
+      end
+      for k, v in pairs(L.keep or {}) do c.keep[k] = v end
+      if L.session and not c.session then c.session = L.session end
+      GoldFinderDB.legacy = nil
+    end
+    return c
+  end
+
+  -- Une y borra las fichas duplicadas sin reino ("Nombre-" o "Nombre-?") que crearon versiones anteriores: en la
+  -- ficha con reino del mismo nombre o, si ya no queda, en la del nombre completo ("Nombre Apellido").
+  function CleanPhantomChars()
+    local chars = GoldFinderDB and GoldFinderDB.chars
+    if not chars then return end
+    local phantoms = {}
+    for key in pairs(chars) do
+      local name, realm = key:match("^([^-]+)-(.*)$")
+      if name and (realm == "" or realm == "?") then phantoms[#phantoms + 1] = { key = key, name = name } end
+    end
+    for _, ph in ipairs(phantoms) do
       local real
       for k2, c2 in pairs(chars) do
         local n2, r2 = k2:match("^([^-]+)-(.*)$")
-        if n2 == name and r2 ~= "" and r2 ~= "?" then real = c2; break end
+        if n2 == ph.name and r2 ~= "" and r2 ~= "?" then real = c2; break end
       end
-      if real then
-        real.prof, real.keep = real.prof or {}, real.keep or {}
-        for pn, pd in pairs(c.prof or {}) do if not real.prof[pn] then real.prof[pn] = pd end end
-        for id, v in pairs(c.keep or {}) do if real.keep[id] == nil then real.keep[id] = v end end
-        if c.session and not real.session then real.session = c.session end
-        if c.suNeed and not real.suNeed then real.suNeed, real.suTracked = c.suNeed, c.suTracked end
-        chars[key] = nil
+      if not real then
+        for k2, c2 in pairs(chars) do
+          if k2:find(" ", 1, true) and FirstName(k2) == ph.name then real = c2; break end
+        end
+      end
+      if real and type(chars[ph.key]) == "table" then
+        MergeInto(real, chars[ph.key])
+        chars[ph.key] = nil
       end
     end
-  end
-  local b = GoldFinderDB.banker
-  if type(b) == "string" and b ~= "" and not b:find(" ", 1, true) then
-    for key in pairs(chars) do
-      if key:find(" ", 1, true) and FirstName(key):lower() == b:lower() then GoldFinderDB.banker = key; break end
-    end
-    -- si aun no hay ficha completa, el inventario de BagBrother ya conoce el nombre completo
-    local nb = GoldFinderDB.banker
-    local bbdb = _G.BrotherBags
-    if nb == b and type(bbdb) == "table" then
-      for _, cc in pairs(bbdb) do
-        if type(cc) == "table" then
-          for nm in pairs(cc) do
-            if type(nm) == "string" and nm:find(" ", 1, true) and FirstName(nm):lower() == b:lower() then
-              GoldFinderDB.banker = nm
-              break
+    local b = GoldFinderDB.banker
+    if type(b) == "string" and b ~= "" and not b:find(" ", 1, true) then
+      for key in pairs(chars) do
+        if key:find(" ", 1, true) and FirstName(key):lower() == b:lower() then GoldFinderDB.banker = key; break end
+      end
+      -- si aun no hay ficha completa, el inventario de BagBrother ya conoce el nombre completo
+      local nb = GoldFinderDB.banker
+      local bbdb = _G.BrotherBags
+      if nb == b and type(bbdb) == "table" then
+        for _, cc in pairs(bbdb) do
+          if type(cc) == "table" then
+            for nm in pairs(cc) do
+              if type(nm) == "string" and nm:find(" ", 1, true) and FirstName(nm):lower() == b:lower() then
+                GoldFinderDB.banker = nm
+                break
+              end
             end
           end
         end
@@ -184,6 +212,7 @@ local function CleanPhantomChars()
     end
   end
 end
+-- FIN DE FICHAS DE PERSONAJE
 
 -- Profesiones que el jugador ha dejado fuera en Ajustes (no reservan materiales ni avisan).
 local function ProfOn(prof)
@@ -404,7 +433,14 @@ local suLoad = GetTime()
 local function SkillUpData()
   if not Cfg("useSkillUp") then return nil end
   local api = _G.SkillUpForever and _G.SkillUpForever.API
-  if not (api and api.ShoppingList) then return nil end
+  if not (api and api.ShoppingList) then
+    -- sin SkillUp (desactivado o desinstalado): su copia de este personaje ya no vale para los demas
+    if GoldFinderDB and GetTime() - suLoad > 60 then
+      local me = Char()
+      if me.suNeed or me.suTracked then me.suNeed, me.suTracked = nil, nil end
+    end
+    return nil
+  end
   local now = GetTime()
   if now - suCache.t > 3 then
     local ok, lists = pcall(api.ShoppingList)
@@ -1140,7 +1176,10 @@ local function RecipeToLearn(id)
       for _, pre in ipairs(RECIPE_PREFIX) do
         if recipe:sub(1, #pre) == pre then recipe = recipe:sub(#pre + 1); break end
       end
-      if data.learned[recipe] then return nil end   -- ya la sabes
+      local target = NormRecipe(recipe)   -- misma comparacion que para tus otros personajes
+      for k in pairs(data.learned) do
+        if NormRecipe(k) == target then return nil end   -- ya la sabes
+      end
       return format("receta de %s que aun no sabes: aprendela si tu nivel lo permite", prof)
     end
   end
@@ -1202,13 +1241,25 @@ local function RecipeForOthers(id, includeMine, all)
               ready = (not req) or rank >= req,
             }
           end
+        elseif c ~= mine and prof:lower():find(key, 1, true) and not (c.off and c.off[prof]) and data.rank
+            and ((not req) or data.rank >= req) then
+          -- otro personaje con la profesion y el nivel, pero sin lista de recetas (nunca abrio su ventana con esta
+          -- version): no se sabe si ya la tiene, se avisa igual para que lo compruebe
+          out[#out + 1] = {
+            who = ckey:match("^([^-]+)") or ckey, prof = prof, rank = data.rank, req = req, ready = true, unknown = true,
+            note = format("%s (%s): abre su ventana de profesion una vez para confirmar si ya la sabe",
+              ckey:match("^([^-]+)") or ckey, prof),
+          }
         end
       end
     end
   end
   if all then return out end
+  for _, ro in ipairs(out) do if not ro.unknown then return ro end end
   return out[1]
 end
+
+-- FIN DE RECETAS PARA APRENDER
 
 ---------------------------------------------------------------------------
 -- DECISION: vender, subastar o guardar (un solo sitio para tooltip y bolsas)
@@ -1323,7 +1374,8 @@ do
       local ro = RecipeForOthers(id)
       if ro then
         d.verdict = "KEEP"
-        d.reason = format("receta que %s aun no sabe (%s %d%s): %s", ro.who, ro.prof, ro.rank,
+        d.reason = ro.unknown and ("receta para otro personaje: " .. ro.note)
+          or format("receta que %s aun no sabe (%s %d%s): %s", ro.who, ro.prof, ro.rank,
           ro.req and (", pide " .. ro.req) or "", ro.ready and "ya puede aprenderla" or "aun le falta habilidad")
         d.forOther = ro.who
         return d
@@ -1404,9 +1456,13 @@ local function RecipeLines(tooltip, id)
   local list = RecipeForOthers(id, true, true)
   if not list or #list == 0 then return end
   for _, ro in ipairs(list) do
-    tooltip:AddLine(format("  %s (%s %d%s) no la sabe: %s", ro.who, ro.prof, ro.rank,
-      ro.req and (", pide " .. ro.req) or "", ro.ready and "puede aprenderla" or "aun le falta habilidad"),
-      ro.ready and 0.35 or 1, ro.ready and 0.92 or 0.65, ro.ready and 0.55 or 0.25)
+    if ro.unknown then
+      tooltip:AddLine("  " .. ro.note, 1, 0.82, 0)
+    else
+      tooltip:AddLine(format("  %s (%s %d%s) no la sabe: %s", ro.who, ro.prof, ro.rank,
+        ro.req and (", pide " .. ro.req) or "", ro.ready and "puede aprenderla" or "aun le falta habilidad"),
+        ro.ready and 0.35 or 1, ro.ready and 0.92 or 0.65, ro.ready and 0.55 or 0.25)
+    end
   end
 end
 
@@ -3996,7 +4052,8 @@ do
 
   local SectionMixin = {}
   function SectionMixin:LayoutContents()
-    if not OB.active() then return end
+    -- una seccion que ya no es la nuestra (ForeverCore la engancho tarde, con el marco propio ya dibujado) no pinta
+    if OB.module ~= self or not OB.active() then return end
     local complete = OBJECTIVE_TRACKER_COLOR and OBJECTIVE_TRACKER_COLOR.Complete or nil
     for _, b in ipairs(OB.blocks) do
       local block = self:GetBlock(b.id)
@@ -4025,6 +4082,19 @@ do
     local fc = rawget(_G, "ForeverCore")
     local TS = type(fc) == "table" and fc.TrackerSection
     if not (type(TS) == "table" and type(TS.Create) == "function") then return nil end
+    -- en combate no se crea (ForeverCore la dejaria aparcada y luego se veria a la vez que el marco propio):
+    -- se vuelve a intentar al salir de combate
+    if InCombatLockdown and InCombatLockdown() then
+      if not OB.regen then
+        OB.regen = CreateFrame("Frame")
+        OB.regen:SetScript("OnEvent", function(f)
+          f:UnregisterEvent("PLAYER_REGEN_ENABLED")
+          xpcall(UpdateTracker, geterrorhandler())
+        end)
+      end
+      OB.regen:RegisterEvent("PLAYER_REGEN_ENABLED")
+      return nil
+    end
     OB.tried = true
     local ok, module = pcall(TS.Create, "GoldFinderForeverObjectiveTracker", SectionMixin, {
       header = "GoldFinder Forever",
@@ -4312,7 +4382,7 @@ do
   end)
 end
 
-function UpdateTracker(retry)
+function UpdateTracker(retry, tick)
   if RefreshGuide then xpcall(RefreshGuide, geterrorhandler()) end
   local entries = Cfg("nextSteps") and NextStepList() or {}
   -- lo que puedes hacer en la zona donde estas va arriba: farmeo de esa zona o materiales
@@ -4333,14 +4403,34 @@ function UpdateTracker(retry)
     if a.score ~= b.score then return a.score > b.score end
     return a.prof < b.prof
   end)
+  -- firma barata de lo calculado: en el aviso periodico (tick, cada 4 s) sin cambios no se repinta nada oculto
+  local function sv(x) return type(x) == "table" and "t" or tostring(x) end
+  local sig = { sv(Cfg("trackerMode")), sv(GoldFinderDB.trackerCollapsed), sv(zoneNow) }
+  for _, e in ipairs(entries) do
+    sig[#sig + 1] = table.concat({ sv(e.prof), sv(e.rank), sv(e.from), sv(e.upto), sv(e.what or e.recipe or e.zone),
+      sv(e.qty), sv(e.score), sv(e.unknown), e.train and "1" or "0", e.game and "1" or "0" }, "|")
+    for _, m in ipairs(e.mats or {}) do sig[#sig + 1] = sv(m.id) .. ":" .. sv(m.have) .. "/" .. sv(m.need) end
+  end
+  sig = table.concat(sig, ";")
+  local same = tick and Skin.trackerSig == sig
+  Skin.trackerSig = sig
   -- bloque del seguimiento de objetivos (trackerMode "objetivos") y notas de la lista de recetas
   local OB, onObjectives, obWaiting = Skin.Objectives, false, false
-  if OB then
-    onObjectives = xpcall(function() obWaiting = OB.refresh(entries) end, geterrorhandler()) and OB.active()
+  if same then
+    onObjectives = OB and OB.active() or false
+  else
+    if OB then
+      onObjectives = xpcall(function() obWaiting = OB.refresh(entries) end, geterrorhandler()) and OB.active()
+    end
+    if Skin.RecipeNotes then xpcall(Skin.RecipeNotes.refresh, geterrorhandler()) end
   end
-  if Skin.RecipeNotes then xpcall(Skin.RecipeNotes.refresh, geterrorhandler()) end
   local f = GoldFinderTracker
   if #entries == 0 then
+    if f then f:Hide() end
+    return
+  end
+  -- la ventana flotante no se ve (el paso va al seguimiento de objetivos): sin cambios no se rehace
+  if same and onObjectives then
     if f then f:Hide() end
     return
   end
@@ -4547,6 +4637,7 @@ local function MakeSettings(parent)
       if c[1] == "nextSteps" or c[1] == "trackerMode" then UpdateTracker() end
       if c[1] == "recipeNotes" and Skin.RecipeNotes then pcall(Skin.RecipeNotes.refresh) end
       if c[1] == "shopping" or c[1] == "craftTab" or c[1] == "routeTab" or c[1] == "profTabs" then
+        if Skin.ProfTabs then pcall(Skin.ProfTabs.later) end
         for _, u in ipairs(uiInstances) do
           pcall(u.layoutNav)
           if (not Cfg("shopping") and u.current == "compras") or (not Cfg("craftTab") and u.current == "fabricar")
@@ -4887,7 +4978,8 @@ local function CreateUI(parent, opts)
   if auction then
     -- en la subasta no hay pestana Ajustes: un boton abre la pagina de Opciones > AddOns
     local bOpts = Btn(header, "Ajustes", 80, 22, nil, function()
-      if not (OpenOptions and OpenOptions()) then Print("Escribe /gf ajustes para abrir las opciones.") end
+      local function nope() Print("Escribe /gf ajustes para abrir las opciones.") end
+      if not (OpenOptions and OpenOptions(nope)) then nope() end
     end)
     bOpts:SetPoint("RIGHT", bScan, "LEFT", -8, 0)
     bExport:ClearAllPoints(); bExport:SetPoint("RIGHT", bOpts, "LEFT", -8, 0)
@@ -4917,7 +5009,7 @@ local function CreateUI(parent, opts)
     b:SetScript("OnClick", function()
       if PlaySound and SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then pcall(PlaySound, SOUNDKIT.IG_CHARACTER_INFO_TAB) end
       -- Ajustes abre la pagina de Opciones > AddOns; si no se puede, queda la pagina propia de la ventana
-      if def[1] == "ajustes" and OpenOptions and OpenOptions() then return end
+      if def[1] == "ajustes" and OpenOptions and OpenOptions(function() ui.open("ajustes") end) then return end
       ui.open(def[1])
     end)
     ui.nav[def[1]] = b
@@ -5495,6 +5587,7 @@ do
   -- FIN DE PESTANAS EN PROFESIONES
 
   local P = { tabs = {}, hooked = {}, order = { "ruta", "fabricar" }, labels = { ruta = "Ruta", fabricar = "Fabricar" } }
+  Skin.ProfTabs = P   -- los ajustes (profTabs, craftTab, routeTab) recolocan las pestanas con P.later
 
   -- profesion abierta en la ventana, con la misma clave con la que CacheProfession la guarda
   function P.prof()
@@ -5642,6 +5735,10 @@ do
   function P.select(key)
     local win = ProfessionsFrame
     if not (type(win) == "table" and win:IsShown()) then return end
+    -- solo pestanas que tocan ahora (ajuste apagado o profesion sin recetas: no se abre)
+    local allowed = false
+    for _, k in ipairs(P.keys()) do if k == key then allowed = true; break end end
+    if not allowed then P.sync(); return end
     -- si hay una pagina de SkillUp (ForeverCore) elegida, se devuelve la ventana al juego antes de tapar
     pcall(function()
       local FT = type(ForeverCore) == "table" and ForeverCore.ProfessionTabs
@@ -6381,8 +6478,12 @@ local function RefreshVendor()
       lines[#lines + 1] = format("%s  |cffb3b3b3%s|r", link, price and price > 0 and ShortMoney(price) or "")
       for _, ro in ipairs(list) do
         local col = ro.ready and "|cff59eb8d" or "|cffffa640"
-        lines[#lines + 1] = format("   |cff6bb5ff%s|r (%s %d%s): %s%s|r", ro.who, ro.prof, ro.rank,
-          ro.req and (", pide " .. ro.req) or "", col, ro.ready and "puede aprenderla" or "aun le falta habilidad")
+        if ro.unknown then
+          lines[#lines + 1] = "   |cffffd100" .. ro.note .. "|r"
+        else
+          lines[#lines + 1] = format("   |cff6bb5ff%s|r (%s %d%s): %s%s|r", ro.who, ro.prof, ro.rank,
+            ro.req and (", pide " .. ro.req) or "", col, ro.ready and "puede aprenderla" or "aun le falta habilidad")
+        end
       end
     end
   end
@@ -6444,63 +6545,107 @@ end)
 -- se anotan al abrir la ventana de un instructor de profesion: receta, habilidad requerida, precio, instructor y
 -- donde esta. Se guardan por faccion y profesion en GoldFinderDB.trainerRecipes[faccion][profesion][receta].
 -- Se muestran un momento todas las categorias (disponibles, no disponibles y aprendidas) y se restaura el filtro.
-local function RecordTrainer()
-  if not (GoldFinderDB and GetNumTrainerServices and IsTradeskillTrainer and IsTradeskillTrainer()) then return end
-  local filters, shown = { "available", "unavailable", "used" }, {}
-  if GetTrainerServiceTypeFilter and SetTrainerServiceTypeFilter then
-    for _, k in ipairs(filters) do
-      shown[k] = GetTrainerServiceTypeFilter(k)
-      if not shown[k] then SetTrainerServiceTypeFilter(k, 1) end
+local RecordTrainer
+do
+  -- PROFESION DEL INSTRUCTOR
+  -- Los rangos se anuncian con el sustantivo del oficio ("Journeyman Tailor"), pero las listas se leen por el
+  -- nombre de la profesion ("Tailoring"): manda la linea de habilidad del juego y, si no la hay, esta tabla.
+  local PROF_NOUN = {
+    tailor = "Tailoring", leatherworker = "Leatherworking", blacksmith = "Blacksmithing", alchemist = "Alchemy",
+    engineer = "Engineering", enchanter = "Enchanting", cook = "Cooking", herbalist = "Herbalism", miner = "Mining",
+    skinner = "Skinning", fisherman = "Fishing", ["first aid"] = "First Aid",
+  }
+  -- pn: texto tras el rango; ...: lineas de habilidad candidatas en orden de preferencia (nil o "" se saltan)
+  local function TrainerProf(pn, ...)
+    for i = 1, select("#", ...) do
+      local v = select(i, ...)
+      if type(v) == "string" and v ~= "" then return v end
     end
+    if type(pn) ~= "string" then return nil end
+    local t = pn:gsub("^%s+", ""):gsub("%s+$", "")
+    return PROF_NOUN[t:lower()] or t
   end
-  local npc = UnitName("npc")
-  local zone = GetRealZoneText and GetRealZoneText() or nil
-  local x, y
-  local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
-  local pos = map and C_Map.GetPlayerMapPosition(map, "player")
-  if pos then
-    local px, py = pos:GetXY()
-    x, y = format("%.1f", px * 100), format("%.1f", py * 100)
-  end
-  local faction = UnitFactionGroup("player") or "?"
-  GoldFinderDB.trainerRecipes = GoldFinderDB.trainerRecipes or {}
-  local byFaction = GoldFinderDB.trainerRecipes[faction] or {}
-  GoldFinderDB.trainerRecipes[faction] = byFaction
-  GoldFinderDB.trainers = GoldFinderDB.trainers or {}
-  local ranksOf = GoldFinderDB.trainers[faction] or {}
-  GoldFinderDB.trainers[faction] = ranksOf
-  local count = 0
-  for i = 1, (GetNumTrainerServices() or 0) do
-    local name, sub, category = GetTrainerServiceInfo(i)
-    local skill, req = GetTrainerServiceSkillReq(i)
-    -- Rango de la profesion ("Leatherworking" + "Journeyman", o "Journeyman Leatherworking"): este instructor lo ensena.
-    local rprof, rmax = nil, name and sub and RANK_MAX[sub]
-    if rmax then
-      rprof = name
-    elseif name then
-      local r, pn = name:match("^(%a+) (.+)$")
-      if r and RANK_MAX[r] then rprof, rmax = pn, RANK_MAX[r] end
+  -- FIN DE PROFESION DEL INSTRUCTOR
+
+  local function Scan()
+    local npc = UnitName("npc")
+    local zone = GetRealZoneText and GetRealZoneText() or nil
+    local x, y
+    local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+    local pos = map and C_Map.GetPlayerMapPosition(map, "player")
+    if pos then
+      local px, py = pos:GetXY()
+      x, y = format("%.1f", px * 100), format("%.1f", py * 100)
     end
-    if rprof and category ~= "header" then
-      local t = ranksOf[rprof] or {}
-      ranksOf[rprof] = t
-      t[rmax] = { npc = npc, zone = zone, x = x, y = y, seen = time() }
-    elseif name and category ~= "header" and skill and req and name ~= skill then
-      local t = byFaction[skill] or {}
-      byFaction[skill] = t
-      t[name:lower()] = {
-        n = name, req = req, cost = GetTrainerServiceCost and GetTrainerServiceCost(i) or nil,
-        npc = npc, zone = zone, x = x, y = y, seen = time(),
-      }
-      count = count + 1
+    local faction = UnitFactionGroup("player") or "?"
+    GoldFinderDB.trainerRecipes = GoldFinderDB.trainerRecipes or {}
+    local byFaction = GoldFinderDB.trainerRecipes[faction] or {}
+    GoldFinderDB.trainerRecipes[faction] = byFaction
+    GoldFinderDB.trainers = GoldFinderDB.trainers or {}
+    local ranksOf = GoldFinderDB.trainers[faction] or {}
+    GoldFinderDB.trainers[faction] = ranksOf
+    local n = GetNumTrainerServices() or 0
+    -- profesion de la ventana: la que piden la mayoria de sus recetas
+    local votes, windowSkill, best = {}, nil, 0
+    for i = 1, n do
+      local name, _, category = GetTrainerServiceInfo(i)
+      local skill = GetTrainerServiceSkillReq(i)
+      if name and category ~= "header" and type(skill) == "string" and skill ~= "" and name ~= skill then
+        votes[skill] = (votes[skill] or 0) + 1
+        if votes[skill] > best then windowSkill, best = skill, votes[skill] end
+      end
     end
-  end
-  if GetTrainerServiceTypeFilter and SetTrainerServiceTypeFilter then
-    for _, k in ipairs(filters) do
-      if not shown[k] then SetTrainerServiceTypeFilter(k, 0) end
+    local count = 0
+    for i = 1, n do
+      local name, sub, category = GetTrainerServiceInfo(i)
+      local skill, req = GetTrainerServiceSkillReq(i)
+      -- Rango de la profesion ("Leatherworking" + "Journeyman", o "Journeyman Tailor"): este instructor lo ensena.
+      local rprof, rmax = nil, name and sub and RANK_MAX[sub]
+      if rmax then
+        rprof = name
+      elseif name then
+        local r, pn = name:match("^(%a+) (.+)$")
+        if r and RANK_MAX[r] then rprof, rmax = pn, RANK_MAX[r] end
+      end
+      if rprof and category ~= "header" then
+        local line = GetTrainerServiceSkillLine and GetTrainerServiceSkillLine(i)
+        rprof = TrainerProf(rprof, line, skill ~= name and skill or nil, windowSkill)
+        local t = ranksOf[rprof] or {}
+        ranksOf[rprof] = t
+        t[rmax] = { npc = npc, zone = zone, x = x, y = y, seen = time() }
+      elseif name and category ~= "header" and skill and req and name ~= skill then
+        local t = byFaction[skill] or {}
+        byFaction[skill] = t
+        t[name:lower()] = {
+          n = name, req = req, cost = GetTrainerServiceCost and GetTrainerServiceCost(i) or nil,
+          npc = npc, zone = zone, x = x, y = y, seen = time(),
+        }
+        count = count + 1
+      end
     end
+    return count
   end
-  return count
+
+  function RecordTrainer()
+    if not (GoldFinderDB and GetNumTrainerServices and IsTradeskillTrainer and IsTradeskillTrainer()) then return end
+    local filters, shown = { "available", "unavailable", "used" }, {}
+    local canFilter = GetTrainerServiceTypeFilter and SetTrainerServiceTypeFilter
+    if canFilter then
+      for _, k in ipairs(filters) do
+        shown[k] = GetTrainerServiceTypeFilter(k)
+        if not shown[k] then SetTrainerServiceTypeFilter(k, 1) end
+      end
+    end
+    -- seccion protegida: los filtros del instructor se restauran siempre, aunque la lectura falle
+    local ok, res = pcall(Scan)
+    if canFilter then
+      for _, k in ipairs(filters) do
+        if not shown[k] then pcall(SetTrainerServiceTypeFilter, k, 0) end
+      end
+    end
+    if not ok then error(res, 0) end
+    return res
+  end
 end
 
 local trainerEvents = CreateFrame("Frame")
@@ -6537,6 +6682,7 @@ local function RegisterOptions()
     if key == "nextSteps" or key == "gamePlan" or key == "trackerMode" then tracker() end
     if key == "recipeNotes" and Skin.RecipeNotes then pcall(Skin.RecipeNotes.refresh) end
     if key == "shopping" or key == "craftTab" or key == "routeTab" or key == "profTabs" then
+      if Skin.ProfTabs then pcall(Skin.ProfTabs.later) end
       for _, u in ipairs(uiInstances) do
         pcall(u.layoutNav)
         if (not Cfg("shopping") and u.current == "compras") or (not Cfg("craftTab") and u.current == "fabricar")
@@ -6574,6 +6720,7 @@ local function RegisterOptions()
     local mixin = MinimalSliderWithSteppersMixin
     if fmt and o.SetLabelFormatter and mixin and mixin.Label then o:SetLabelFormatter(mixin.Label.Right, fmt) end
     S.RegisterInitializer(cat, S.CreateSliderInitializer(setting, o, tip))
+    return o
   end
 
   -- numeros enteros guardados tal cual en GoldFinderDB (mismos nombres que usan Cfg y los comandos)
@@ -6636,21 +6783,28 @@ local function RegisterOptions()
   number("sellCap", "Unidades a precio de subasta", 0, 1000, 1,
     "Unidades de cada objeto fabricado que la pestana Ruta valora a precio de subasta; el resto, a precio del vendedor (lo mismo que /gf tope N).")
   -- profesiones de este personaje que cuentan (materiales a guardar, patrones y siguiente paso)
-  local profs = {}
-  for prof in pairs(Char().prof) do profs[#profs + 1] = prof end
-  table.sort(profs)
-  for _, prof in ipairs(profs) do
-    local setting = S.RegisterProxySetting(cat, "GoldFinder_prof_" .. (prof:gsub("[^%w]", "_")), BOOL,
-      "Cuenta: " .. prof, true,
-      function() return not Char().off[prof] end,
-      function(on)
-        Char().off[prof] = (not on) or nil
-        tracker()
-        refreshAll()
-      end)
-    S.RegisterInitializer(cat, S.CreateCheckboxInitializer(setting, nil,
-      "Profesiones que cuentan (materiales a guardar, patrones y siguiente paso). Solo para este personaje."))
+  -- Las que aprendas despues de entrar se anaden con SKILL_LINES_CHANGED (ver Skin.OptionsSync): la API Settings no
+  -- deja quitar ni mover filas, asi que una profesion nueva aparece al final de la pagina hasta el proximo /reload.
+  local profSeen = {}
+  local function addProfs()
+    local profs = {}
+    for prof in pairs(Char().prof) do if not profSeen[prof] then profs[#profs + 1] = prof end end
+    table.sort(profs)
+    for _, prof in ipairs(profs) do
+      profSeen[prof] = true
+      local setting = S.RegisterProxySetting(cat, "GoldFinder_prof_" .. (prof:gsub("[^%w]", "_")), BOOL,
+        "Cuenta: " .. prof, true,
+        function() return not Char().off[prof] end,
+        function(on)
+          Char().off[prof] = (not on) or nil
+          tracker()
+          refreshAll()
+        end)
+      S.RegisterInitializer(cat, S.CreateCheckboxInitializer(setting, nil,
+        "Profesiones que cuentan (materiales a guardar, patrones y siguiente paso). Solo para este personaje."))
+    end
   end
+  addProfs()
 
   header("Subasta y banquero")
   local gain = S.RegisterProxySetting(cat, "GoldFinder_minGain", NUM, "Ganancia minima de la subasta",
@@ -6674,14 +6828,21 @@ local function RegisterOptions()
   number("postDuration", "Subastar: duracion (horas)", 12, 24, 12, "Duracion de la subasta: 12 o 24 horas.")
   -- banquero: se elige entre los personajes con los que ya has entrado; un deslizador con pasos en vez de un
   -- desplegable, porque el desplegable nativo falla en el cliente Forever (lo mismo hace SkillUp Forever)
-  local names, seen = {}, {}
+  -- La lista se rehace (misma tabla) al abrir el panel de opciones: recoge fichas nuevas y nombres ya completos.
+  local names, seen, bankerOpts = {}, {}, nil
   local function addName(n)
     if n and n ~= "" and not seen[n:lower()] then seen[n:lower()] = true; names[#names + 1] = n end
   end
-  for key in pairs(GoldFinderDB.chars or {}) do addName(ResolveFullName(key:match("^([^-]+)") or key)) end
-  addName(BankerName())
-  table.sort(names)
-  table.insert(names, 1, "")   -- "" = ninguno
+  local function buildNames()
+    for i = #names, 1, -1 do names[i] = nil end
+    for k in pairs(seen) do seen[k] = nil end
+    for key in pairs(GoldFinderDB.chars or {}) do addName(ResolveFullName(key:match("^([^-]+)") or key)) end
+    addName(BankerName())
+    table.sort(names)
+    table.insert(names, 1, "")   -- "" = ninguno
+    if bankerOpts then bankerOpts.maxValue = math.max(2, #names) end
+  end
+  buildNames()
   local function bankerIndex()
     local cur = BankerName()
     if not cur then return 1 end
@@ -6698,16 +6859,26 @@ local function RegisterOptions()
       GoldFinderDB.banker = ResolveFullName(names[floor((tonumber(i) or 1) + 0.5)] or "") or ""
       refreshAll()
     end)
-  slider(banker, 1, math.max(2, #names), 1, function(i)
+  bankerOpts = slider(banker, 1, math.max(2, #names), 1, function(i)
     local n = names[floor(i + 0.5)]
     return (n and n ~= "") and n or "(ninguno)"
   end, "Personaje banquero: al que envias lo que hay que subastar. Se elige entre los personajes con los que ya has entrado.")
 
   S.RegisterAddOnCategory(cat)
   optionsCategory = cat
+
+  -- filas por personaje al dia: profesiones nuevas (fuera de combate) y lista de banqueros
+  Skin.OptionsSync = function(onlyNames)
+    if not onlyNames and not (InCombatLockdown and InCombatLockdown()) then addProfs() end
+    buildNames()
+  end
+  if type(SettingsPanel) == "table" and SettingsPanel.HookScript then
+    SettingsPanel:HookScript("OnShow", function() pcall(Skin.OptionsSync, true) end)
+  end
 end
 
-OpenOptions = function()
+-- fallback (opcional): se llama si un frame despues el panel de opciones no se ve (el abridor no hizo nada)
+OpenOptions = function(fallback)
   if not optionsCategory then return false end
   if InCombatLockdown and InCombatLockdown() then
     Print("Las opciones del juego se abren fuera de combate.")
@@ -6716,14 +6887,21 @@ OpenOptions = function()
   local id = optionsCategory.GetID and optionsCategory:GetID()
   -- el abridor del cliente, llamado de forma segura (como SkillUp Forever); si no esta, el de la API Settings
   local open = C_SettingsUtil and C_SettingsUtil.OpenSettingsPanel
+  local called = false
   if type(open) == "function" and type(securecallfunction) == "function" then
-    securecallfunction(open, id)
-    return true
+    called = pcall(securecallfunction, open, id)
   end
-  if Settings and type(Settings.OpenToCategory) == "function" then
-    return (pcall(Settings.OpenToCategory, id))
+  if not called and Settings and type(Settings.OpenToCategory) == "function" then
+    called = pcall(Settings.OpenToCategory, id)
   end
-  return false
+  if not called then return false end
+  C_Timer.After(0, function()
+    local sp = rawget(_G, "SettingsPanel")
+    if not (type(sp) == "table" and sp.IsShown and sp:IsShown()) and fallback then
+      xpcall(fallback, geterrorhandler())
+    end
+  end)
+  return true
 end
 
 -- Cambia una opcion por la API Settings (asi la pagina de opciones y sus efectos quedan al dia) o, sin ella,
@@ -6769,7 +6947,10 @@ f:SetScript("OnEvent", function(_, event, arg1)
       C_Timer.After(d, function() suCache.t = -10; pcall(SkillUpData) end)
     end
     C_Timer.NewTicker(4, function()
-      if GoldFinderDB and GoldFinderDB.nextSteps then pcall(ReadSkills); xpcall(UpdateTracker, geterrorhandler()) end
+      if GoldFinderDB and GoldFinderDB.nextSteps then
+        pcall(ReadSkills)
+        xpcall(function() UpdateTracker(nil, true) end, geterrorhandler())
+      end
     end)
     local okMM, errMM = pcall(SetupMinimap)
     if not okMM then Print("No pude crear el icono del minimapa: " .. tostring(errMM)) end
@@ -6793,6 +6974,10 @@ f:SetScript("OnEvent", function(_, event, arg1)
     -- el juego a veces actualiza la habilidad un instante despues del aviso: se lee varias veces
     for _, d in ipairs({ 0, 0.5, 2 }) do
       C_Timer.After(d, function() pcall(ReadSkills); xpcall(UpdateTracker, geterrorhandler()) end)
+    end
+    -- profesion nueva u olvidada: sus filas de Opciones (despues de releer las profesiones)
+    if event == "SKILL_LINES_CHANGED" then
+      C_Timer.After(2.5, function() if Skin.OptionsSync then pcall(Skin.OptionsSync) end end)
     end
   elseif event == "LOOT_OPENED" then
     pcall(RecordSources)
@@ -6838,13 +7023,14 @@ SlashCmdList["GOLDFINDER"] = function(msg)
       Print("Uso: /gf tope 5 (unidades de cada objeto fabricado que la pestana Ruta valora a precio de subasta, de 0 a 1000)")
     end
   elseif cmd == "ajustes" or cmd == "config" or cmd == "opciones" then
-    if not OpenOptions() then
-      -- sin la pagina de Opciones (o en combate): la pestana Ajustes de la ventana
+    -- sin la pagina de Opciones (o en combate, o no se abrio): la pestana Ajustes de la ventana
+    local function inWindow()
       if not (GoldFinderWindow and GoldFinderWindow:IsShown()) then ToggleWindow() end
       for _, u in ipairs(uiInstances) do
         if GoldFinderWindow and u:GetParent() == GoldFinderWindow then pcall(u.open, "ajustes") end
       end
     end
+    if not OpenOptions(inWindow) then inWindow() end
   elseif cmd == "guia" or cmd == "guide" then
     OpenGuide(rest)
   elseif cmd == "icono" or cmd == "minimap" then

@@ -252,3 +252,11 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   RouteNeedFor = max across professions; plan.eff false when unpriced ("sin precio" notes); sellCap counted in units;
   Fabricar uses CraftProfit (buy gain when none owned, BuyPrice, surplus only, capped AH value); Ruta view via
   RouteFor. tests/r2_test.lua 28 PASS (RED first); no existing expectation changed.
+- L39: R3 done by a bounded writer: Char()/CleanPhantomChars share MergeInto (all old "Nombre-*" keys merged into the
+  full-name ficha, realm record wins scalars, prof/keep/off/session/suNeed joined); TrainerProf maps rank services
+  to the profession (skill line, recipe services, noun map) with filters restored under pcall; RecipeToLearn uses
+  NormRecipe; alt hint for alts that never opened their window (keeps the recipe); exact LEGACY_OWNER; stale suNeed
+  cleared without SkillUp; no double objective block after combat; professions tabs follow option changes and
+  P.select checks keys; banker list refreshed on SettingsPanel show and new profession rows on SKILL_LINES_CHANGED
+  (Settings API cannot remove rows); OpenOptions verifies and falls back; 4 s ticker skips unchanged work.
+  tests/r3_test.lua 28 PASS (18 FAIL against HEAD). Risk: item 1 (merges/deletes saved fichas); verifier requested.
