@@ -37,13 +37,13 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 
 | ID | Specs | Route | Status | Commit |
 |----|-------|-------|--------|--------|
-| U1 | S2, S3, S5 | delegated (context backstop) | done, in-game check pending | see Log L5 |
+| U1 | S2, S3, S5 | delegated (context backstop) | done, verified in game (window) | 642153f, b225f3e |
 | U2 | S4, S5 | pending | pending | |
 | U3 | S6 | pending | pending | |
 | U4 | S6, S7 | pending | pending | |
 | U5 | S6 | pending | pending | |
-| U6 | S8, S5 | delegated (context backstop) | done, in-game check pending | a0f11da |
-| U7 | S9 | inline | done, in-game check pending | 0ca4681 + next |
+| U6 | S8, S5 | delegated (context backstop) | done, verified in game | a0f11da |
+| U7 | S9 | inline | done, verified in game | 0ca4681, 40f7164 |
 
 - U1: main window and shared helpers (`Flat`, `Text`, `Btn`, `PAL`, list rows, tabs) in the classic style.
 - U2: guide, tracker, mail, bank, vendor and export frames in the classic style.
@@ -84,3 +84,6 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 - L9: U7: visible strings renamed (chat prefix, window title, minimap tooltip and LDB text, Options category).
   Kept as "GoldFinder": folder, SavedVariables, ADDON_LOADED check, Auctionator CALLER id, LDB/LibDBIcon object
   name (minimap position), auction house tab label (narrow).
+- L10: In game 2026-11-20 20:51: window title "GoldFinder Forever"; Options > AddOns > GoldFinder Forever shows
+  sections, checkboxes, sliders (routeSpan 25, sellCap 5, minGain 20s, banker Ashes Soulbinder) and Defaults; tabs
+  relayout when Ruta is toggled; no GoldFinder errors in BugGrabber. AH tab host not yet checked.
