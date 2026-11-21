@@ -301,3 +301,5 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 - L48 (2026-11-21, user, verbatim): "Questie y SkillUp Forever hay que quitarlos." OptionalDeps now only
   TradeSkillMaster; README requirements: Auctionator + QuestieDB required, TSM optional. Runtime integrations with
   SkillUp/ForeverCore stay guarded (used only if present; no load-order need since they are read after login).
+- L49 (2026-11-21): CurseForge project created by the user (ID 1820519, https://authors.curseforge.com/#/projects/1820519).
+  Added `## X-Curse-Project-ID: 1820519` to the toc; logo (penguin) and 8 gallery screenshots in media/.

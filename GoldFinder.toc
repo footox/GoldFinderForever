@@ -5,6 +5,7 @@
 ## Author: footox
 ## Version: 2.1
 ## X-License: MIT
+## X-Curse-Project-ID: 1820519
 ## Dependencies: Auctionator, QuestieDB
 ## OptionalDeps: TradeSkillMaster
 ## SavedVariables: GoldFinderDB
