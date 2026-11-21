@@ -49,6 +49,13 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   and subject, attaches whole stacks of the auction items (never reserved units) and sends one mail (max 12
   attachments; further clicks send the next mail); only while the mailbox is open.
 
+- S13. Hybrid profession guide (user verbatim): "Y no se puede hacer algo hibrido?. Pero tener nuestra propia
+  lista." then "si, vamos con ese enfoque". Our own static list per profession 1-300 (what to craft per band,
+  recipes to learn and where, gathering zones), built only from game tables (wago.tools), GoldFinderRoutes (Icy
+  Veins facts) and trainers; never Zygor. Overlay: past bands checked, current band highlighted, upcoming bands show
+  the planner's cheaper alternative with the player's prices, cost and missing materials; visited trainers correct
+  required skill and cost.
+
 ## Tasks
 
 | ID | Specs | Route | Status | Commit |
@@ -62,6 +69,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U7 | S9 | inline | done, verified in game | 0ca4681, 40f7164 |
 | U8 | S10a | delegated (context backstop) | done, verified in game | c3eab1d, 60be0a1 |
 | U9 | S10b | delegated (context backstop) | done, verified in game | c3eab1d |
+| U12 | S13 | delegated (context backstop) | in progress | |
 | U11 | S12 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L31 |
 | U10 | S11 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L25 |
 
@@ -221,3 +229,6 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   silently; false "Enviado" on an unrelated MAIL_SEND_SUCCESS in the window; existing body text is sent.
 - L34: U11 correction (parent, inline): refuse a banker without surname; GoldFinder's own body text (a typed draft
   is not sent); 10 s timeout clears a stuck pending send; MAIL_SEND_SUCCESS only counts after SendMail was called.
+- L35 (2026-11-20, user, verbatim): "Tambien vi que la Guia de las profesiones, cambio bastante.", "Creo solo es
+  visual.", "Y no se puede hacer algo hibrido?. Pero tener nuestra propia lista." and "si, vamos con ese enfoque".
+  Task U12.
