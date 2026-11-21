@@ -12,6 +12,7 @@ local DEFAULTS = {
   reserve = 20,      -- fabricaciones de cada receta para las que se reserva material (subir profesion)
   nextSteps = false, -- opcional: ventana flotante con el siguiente paso de las guias de profesion
   crossChars = false, -- opcional: avisar de materiales que sirven a las profesiones de mis otros personajes
+  questItems = true,  -- no recomendar vender, subastar ni enviar objetos que piden tus misiones (y su cadena)
   gamePlan = false,   -- opcional: siguiente paso segun mis recetas y los precios de la subasta (en vez de la guia)
   shopping = false,    -- opcional: pestana Compras (lista de materiales que faltan)
   readyAlert = false,   -- opcional: aviso (chat y sonido) al reunir los materiales de un paso
@@ -1321,6 +1322,181 @@ end
 ---------------------------------------------------------------------------
 local Decide, SellQty
 do
+  -- NECESIDAD DE MISIONES
+  -- Objetos que piden tus misiones activas: nunca se recomienda venderlos, subastarlos, enviarlos ni darselos al
+  -- vendedor. Del registro de misiones salen los objetivos de objeto (se guarda el total pedido, no lo que falta:
+  -- al entregar la mision se consumen). Con QuestieDB: los ids de esos objetos, los objetos que pide la mision
+  -- (requiredSourceItems) y los de la siguiente mision de la cadena (nextQuestInChain, un paso).
+  -- need[itemID] = { n = unidades, quests = { textos }, titles = { misiones }, chainTitles = { cadena }, chain }
+  local QUEST_ALL = 100000   -- cantidad desconocida (QuestieDB no la guarda): se reserva todo lo que tengas
+
+  local function BuildQuestNeed(entries, api)
+    api = api or {}
+    local need, active = {}, {}
+    for _, e in ipairs(entries or {}) do if e.id then active[e.id] = true end end
+    local function call(fn, ...)
+      if type(fn) ~= "function" then return nil end
+      local ok, res = pcall(fn, ...)
+      if ok then return res end
+      return nil   -- siempre un valor (tonumber() sin argumento falla)
+    end
+    local function list(t)
+      local out = {}
+      if type(t) == "table" then
+        for _, v in ipairs(t) do
+          local id = tonumber(type(v) == "table" and v[1] or v)
+          if id and id > 0 then out[#out + 1] = id end
+        end
+      end
+      return out
+    end
+    local function itemObjectives(qid)
+      local o = call(api.objectives, qid)
+      return list(type(o) == "table" and o[3] or nil)
+    end
+    local added
+    local function add(id, n, title, chain)
+      if not id or added[id] then return end
+      added[id] = true
+      local x = need[id]
+      if not x then x = { n = 0, quests = {}, titles = {}, chainTitles = {}, chain = true }; need[id] = x end
+      x.n = math.min(QUEST_ALL, x.n + (n or QUEST_ALL))
+      if chain then
+        x.chainTitles[#x.chainTitles + 1] = title
+        x.quests[#x.quests + 1] = "siguiente de la cadena: " .. title
+      else
+        x.chain = false
+        x.titles[#x.titles + 1] = title
+        x.quests[#x.quests + 1] = title
+      end
+    end
+    local function lower(s) return type(s) == "string" and s:lower() or nil end
+    for _, e in ipairs(entries or {}) do
+      added = {}
+      local title = e.title or ("#" .. tostring(e.id))
+      local items = e.items or {}
+      local ids = e.id and itemObjectives(e.id) or {}
+      local used = {}
+      for _, it in ipairs(items) do
+        local found
+        for _, id in ipairs(ids) do
+          if not used[id] and lower(call(api.itemName, id)) == lower(it.name) then found = id; break end
+        end
+        if not found and #ids == 1 and #items == 1 then found = ids[1] end
+        if not found then found = tonumber(call(api.idByName, it.name)) end
+        if found then used[found] = true; add(found, tonumber(it.required) or QUEST_ALL, title) end
+      end
+      -- objetivos de QuestieDB sin pareja en el registro: se guarda todo (lado seguro)
+      for _, id in ipairs(ids) do if not used[id] then add(id, nil, title) end end
+      if e.id then
+        for _, id in ipairs(list(call(api.sourceItems, e.id))) do add(id, nil, title) end
+        local nq = tonumber(call(api.nextQuest, e.id))
+        if nq and nq > 0 and not active[nq] then
+          added = {}
+          local nt = call(api.questName, nq) or ("#" .. nq)
+          for _, id in ipairs(itemObjectives(nq)) do add(id, nil, nt, true) end
+          for _, id in ipairs(list(call(api.sourceItems, nq))) do add(id, nil, nt, true) end
+        end
+      end
+    end
+    return need
+  end
+
+  -- Registro de misiones: { { id, title, items = { { name, required } } } } (solo objetivos de objeto).
+  -- Cliente moderno (C_QuestLog.GetInfo) o clasico (GetQuestLogTitle); objetivos con GetQuestObjectives o
+  -- GetQuestLogLeaderBoard ("Nombre: 3/10").
+  local function ReadQuestLog()
+    local out = {}
+    local CQ = C_QuestLog
+    local modern = CQ and CQ.GetNumQuestLogEntries and CQ.GetInfo
+    local n = 0
+    if modern then n = CQ.GetNumQuestLogEntries() or 0
+    elseif GetNumQuestLogEntries then n = GetNumQuestLogEntries() or 0 end
+    for i = 1, n do
+      local title, isHeader, qid
+      if modern then
+        local info = CQ.GetInfo(i)
+        if info then title, isHeader, qid = info.title, info.isHeader, info.questID end
+      elseif GetQuestLogTitle then
+        local t, _, _, h, _, _, _, q = GetQuestLogTitle(i)
+        title, isHeader, qid = t, h, q
+      end
+      if title and not isHeader then
+        local e = { id = tonumber(qid), title = title, items = {} }
+        local objs = qid and CQ and CQ.GetQuestObjectives and CQ.GetQuestObjectives(qid)
+        if type(objs) == "table" then
+          for _, o in ipairs(objs) do
+            if o.type == "item" and o.text then
+              local name, _, req = o.text:match("^%s*(.-):%s*(%d+)%s*/%s*(%d+)")
+              e.items[#e.items + 1] = { name = name or o.text, required = tonumber(o.numRequired) or tonumber(req) }
+            end
+          end
+        elseif GetNumQuestLeaderBoards and GetQuestLogLeaderBoard then
+          for j = 1, (GetNumQuestLeaderBoards(i) or 0) do
+            local text, kind = GetQuestLogLeaderBoard(j, i)
+            if kind == "item" and text then
+              local name, _, req = text:match("^%s*(.-):%s*(%d+)%s*/%s*(%d+)")
+              e.items[#e.items + 1] = { name = name or text, required = tonumber(req) }
+            end
+          end
+        end
+        out[#out + 1] = e
+      end
+    end
+    return out
+  end
+  -- FIN DE NECESIDAD DE MISIONES
+
+  -- QuestieDB (opcional) y nombres de lo que llevas en las bolsas, para pasar de nombre a id
+  local function QuestApi()
+    local api = {}
+    local Q, I = rawget(_G, "QuestDB"), rawget(_G, "ItemDB")
+    if type(Q) == "table" then
+      api.objectives, api.sourceItems = Q.objectives, Q.requiredSourceItems
+      api.nextQuest, api.questName = Q.nextQuestInChain, Q.name
+    end
+    api.itemName = function(id)
+      local n = C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(id)
+      if not n and type(I) == "table" and type(I.name) == "function" then n = I.name(id) end
+      return n
+    end
+    local byName
+    api.idByName = function(name)
+      if not byName then
+        byName = {}
+        local CC = C_Container
+        for bag = 0, (NUM_BAG_SLOTS or 4) do
+          for slot = 1, (CC and CC.GetContainerNumSlots(bag) or 0) do
+            local id = CC.GetContainerItemID and CC.GetContainerItemID(bag, slot)
+            local n = id and C_Item.GetItemInfo(id)
+            if n then byName[n:lower()] = id end
+          end
+        end
+      end
+      return type(name) == "string" and byName[name:lower()] or nil
+    end
+    return api
+  end
+
+  local questCache, questPending
+  local function QuestNeed(id)
+    if not questCache then
+      local ok, res = pcall(function() return BuildQuestNeed(ReadQuestLog(), QuestApi()) end)
+      questCache = ok and res or {}
+    end
+    return questCache[id]
+  end
+  local questEvents = CreateFrame("Frame")
+  for _, e in ipairs({ "QUEST_LOG_UPDATE", "QUEST_ACCEPTED", "QUEST_TURNED_IN", "QUEST_REMOVED",
+      "BAG_UPDATE_DELAYED" }) do
+    pcall(questEvents.RegisterEvent, questEvents, e)
+  end
+  questEvents:SetScript("OnEvent", function()
+    if questPending then return end
+    questPending = true
+    C_Timer.After(0.5, function() questPending = nil; questCache = nil end)
+  end)
+
   -- REGLAS DE VENTA
   -- herramientas de profesion clasicas (sin efecto "Usar:", el vendedor las paga y no suelen tener precio de
   -- subasta): nunca se recomiendan al vendedor. Las canas de pescar se detectan tambien por subclase (arma 2, sub 20).
@@ -1369,7 +1545,10 @@ do
   local function Reserve(id)
     local r = { su = SkillUpNeed(id), z = RouteNeedFor(Char(), id), rg = ReagentInfo(id) }
     r.o = Cfg("crossChars") and OtherNeed(id, true) or nil
-    r.own = math.max(r.su and r.su.need or 0, r.z and r.z.need or 0, r.rg and r.rg.need or 0)
+    -- misiones: se suman a lo de tus profesiones (entregar la mision consume ademas de fabricar)
+    r.q = Cfg("questItems") ~= false and QuestNeed and QuestNeed(id) or nil
+    r.prof = math.max(r.su and r.su.need or 0, r.z and r.z.need or 0, r.rg and r.rg.need or 0)
+    r.own = r.prof + (r.q and r.q.n or 0)
     r.alts = r.o and r.o.need or 0
     r.total = r.own + r.alts
     local names, seen = {}, {}
@@ -1378,6 +1557,8 @@ do
     if r.z then add(r.z.prof) end
     if r.rg then add(r.rg.prof) end
     if r.o then add(r.o.who) end
+    r.otherLabel = #names > 0 and table.concat(names, ", ") or nil
+    if r.q and #(r.q.quests or {}) > 0 then add("mision(es) " .. table.concat(r.q.quests, ", ")) end
     r.label = #names > 0 and table.concat(names, ", ") or nil
     return r
   end
@@ -1400,13 +1581,22 @@ do
       return d
     end
     local r = Reserve(id)
-    d.reserve, d.reserveFor = r.total, r.label
+    d.reserve, d.reserveFor, d.reserveOther = r.total, r.label, r.otherLabel
+    if r.q then d.quest = r.q end
     -- lo que se puede vender o publicar: lo de las bolsas que no hace falta para la reserva
     d.sellQty = math.max(0, math.min(bags, have - r.total))
     if r.own > 0 and have <= r.own then
-      local su, z, rg = r.su, r.z, r.rg
+      local su, z, rg, q = r.su, r.z, r.rg, r.q
       d.verdict, d.need = "KEEP", r.own
-      if su and su.need >= have then
+      if q and (r.prof < have or r.prof == 0) then
+        local titles = q.titles and #q.titles > 0 and q.titles or (not q.chain and q.quests) or nil
+        if titles and #titles > 0 then
+          d.reason = "para la mision " .. table.concat(titles, ", ")
+        else
+          d.reason = "para la cadena: " .. table.concat(q.chainTitles or q.quests or {}, ", ")
+        end
+        if q.n < QUEST_ALL then d.reason = format("%s (tienes %d de %d)", d.reason, have, r.own) end
+      elseif su and su.need >= have then
         d.reason = format("SkillUp: ruta de %s hasta habilidad %s (tienes %d de %d)",
           table.concat(su.profs, ", "), tostring(su.target or "?"), have, su.need)
       elseif z and z.need >= have then
@@ -1563,6 +1753,11 @@ local function TipAdvice(tooltip, data)
     if bags + bank > 0 then
       tooltip:AddLine(format("  Tienes %d en bolsas y %d en el banco.", bags, bank), 0.7, 0.7, 0.7)
     end
+    local qheld = d.quest and math.min(d.quest.n or 0, bags + bank) or 0
+    if qheld > 0 then
+      tooltip:AddLine(format("  %d reservados para mision(es): %s", qheld, table.concat(d.quest.quests or {}, ", ")),
+        1, 0.82, 0, true)
+    end
     if d.need and bags + bank < d.need then
       local others = OtherStock(id)
       if others and #others > 0 then
@@ -1585,9 +1780,19 @@ local function TipAdvice(tooltip, data)
   -- solo se valora y se vende lo que sobra de la reserva (tus profesiones y las de tus otros personajes)
   local n = d.sellQty or bags
   local held = math.min(d.reserve or 0, bags + bank)
-  if held > 0 then
-    tooltip:AddLine(format("  %d reservados para %s: %s %d de tus %d en bolsas.", held, d.reserveFor or "tus profesiones",
+  -- objetos de mision: su propia linea; el resto de la reserva, con sus profesiones y otros personajes
+  local qheld = d.quest and math.min(d.quest.n or 0, held) or 0
+  if qheld > 0 then
+    tooltip:AddLine(format("  %d reservados para mision(es): %s", qheld, table.concat(d.quest.quests or {}, ", ")),
+      1, 0.82, 0, true)
+  end
+  if held - qheld > 0 then
+    tooltip:AddLine(format("  %d reservados para %s: %s %d de tus %d en bolsas.", held - qheld,
+      (d.quest and d.reserveOther or d.reserveFor) or "tus profesiones",
       d.verdict == "AH" and "se subastan" or "se venden", n, bags), 0.42, 0.71, 1, true)
+  elseif qheld > 0 then
+    tooltip:AddLine(format("  %s %d de tus %d en bolsas.", d.verdict == "AH" and "Se subastan" or "Se venden", n, bags),
+      0.42, 0.71, 1, true)
   end
   if d.reason and d.verdict == "AH" then tooltip:AddLine("  " .. d.reason, 0.7, 0.7, 0.7, true) end
   if n > 0 and d.ahNet > 0 and d.vendor > 0 then
@@ -4656,7 +4861,7 @@ local function MakeSettings(parent)
   sf:SetPoint("TOPLEFT", outer, "TOPLEFT", 0, 0)
   sf:SetPoint("BOTTOMRIGHT", outer, "BOTTOMRIGHT", -26, 0)
   local v = CreateFrame("Frame", nil, sf)
-  v:SetSize(700, 1303)
+  v:SetSize(700, 1335)
   sf:SetScrollChild(v)
   sf:SetScript("OnSizeChanged", function(_, w) if w and w > 0 then v:SetWidth(w) end end)
   local title = Text(v, 13, PAL.gold); title:SetPoint("TOPLEFT", v, "TOPLEFT", 0, 0); title:SetText("Opciones")
@@ -4666,6 +4871,7 @@ local function MakeSettings(parent)
     { "track", "Registrar el cuero que recoges (pestana Sesion)" },
     { "nextSteps", "Ventana flotante con el siguiente paso de las guias de profesion" },
     { "crossChars", "Avisar de materiales que sirven a las profesiones de mis otros personajes" },
+    { "questItems", "Proteger objetos de mision: no vender, subastar ni enviar lo que piden tus misiones activas" },
     { "gamePlan", "Siguiente paso segun mis recetas y los precios de la subasta (en vez de la guia)" },
     { "shopping", "Pestana Compras: materiales que me faltan para el paso actual, con precios" },
     { "readyAlert", "Avisar (chat y sonido) cuando reuna los materiales de un paso" },
@@ -6798,6 +7004,8 @@ local function RegisterOptions()
   check("track", "Registrar el cuero que recoges", "Registrar el cuero que recoges (pestana Sesion).")
   check("crossChars", "Materiales de mis otros personajes",
     "Avisar de materiales que sirven a las profesiones de mis otros personajes.")
+  check("questItems", "Proteger objetos de mision",
+    "Nunca recomendar vender, subastar, enviar al banquero ni dar al vendedor lo que piden tus misiones activas (con QuestieDB, tambien la siguiente mision de la cadena).")
   check("useSkillUp", "Usar la ruta de SkillUp Forever",
     "Usar la ruta de SkillUp Forever (si lo tienes) para decidir que materiales guardar.")
   number("reserve", "Fabricaciones a reservar", 0, 200, 1,

@@ -74,7 +74,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U7 | S9 | inline | done, verified in game | 0ca4681, 40f7164 |
 | U8 | S10a | delegated (context backstop) | done, verified in game | c3eab1d, 60be0a1 |
 | U9 | S10b | delegated (context backstop) | done, verified in game | c3eab1d |
-| U13 | S14 | delegated (context backstop) | in progress | |
+| U13 | S14 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L44 |
 | U12 | S13 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L36 |
 | U11 | S12 | delegated (context backstop) | done, verified in game | 7c8b61d, 87c2e12 |
 | U10 | S11 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L25 |
@@ -280,3 +280,9 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   "Zygor se supone trae una guia de leveo,pero siento que no esta actualizada al 100" and "si, agrega la protección
   de objetos de misión". BugGrabber tracker errors come from MapUtils/SkillUp/Zygor, not GoldFinder. Suggested RXP
   Guides (installed) and Questie for leveling; GoldFinder adds quest item protection (task U13).
+- L44: U13 done by a bounded writer: ReadQuestLog (C_QuestLog or legacy APIs) + pure BuildQuestNeed (markers
+  "-- NECESIDAD DE MISIONES" .. "-- FIN DE NECESIDAD DE MISIONES"): required totals of item objectives, QuestieDB
+  objectives/requiredSourceItems/nextQuestInChain (one step); counts unknown (chain/source items) reserve all held
+  units. Reserve: own = max(route, reagents, SkillUp) + quest need; KEEP "para la mision X" / "para la cadena: X";
+  tooltip "N reservados para mision(es)". Setting questItems (default on). tests/quest_items_test.lua 35 PASS.
+  Known trade-off: next-chain items with unknown counts are fully reserved (safe side).
