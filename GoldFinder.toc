@@ -26,6 +26,7 @@ ui/widgets.lua
 features/vendor/panel.lua
 features/mail/panel.lua
 features/auction/post.lua
+features/auction/tab.lua
 features/professions/tabs.lua
 GoldFinderRoutes.lua
 GoldFinderTrainers.lua
