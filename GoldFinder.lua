@@ -3575,10 +3575,11 @@ local function CreateUI(parent)
               shown = shown + 1
               out[#out + 1] = {
                 id = m.id, name = "Comprar " .. ItemLink(m.id),
-                reason = format("Necesitas %d, tienes %d", m.need, m.have),
+                reason = format("Necesitas %d, tienes %d", m.need, m.have)
+                  .. (m.price and (" | precio por unidad " .. Money(m.price) .. (m.est and " (estimado)" or "")) or ""),
                 c1 = "x" .. m.missing,
-                c2 = m.price and (ShortMoney(m.price) .. (m.est and "~" or "")) or (DIM .. "sin precio|r"),
-                c3 = m.cost and Money(m.cost) or "",
+                c2 = m.cost and (Money(m.cost) .. (m.est and "~" or "")) or (DIM .. "sin precio|r"),
+                c3 = "",
                 actions = { { "Buscar", function() SearchMaterials({ mats = { { id = m.id, need = m.need, have = m.have } } }) end } },
               }
             end
