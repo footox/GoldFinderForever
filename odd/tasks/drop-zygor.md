@@ -29,7 +29,7 @@ Branch: `feat/drop-zygor`. Delivery: ask-on-risk. Test runner: none (no Lua test
 |----|-------|-------|--------|--------|
 | T1 | S5, S7 | inline | done, in-game check pending | 981becc |
 | T2 | S2 | inline | done (offline tests), in-game check pending | see Log L6 |
-| T3 | S2, S3 | inline | pending | |
+| T3 | S2, S3 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L8 |
 | T4 | S4, S5 | inline | pending | |
 | T5 | S6 | inline | pending | |
 | T6 | S1 | inline | pending | |
@@ -64,5 +64,13 @@ parallel-writer reason exists; all inline.
   (7 cases) pass; against the previous commit they fail (`learns` is nil), which is the RED evidence.
 - L7 (2026-11-20, user, verbatim, new request, separate from this feature): "Incluso el diseño se que lo hizo
   moderno Cowrok pero me gustaria que se integrase mas natural al diseño clasico de wow".
+- L8: T3 done by a bounded writer. Planner block moved before its consumers (ends at marker
+  `-- FIN DEL PLANIFICADOR DE RUTA`). New `RouteFor` (cached plan per character/profession, invalidated on bag
+  update, AH scan, trainer, recipe learned, merchant), `RouteNeedFor` (replaces ZygorNeedFor), `RouteStepEntry`,
+  `GatherStepEntry` (Mining/Herbalism zones from GoldFinderRoutes), rewritten `NextStepList`, `BuildGuide`,
+  `CapCost`. `GoldFinderData.learn` no longer read (LearnFor removed). Checks: luac OK, plan_route_test 7 PASS,
+  route_consumers_test 23 PASS, grep for steps/levelmats/learn empty. Known gaps: no route until the profession
+  window is opened once; Skinning/Fishing have no next step until T5; guide shows only upcoming steps.
+  Risk: item 6 (UI paths only verifiable in game).
 - L3: Engram mirror pending: the Engram server only resolves project `repository` (its cwd is J:\Repository),
   so `goldfinder` cannot be written yet.

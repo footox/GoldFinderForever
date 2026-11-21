@@ -461,44 +461,335 @@ local function ReagentInfo(id)
   return ReagentInfoFor(Char(), id)
 end
 
----------------------------------------------------------------------------
--- GUIAS DE ZYGOR: lee sus guias de Cocina y Peleteria (1-300) y saca los
--- materiales exactos ("collect N Objeto##ID") con la habilidad hasta la que
--- sirven. Solo se reservan los de los proximos puntos de habilidad.
----------------------------------------------------------------------------
-local ZYGOR_WINDOW = 60
+-- RECETAS DEL JUEGO (GoldFinderRecipes): umbrales de color exactos de cada receta.
+-- y = amarilla desde, (y+g)/2 = verde desde, g = gris desde. Probabilidad de subir un punto:
+-- 100% mientras es naranja; despues baja linealmente hasta 0 al ponerse gris: (g - habilidad) / (g - y).
+local recipeIdx
+local function RecipeLookup(skillLine, name)
+  local R = GoldFinderRecipes
+  if not (R and R.spells and skillLine and name) then return nil end
+  if not recipeIdx then
+    recipeIdx = {}
+    for _, x in pairs(R.spells) do
+      local t = recipeIdx[x.s]
+      if not t then t = {}; recipeIdx[x.s] = t end
+      local key = x.n:lower()
+      if not t[key] then t[key] = x end
+    end
+  end
+  local t = recipeIdx[skillLine]
+  return t and t[name:lower()] or nil
+end
 
--- Materiales para subir cada profesion: GoldFinderData.levelmats (derivado de las guias de Zygor).
--- Solo se reservan los de los proximos ZYGOR_WINDOW puntos de habilidad.
-local function ZygorNeedFor(c, id)
-  local data = GoldFinderData and GoldFinderData.levelmats
-  if not data then return nil end
-  for prof, pdata in pairs(c.prof) do
-    local p = prof:lower()
-    local rank = (not c.off[prof] and not SuOwned(c, prof)) and pdata.rank or nil
-    local list = data[p]
-    if not list then
-      for key, l in pairs(data) do
-        if p:find(key, 1, true) then list = l; break end
+local function SkillUpChance(x, skill)
+  if skill < x.y then return 1 end
+  return math.max(0, (x.g - skill) / (x.g - x.y))
+end
+
+local function RecipeColor(x, skill)
+  if skill < x.y then return 0 end
+  if skill < (x.y + x.g) / 2 then return 1 end
+  if skill < x.g then return 2 end
+  return 3
+end
+
+-- PLANIFICADOR DE RUTA: para subir de la habilidad actual a la objetivo, en cada punto de habilidad elige la receta
+-- (de las que ya sabes) con menor coste neto esperado por punto: (materiales - valor de lo fabricado) / (probabilidad
+-- de subir x puntos por fabricacion). Los materiales que ya tienes cuentan por lo que sacarias vendiendolos y se
+-- van gastando. Es una estimacion: cantidades esperadas, sin sobrantes, y los intermedios se compran hechos.
+-- Lo fabricado solo vale precio de subasta en sus primeras sellCap unidades (lo que el mercado absorbe); el resto
+-- vale lo que paga el vendedor. Asi la ruta no apuesta a vender decenas de copias del mismo objeto.
+local function BuyPrice(id)
+  local v1 = AHApi()
+  local ah = v1 and v1.GetAuctionPriceByItemID(CALLER, id) or nil
+  if ah and ah > 0 then return ah, false end
+  local vb = GoldFinderDB.vendorBuy and GoldFinderDB.vendorBuy[id]
+  if vb and vb > 0 then return vb, false end
+  local vs = VendorPrice(id)
+  if vs and vs > 0 then return vs * 4, true end   -- el vendedor suele vender a 4 veces lo que paga
+  return nil
+end
+
+local function SellValue(id, noAH)
+  local v1 = AHApi()
+  local ah = (not noAH and v1) and v1.GetAuctionPriceByItemID(CALLER, id) or nil
+  if ah and ah <= 0 then ah = nil end
+  return math.max(ah and ah * (1 - AH_CUT) or 0, VendorPrice(id) or 0)
+end
+
+local function PlanRoute(prof, pd, target)
+  if not (pd.crafts and pd.rank and pd.skillLine) then return nil end
+  local top = math.min(target, pd.maxRank or 300)
+  if pd.rank >= top then return nil end
+  local bpCache, svCache = {}, {}
+  local function buyP(id)
+    local c = bpCache[id]
+    if c == nil then
+      local pr, est = BuyPrice(id)
+      c = { pr or false, est }
+      bpCache[id] = c
+    end
+    return c[1] or nil, c[2]
+  end
+  local function sellV(id)
+    local c = svCache[id]
+    if c == nil then c = SellValue(id); svCache[id] = c end
+    return c
+  end
+  local cands = {}
+  -- learn = receta del instructor que aun no sabes ({ n, req, cost, npc, zone, x, y }), nil si ya la sabes.
+  local function addCand(name, x, cr, learn)
+    local outVal, outVend = 0, 0
+    if cr.o then
+      local bound = select(14, C_Item.GetItemInfo(cr.o)) == 1
+      outVal = SellValue(cr.o, bound) * (cr.q or 1)
+      outVend = SellValue(cr.o, true) * (cr.q or 1)
+    end
+    local unitBuy = 0
+    for _, m in ipairs(cr.r) do unitBuy = unitBuy + m[2] * (buyP(m[1]) or 0) end
+    cands[#cands + 1] = { name = name, x = x, cr = cr, o = cr.o, outVal = outVal, outVend = outVend, unitBuy = unitBuy,
+      made = 0, learn = learn }
+  end
+  local known = {}
+  for name, cr in pairs(pd.crafts) do
+    known[name:lower()] = true
+    local x = RecipeLookup(pd.skillLine, name)
+    if x then addCand(name, x, cr) end
+  end
+  for name in pairs(pd.learned or {}) do known[name:lower()] = true end
+  -- Recetas que aun no sabes pero ensena tu instructor (anotadas al abrir su ventana): entran en la ruta desde la
+  -- habilidad que piden, con sus materiales y objeto de GoldFinderRecipes y el precio de aprenderlas.
+  local TR = GoldFinderDB.trainerRecipes and GoldFinderDB.trainerRecipes[UnitFactionGroup("player") or "?"]
+  for key, t in pairs(TR and TR[prof] or {}) do
+    local x = not known[key] and RecipeLookup(pd.skillLine, t.n)
+    if x then addCand(t.n, x, { r = x.r, o = x.o, q = x.q }, t) end
+  end
+  if #cands == 0 then return nil end
+
+  local stock = {}
+  local function held(id)
+    local v = stock[id]
+    if v == nil then
+      local b, k = Counts(id)
+      v = b + k
+      stock[id] = v
+    end
+    return v
+  end
+
+  local cap = math.max(0, Cfg("sellCap") or 5)
+  -- Valor medio de las proximas n fabricaciones de c: precio de subasta hasta cap unidades, despues el del vendedor.
+  local function nextValue(c, n)
+    local ah = math.min(n, math.max(cap - c.made, 0))
+    return (ah * c.outVal + (n - ah) * c.outVend) / n
+  end
+
+  local steps, need, learns = {}, {}, {}
+  local sk = pd.rank
+  while sk < top do
+    local best, bestEff, bestP
+    for _, c in ipairs(cands) do
+      local pch = SkillUpChance(c.x, sk)
+      if pch > 0 and c.learn and not c.learned and sk < (c.learn.req or 0) then pch = 0 end
+      if pch > 0 then
+        local cost = 0
+        for _, m in ipairs(c.cr.r) do
+          local h = held(m[1])
+          local use = math.min(h, m[2])
+          local buy = m[2] - use
+          cost = cost + use * sellV(m[1]) + buy * (buy > 0 and (buyP(m[1]) or 1e7) or 0)
+        end
+        local eff = (cost - nextValue(c, 1 / (pch * c.x.k))) / (pch * c.x.k)
+        -- Aprenderla se paga una vez: se reparte entre los puntos que aun puede dar antes de ponerse gris.
+        if c.learn and not c.learned then
+          eff = eff + (c.learn.cost or 0) / math.max(1, math.min(top, c.x.g) - sk)
+        end
+        if not best or eff < bestEff - 1e-9 then best, bestEff, bestP = c, eff, pch end
       end
     end
-    if list and rank then
-      local need, upto = 0, nil
-      for _, m in ipairs(list) do
-        if m.id == id and m.upto > rank and m.upto <= rank + ZYGOR_WINDOW then
-          need = need + m.qty
-          if not upto or m.upto > upto then upto = m.upto end
+    if not best then break end
+    if best.learn and not best.learned then
+      best.learned = true
+      learns[#learns + 1] = { t = best.learn, at = sk }
+    end
+    local frac = 1 / (bestP * best.x.k)
+    best.made = best.made + frac
+    for _, m in ipairs(best.cr.r) do
+      local total = m[2] * frac
+      local h = held(m[1])
+      stock[m[1]] = h - math.min(h, total)
+      need[m[1]] = (need[m[1]] or 0) + total
+    end
+    local last = steps[#steps]
+    if last and last.c == best then
+      last.to = sk + 1
+      last.crafts = last.crafts + frac
+    else
+      steps[#steps + 1] = { c = best, from = sk, to = sk + 1, crafts = frac }
+    end
+    sk = sk + 1
+  end
+  if #steps == 0 then return nil end
+
+  local mats, cost, sell, unknown = {}, 0, 0, 0
+  for id, q in pairs(need) do
+    local qn = math.ceil(q - 1e-9)
+    local b, k = Counts(id)
+    local have = b + k
+    local missing = math.max(qn - have, 0)
+    local pr, est
+    if missing > 0 then pr, est = buyP(id) end
+    local mc = pr and pr * missing or nil
+    if missing > 0 then
+      if mc then cost = cost + mc else unknown = unknown + 1 end
+    end
+    mats[#mats + 1] = { id = id, need = qn, have = have, missing = missing, price = pr, cost = mc, est = est }
+  end
+  table.sort(mats, function(a, b) return (a.cost or 0) > (b.cost or 0) end)
+  local learnCost = 0
+  for _, l in ipairs(learns) do learnCost = learnCost + (l.t.cost or 0) end
+  cost = cost + learnCost
+  local sold = {}
+  for _, st in ipairs(steps) do
+    st.n = math.ceil(st.crafts - 1e-9)
+    local used = sold[st.c] or 0
+    local ah = math.min(st.n, math.max(cap - used, 0))
+    st.value = ah * st.c.outVal + (st.n - ah) * st.c.outVend
+    st.ahUnits = ah
+    sold[st.c] = used + st.n
+    sell = sell + st.value
+  end
+  return { prof = prof, pd = pd, from = pd.rank, to = sk, steps = steps, mats = mats, cost = cost, sell = sell, unknown = unknown, cap = cap,
+    learns = learns, learnCost = learnCost }
+end
+
+---------------------------------------------------------------------------
+-- RUTA PROPIA (sustituye a las guias de Zygor): el siguiente paso, la guia y los materiales que conviene
+-- guardar salen del planificador de ruta (PlanRoute) con tus recetas, las del instructor y tus precios.
+-- Los planes se guardan por personaje, profesion y objetivo; se rehacen solos si cambia la habilidad, el
+-- tope o las recetas, y InvalidateRoutes los borra al cambiar bolsas, precios o lo que ensena el instructor.
+---------------------------------------------------------------------------
+local ROUTE_WINDOW = 60   -- solo se reservan los materiales de los proximos ROUTE_WINDOW puntos de habilidad
+local routeCache = {}
+
+local function InvalidateRoutes()
+  routeCache = {}
+end
+
+-- Plan de la profesion prof de un personaje hasta la habilidad target (nil si no hay plan). Para otros
+-- personajes se cuentan tus bolsas y tu banco en lugar de los suyos: es una aproximacion.
+local function RouteFor(c, prof, target)
+  local pd = c and c.prof and c.prof[prof]
+  if not (pd and pd.rank and target) then return nil end
+  local byChar = routeCache[c]
+  if not byChar then byChar = {}; routeCache[c] = byChar end
+  local k = prof .. "|" .. target
+  local e = byChar[k]
+  local cap = Cfg("sellCap")
+  if not (e and e.pd == pd and e.rank == pd.rank and e.max == pd.maxRank and e.cap == cap) then
+    local ok, plan = xpcall(function() return PlanRoute(prof, pd, target) end, geterrorhandler())
+    e = { pd = pd, rank = pd.rank, max = pd.maxRank, cap = cap, plan = (ok and plan) or false }
+    byChar[k] = e
+  end
+  return e.plan or nil
+end
+
+-- Material que gasta la ruta de alguna profesion del personaje en sus proximos ROUTE_WINDOW puntos:
+-- { need = unidades que pide la ruta, upto = habilidad hasta la que sirve, prof } o nil.
+local function RouteNeedFor(c, id)
+  for prof, pd in pairs(c.prof or {}) do
+    if pd.rank and not (c.off and c.off[prof]) and not SuOwned(c, prof) then
+      local plan = RouteFor(c, prof, pd.rank + ROUTE_WINDOW)
+      if plan then
+        local idx = plan.needIdx
+        if not idx then
+          idx = {}
+          for _, m in ipairs(plan.mats) do idx[m.id] = { need = m.need, upto = 0 } end
+          for _, st in ipairs(plan.steps) do
+            for _, m in ipairs(st.c.cr.r) do
+              local n = idx[m[1]]
+              if n and st.to > n.upto then n.upto = st.to end
+            end
+          end
+          plan.needIdx = idx
         end
+        local n = idx[id]
+        if n and n.need > 0 then return { need = n.need, upto = n.upto, prof = prof } end
       end
-      if need > 0 then return { need = need, upto = upto, prof = prof } end
     end
   end
   return nil
 end
 
-local function ZygorNeed(id)
-  return ZygorNeedFor(Char(), id)
+-- Materiales de un paso del plan (receta x fabricaciones) con lo que tienes (bolsas + banco)
+local function StepMats(st)
+  local mats = {}
+  for _, m in ipairs(st.c.cr.r) do
+    local bags, bank = Counts(m[1])
+    mats[#mats + 1] = { id = m[1], need = m[2] * st.n, have = bags + bank }
+  end
+  return mats
 end
+
+-- Donde aprender una receta del instructor anotada al abrir su ventana
+local function TrainerLearn(l)
+  return { npc = l.npc, zone = l.zone, x = l.x, y = l.y, cost = l.cost, trainer = true }
+end
+
+-- Siguiente paso de la ruta: la primera receta del plan, cuantas veces, el tramo y sus materiales
+local function RouteStepEntry(prof, pd, plan)
+  local st = plan and plan.steps[1]
+  if not st then return nil end
+  local e = { prof = prof, rank = pd.rank, qty = st.n, what = st.c.name, from = st.from, upto = st.to,
+    skillLine = pd.skillLine, mats = StepMats(st) }
+  if st.c.learn then
+    e.unknown = true
+    e.learn = TrainerLearn(st.c.learn)
+  end
+  local nx = plan.steps[2]
+  if nx then e.nxt = { what = nx.c.name, upto = nx.to } end
+  return e
+end
+
+-- Recoleccion (Mineria, Herboristeria): zonas por tramo de GoldFinderRoutes (Icy Veins)
+local function GatherZones(prof)
+  local p = (prof or ""):lower()
+  if not (p:find("min", 1, true) or p:find("herb", 1, true)) then return nil end
+  for k, routes in pairs(GoldFinderRoutes or {}) do
+    if p:find(k, 1, true) then
+      for _, rt in ipairs(routes) do
+        if rt.zones and #rt.zones > 0 then return rt.zones end
+      end
+    end
+  end
+  return nil
+end
+
+-- De "Durotar, Mulgore o Tirisfal Glades": la zona donde estas si esta en la lista; si no, la primera
+local function PickZone(text)
+  local here = GetRealZoneText and GetRealZoneText() or nil
+  local first
+  for name in (text .. ","):gsub(" o ", ", "):gmatch("%s*([^,]+),") do
+    first = first or name
+    if name == here then return name end
+  end
+  return first or text
+end
+
+local function GatherStepEntry(prof, pd)
+  local zones = GatherZones(prof)
+  if not (zones and pd.rank) then return nil end
+  for i, z in ipairs(zones) do
+    if pd.rank < z.to then
+      local nz = zones[i + 1]
+      return { gather = true, prof = prof, rank = pd.rank, from = z.from, upto = z.to, zone = PickZone(z.zone),
+        note = z.note, skillLine = pd.skillLine, mats = {},
+        nxt = nz and { zone = PickZone(nz.zone), upto = nz.to } or nil }
+    end
+  end
+  return nil
+end
+-- FIN DEL PLANIFICADOR DE RUTA
 
 -- Material que le sirve a la profesion de OTRO de mis personajes (opcional, ver Ajustes).
 -- Cuantas unidades lleva (bolsas + banco) un personaje, leido de BagBrother; nil si no hay datos de el
@@ -545,7 +836,7 @@ local function OtherNeed(id)
         local short = sn.n - (StockOf(who, id) or 0)
         if short > 0 then z = { need = short, prof = sn.p, upto = sn.t, su = true } end
       end
-      z = z or ZygorNeedFor(c, id) or ReagentInfoFor(c, id)
+      z = z or RouteNeedFor(c, id) or ReagentInfoFor(c, id)
       if z then
         z.who = who
         return z
@@ -607,50 +898,28 @@ local function TrainReq(prof, max)
   return TRAIN_REQ[max]
 end
 
--- Donde aprender una receta: el dato de la guia y, si no trae ubicacion, el instructor de la profesion
-local function LearnFor(key, L, target)
-  local ld = L and L[target] or nil
-  if ld and (ld.zone or ld.item) then return ld end
-  local T = GoldFinderData and GoldFinderData.train and GoldFinderData.train[key]
-  local fac = (UnitFactionGroup("player") == "Horde") and "H" or "A"
-  local d = T and T[fac] and T[fac][1] or nil
-  if d and d.zone then
-    return { zone = d.zone, x = d.x, y = d.y, npc = d.npc, trainer = true }
-  end
-  return ld
-end
-
--- Los materiales de la guia se asignan al primer paso de fabricar cuya habilidad los cubre
-local matsByStepCache = {}
-local function MatsByStep(key)
-  local c = matsByStepCache[key]
-  if c then return c end
-  c = {}
-  local steps = GoldFinderData and GoldFinderData.steps and GoldFinderData.steps[key]
-  local lm = GoldFinderData and GoldFinderData.levelmats and GoldFinderData.levelmats[key]
-  if steps and lm then
-    for _, m in ipairs(lm) do
-      local best
-      for _, st in ipairs(steps) do
-        if not st.gather and st.upto >= m.upto and (not best or st.upto < best.upto) then best = st end
-      end
-      if best then
-        c[best] = c[best] or {}
-        c[best][#c[best] + 1] = m
-      end
+-- Instructores de cada rango de una profesion para tu faccion (GoldFinderData.train)
+local function TrainList(prof)
+  local T = GoldFinderData and GoldFinderData.train
+  if not T then return nil end
+  local p = (prof or ""):lower()
+  local tl = T[p]
+  if not tl then
+    for k, v in pairs(T) do
+      if p:find(k, 1, true) then tl = v; break end
     end
   end
-  matsByStepCache[key] = c
-  return c
+  local fac = (UnitFactionGroup("player") == "Horde") and "H" or "A"
+  return tl and tl[fac] or nil
 end
 
--- Siguiente paso de la guia de cada profesion activa del personaje (para la ventana flotante opcional),
--- con los materiales de ese tramo y cuantos tienes (bolsas + banco).
+-- Siguiente paso de cada profesion activa del personaje (para la ventana flotante opcional): el primer paso de
+-- su ruta (o la zona de recoleccion del tramo), con los materiales de ese paso y cuantos tienes (bolsas + banco).
+local stepFrom = {}   -- habilidad a la que empezo cada paso (para la barra de progreso del tramo)
 local function NextStepList()
-  local data = GoldFinderData and GoldFinderData.steps
   local out = {}
-  if not data then return out end
-  for prof, pd in pairs(Char().prof) do
+  local me = Char()
+  for prof, pd in pairs(me.prof) do
     if ProfOn(prof) and pd.rank then
       local plan = Cfg("gamePlan") and GamePlan(prof, pd) or nil
       if plan then
@@ -660,73 +929,44 @@ local function NextStepList()
           cost = plan.cost, unknown = plan.unknown, craftable = plan.craftable,
           skillLine = pd.skillLine, mats = plan.mats,
         }
-      end
-      local p = prof:lower()
-      local key = (not plan) and data[p] and p or nil
-      if not key and not plan then
-        for k in pairs(data) do
-          if p:find(k, 1, true) then key = k; break end
-        end
-      end
-      if key then
-        local best
-        for _, st in ipairs(data[key]) do
-          if st.upto > pd.rank and (not best or st.upto < best.upto) then best = st end
-        end
-        if best then
-          local from = 0
-          for _, st in ipairs(data[key]) do
-            if st.upto <= pd.rank and st.upto > from then from = st.upto end
-          end
-          local mats = {}
-          for _, m in ipairs(MatsByStep(key)[best] or {}) do
-            local bags, bank = Counts(m.id)
-            mats[#mats + 1] = { id = m.id, need = m.qty, have = bags + bank }
-          end
-          local unknown, learn
-          if not best.gather and best.what and pd.learned and next(pd.learned) then
-            local target = NormRecipe(best.what)
-            unknown = true
-            for k in pairs(pd.learned) do
-              if NormRecipe(k) == target then unknown = false; break end
-            end
-            if unknown then
-              local L = GoldFinderData.learn and GoldFinderData.learn[key]
-              local fac = (UnitFactionGroup("player") == "Horde") and "H" or "A"
-              learn = LearnFor(key, L and L[fac], target)
+      else
+        local e = GatherStepEntry(prof, pd)
+        if not e and pd.crafts then
+          e = RouteStepEntry(prof, pd, RouteFor(me, prof, pd.rank + (Cfg("routeSpan") or 25)))
+          if e then
+            local sf = stepFrom[prof]
+            if sf and sf.what == e.what and sf.from <= e.from then
+              e.from = sf.from
+            else
+              stepFrom[prof] = { what = e.what, from = e.from }
             end
           end
-          local nxt
-          for _, st in ipairs(data[key]) do
-            if st.upto > best.upto and (not nxt or st.upto < nxt.upto) then nxt = st end
-          end
-          local train, trainState
-          local T = GoldFinderData.train
-          if T and pd.maxRank then
-            local tl = T[key]
-            local fac = (UnitFactionGroup("player") == "Horde") and "H" or "A"
-            for _, d in ipairs(tl and tl[fac] or {}) do
-              if d.max > pd.maxRank then
-                local rq = TrainReq(prof, d.max)
-                local ok = (not rq) or (pd.rank >= rq.skill and UnitLevel("player") >= rq.lvl)
-                if pd.rank >= pd.maxRank then
-                  train, trainState = d, ok and "cap" or "capblocked"
-                elseif ok then
-                  train, trainState = d, "ready"
-                elseif pd.rank >= pd.maxRank - 5 then
-                  train, trainState = d, "blocked"
-                end
-                break
+        end
+        local train, trainState
+        if pd.maxRank then
+          for _, d in ipairs(TrainList(prof) or {}) do
+            if d.max > pd.maxRank then
+              local rq = TrainReq(prof, d.max)
+              local ok = (not rq) or (pd.rank >= rq.skill and UnitLevel("player") >= rq.lvl)
+              if pd.rank >= pd.maxRank then
+                train, trainState = d, ok and "cap" or "capblocked"
+              elseif ok then
+                train, trainState = d, "ready"
+              elseif pd.rank >= pd.maxRank - 5 then
+                train, trainState = d, "blocked"
               end
+              break
             end
           end
-          out[#out + 1] = {
-            train = train, trainState = trainState, nxt = nxt,
-            unknown = unknown, learn = learn,
-            prof = prof, rank = pd.rank, qty = best.qty, what = best.what, upto = best.upto,
-            gather = best.gather, zone = best.zone, x = best.x, y = best.y, mob = best.mob,
-            skillLine = pd.skillLine, mats = mats, from = from,
-          }
+        end
+        -- sin paso de ruta (tope alcanzado o ninguna receta te sube) pero con instructor: solo el aviso de entrenar
+        if not e and train then
+          e = { trainOnly = true, prof = prof, rank = pd.rank, from = pd.rank, upto = math.max(pd.maxRank, pd.rank),
+            skillLine = pd.skillLine, mats = {} }
+        end
+        if e then
+          e.train, e.trainState = train, trainState
+          out[#out + 1] = e
         end
       end
     end
@@ -739,7 +979,7 @@ end
 -- alguna profesion de tus personajes, anota la zona y la criatura (datos de toda la cuenta).
 local function NeededByAny(id)
   for _, c in pairs(GoldFinderDB.chars or {}) do
-    if c.prof and (ZygorNeedFor(c, id) or ReagentInfoFor(c, id)) then return true end
+    if c.prof and (RouteNeedFor(c, id) or ReagentInfoFor(c, id)) then return true end
   end
   return false
 end
@@ -897,11 +1137,11 @@ local function Decide(id, bags, bank, bound)
       table.concat(su.profs, ", "), tostring(su.target or "?"), have, su.need)
     return d
   end
-  local z = ZygorNeed(id)
+  local z = RouteNeedFor(Char(), id)
   if z and have <= z.need then
     d.verdict = "KEEP"
     d.need = z.need
-    d.reason = format("%s: la guia de Zygor pide %d hasta habilidad %d (tienes %d)", z.prof, z.need, z.upto, have)
+    d.reason = format("%s: tu ruta pide %d hasta habilidad %d (tienes %d)", z.prof, z.need, z.upto, have)
     return d
   end
   local rg = ReagentInfo(id)
@@ -967,7 +1207,7 @@ local function SellQty(id)
   if bags <= 0 then return 0 end
   if Char().keep[id] then return 0 end
   local reserve = 0
-  local z = ZygorNeed(id)
+  local z = RouteNeedFor(Char(), id)
   if z then reserve = math.max(reserve, z.need) end
   local rg = ReagentInfo(id)
   if rg then reserve = math.max(reserve, rg.need) end
@@ -1595,6 +1835,7 @@ local function StepText(e)
     local canTxt = e.craftable > 0 and (", puedes hacer " .. e.craftable) or ""
     return format("fabrica %s (%s)%s%s", e.recipe, e.color, costTxt, canTxt)
   end
+  if e.trainOnly then return "entrena el siguiente rango" end
   if e.gather then
     local p = e.prof:lower()
     local isSkin = p:find("skin", 1, true)
@@ -1603,7 +1844,7 @@ local function StepText(e)
     local mob = (e.mob and isSkin) and (" (" .. e.mob .. ")") or ""
     local x, y = tonumber(e.x), tonumber(e.y)
     local where = (x and y) and format("%s (%.1f, %.1f)", e.zone, x, y) or tostring(e.zone)
-    return verb .. " " .. where .. mob .. ZoneTag(e.zone)
+    return verb .. " " .. where .. mob .. ZoneTag(e.zone) .. (e.note and (" (" .. e.note .. ")") or "")
   end
   return format("crea %d %s", e.qty, e.what)
 end
@@ -1648,34 +1889,19 @@ local function SearchMaterials(e)
   if not ok then Print("No pude buscar en Auctionator: " .. tostring(err)) end
 end
 
--- COSTE HASTA EL TOPE: materiales de la guia desde tu habilidad hasta el tope de rango (75, 150, 225...),
--- a precio de subasta, descontando lo que ya tienes (bolsas + banco). Es una estimacion.
+-- COSTE HASTA EL TOPE: materiales de tu ruta desde tu habilidad hasta el tope de rango (75, 150, 225...),
+-- descontando lo que ya tienes (bolsas + banco). Es una estimacion.
 local function CapCost(prof, pd)
-  local data = GoldFinderData and GoldFinderData.levelmats
-  if not data or not pd.rank then return nil end
-  local p = prof:lower()
-  local list = data[p]
-  if not list then
-    for k, l in pairs(data) do
-      if p:find(k, 1, true) then list = l; break end
-    end
-  end
-  if not list then return nil end
+  if not pd.rank then return nil end
   local cap = pd.maxRank or 300
-  local need = {}
-  for _, m in ipairs(list) do
-    if m.upto > pd.rank and m.upto <= cap then need[m.id] = (need[m.id] or 0) + m.qty end
-  end
-  if not next(need) then return nil end
-  local v1 = AHApi()
+  local plan = RouteFor(Char(), prof, cap)
+  if not plan then return nil end
   local r = { cap = cap, cost = 0, unknown = 0, n = 0, mats = {} }
-  for id, q in pairs(need) do
-    local bags, bank = Counts(id)
-    if q > bags + bank then
+  for _, m in ipairs(plan.mats) do
+    if m.missing > 0 then
       r.n = r.n + 1
-      local price = v1 and v1.GetAuctionPriceByItemID(CALLER, id) or nil
-      if price and price > 0 then r.cost = r.cost + price * (q - bags - bank) else r.unknown = r.unknown + 1 end
-      r.mats[#r.mats + 1] = { id = id, need = q, have = bags + bank }
+      if m.cost then r.cost = r.cost + m.cost else r.unknown = r.unknown + 1 end
+      r.mats[#r.mats + 1] = { id = m.id, need = m.need, have = m.have }
     end
   end
   return r
@@ -1760,6 +1986,7 @@ local function LearnText(e)
   end
   if l.trainer then
     return "aprendela con el instructor de la profesion: " .. (l.npc or "instructor") .. at
+      .. ((l.cost and l.cost > 0) and (" (" .. Money(l.cost) .. ")") or "")
   end
   return (l.npc and ("habla con " .. l.npc) or "entrenador") .. at
 end
@@ -1967,7 +2194,7 @@ local function TrackerRow(f, i)
     if e.game then
       GameTooltip:AddLine("Receta mas barata ahora que aun te sube, segun tus recetas y la subasta: " .. StepText(e) .. ".", 1, 1, 1, true)
     else
-      GameTooltip:AddLine(format("Siguiente paso de la guia: %s hasta habilidad %d.", StepText(e), e.upto), 1, 1, 1, true)
+      GameTooltip:AddLine(format("Siguiente paso de tu ruta: %s hasta habilidad %d.", StepText(e), e.upto), 1, 1, 1, true)
     end
     if e.train then GameTooltip:AddLine(TrainText(e), 1, 0.65, 0.25, true) end
     if e.unknown then
@@ -2020,14 +2247,11 @@ local guideRows = {}
 local GUIDE_W = 410
 local guideProf
 
+-- Profesiones con guia: las de fabricar cuyas recetas ya conoce el addon y las de recoleccion con zonas
 local function GuideKey(prof)
-  local data = GoldFinderData and GoldFinderData.steps
-  if not data then return nil end
-  local p = prof:lower()
-  if data[p] then return p end
-  for k in pairs(data) do
-    if p:find(k, 1, true) then return k end
-  end
+  local pd = Char().prof[prof]
+  if not pd then return nil end
+  if (pd.crafts and next(pd.crafts)) or GatherZones(prof) then return prof:lower() end
   return nil
 end
 
@@ -2038,57 +2262,47 @@ local function WhereText(d)
 end
 
 local function BuildGuide(prof, pd)
-  local key = GuideKey(prof)
-  if not key then return nil end
-  local steps = GoldFinderData.steps[key]
-  local lm = (GoldFinderData.levelmats and GoldFinderData.levelmats[key]) or {}
-  local fac = (UnitFactionGroup("player") == "Horde") and "H" or "A"
-  local T = GoldFinderData.train and GoldFinderData.train[key]
-  T = T and T[fac]
-  local L = GoldFinderData.learn and GoldFinderData.learn[key]
-  L = L and L[fac]
+  if not GuideKey(prof) then return nil end
+  local T = TrainList(prof)
   local rank = pd.rank or 0
-  local items, trainAdded = {}, {}
-  local hi = 0
-  local byStep = MatsByStep(key)
-  for _, st in ipairs(steps) do
-    if T then
-      local prevMax = 0
-      for _, d in ipairs(T) do
-        if st.upto > prevMax and not trainAdded[d.max] then
-          trainAdded[d.max] = true
-          items[#items + 1] = {
-            kind = "train", d = d, done = ((pd.maxRank or rank) >= d.max),
-            e = { train = d, trainState = "guide", prof = prof },
-          }
-        end
-        prevMax = d.max
+  local maxR = pd.maxRank or rank
+  local items = {}
+  local function addTrain(done)
+    for _, d in ipairs(T or {}) do
+      if (d.max <= maxR) == done then
+        items[#items + 1] = {
+          kind = "train", d = d, done = done,
+          e = { train = d, trainState = "guide", prof = prof },
+        }
       end
     end
-    local it = { kind = st.gather and "gather" or "craft", st = st, done = st.upto <= rank, from = math.min(hi, st.upto) }
-    hi = math.max(hi, st.upto)
-    if st.gather then
-      it.e = { gather = true, prof = prof, zone = st.zone, x = st.x, y = st.y, mob = st.mob, upto = st.upto }
-    else
-      it.mats = {}
-      for _, m in ipairs(byStep[st] or {}) do
-        local bags, bank = Counts(m.id)
-        it.mats[#it.mats + 1] = { id = m.id, need = m.qty, have = bags + bank }
-      end
-      if not it.done and st.what and pd.learned and next(pd.learned) then
-        local target = NormRecipe(st.what)
-        local known = false
-        for k in pairs(pd.learned) do
-          if NormRecipe(k) == target then known = true; break end
-        end
-        if not known then
-          it.unknown = true
-          it.learn = LearnFor(key, L, target)
-        end
-      end
-    end
-    items[#items + 1] = it
   end
+  addTrain(true)
+  local zones = GatherZones(prof)
+  if zones then
+    for _, z in ipairs(zones) do
+      local zone = PickZone(z.zone)
+      items[#items + 1] = {
+        kind = "gather", st = { upto = z.to, zone = zone }, done = z.to <= rank, from = z.from,
+        e = { gather = true, prof = prof, zone = zone, upto = z.to, note = z.note },
+      }
+    end
+  else
+    -- pasos de tu ruta desde la habilidad actual; la receta del instructor se marca en su primer paso
+    local plan = RouteFor(Char(), prof, rank + (Cfg("routeSpan") or 25))
+    local learnSeen = {}
+    for _, st in ipairs(plan and plan.steps or {}) do
+      local it = { kind = "craft", st = { upto = st.to, qty = st.n, what = st.c.name }, done = false, from = st.from,
+        mats = StepMats(st) }
+      if st.c.learn and not learnSeen[st.c] then
+        learnSeen[st.c] = true
+        it.unknown = true
+        it.learn = TrainerLearn(st.c.learn)
+      end
+      items[#items + 1] = it
+    end
+  end
+  addTrain(false)
   local cur
   if pd.maxRank and rank >= pd.maxRank then
     for _, it in ipairs(items) do
@@ -2235,24 +2449,13 @@ local function FarmCombos()
   return out
 end
 
--- RUTAS Y PLAN: compara la ruta de Zygor con otras (GoldFinderRoutes) usando tus precios de la subasta, y
--- decide material por material si conviene COMPRAR, FARMEAR o esperar. Para farmear se usa tu ritmo de la
+-- RUTAS Y PLAN: compara tu ruta (el planificador, con tus recetas) con otras (GoldFinderRoutes) usando tus precios de
+-- la subasta, y decide material por material si conviene COMPRAR, FARMEAR o esperar. Para farmear se usa tu ritmo de la
 -- sesion (unidades por hora de ese objeto y oro por hora): se farmea si tu tiempo vale menos que comprarlo.
-local function ZygorRouteNeed(key, rank, cap)
-  local steps = GoldFinderData.steps[key]
-  local byStep = MatsByStep(key)
-  local need, hi = {}, 0
-  for _, st in ipairs(steps or {}) do
-    local from = math.min(hi, st.upto)
-    hi = math.max(hi, st.upto)
-    if not st.gather then
-      local span = st.upto - from
-      local f = span > 0 and (math.min(st.upto, cap) - math.max(rank, from)) / span or 0
-      if f > 0 then
-        for _, m in ipairs(byStep[st] or {}) do need[m.id] = (need[m.id] or 0) + m.qty * f end
-      end
-    end
-  end
+local function OwnRouteNeed(prof, cap)
+  local plan = RouteFor(Char(), prof, cap)
+  local need = {}
+  for _, m in ipairs(plan and plan.mats or {}) do need[m.id] = m.need end
   return need
 end
 
@@ -2355,8 +2558,8 @@ local function RouteSummary(prof, key, pd)
   end
 
   local options = {}
-  local zrows, zc, zu = RoutePlan(ZygorRouteNeed(key, pd.rank, cap))
-  options[1] = { name = "Zygor", rows = zrows, cost = zc, unknown = zu }
+  local zrows, zc, zu = RoutePlan(OwnRouteNeed(prof, cap))
+  options[1] = { name = "Tu ruta", rows = zrows, cost = zc, unknown = zu }
   for _, r in ipairs(routes) do
     if r.steps and #r.steps > 0 then
       local rows, c, u = RoutePlan(OtherRouteNeed(r, pd.rank, cap))
@@ -2377,12 +2580,12 @@ local function RouteSummary(prof, key, pd)
       end
       out[#out + 1] = format("|cff6bb5ffRutas hasta %d con tus precios:|r %s", cap, table.concat(head, "  |  "))
       local other = (best == options[1]) and options[2] or options[1]
-      out[#out + 1] = format("Conviene la de |cffffd100%s|r (diferencia ~%s). Zygor solo lista cueros: no cuenta hilos ni tintes.",
+      out[#out + 1] = format("Conviene la de |cffffd100%s|r (diferencia ~%s).",
         best.name, Money(math.abs(other.cost - best.cost)))
       for _, l in ipairs(PlanText(best.rows)) do out[#out + 1] = l end
       if #best.rows == 0 then out[#out + 1] = "   Ya tienes todos los materiales de esa ruta." end
     else
-      -- Zygor no pide materiales (profesion de recoleccion): la otra guia ofrece una alternativa comprando
+      -- tu ruta no pide materiales (profesion de recoleccion): la otra guia ofrece una alternativa comprando
       for i = 2, #options do
         local o = options[i]
         if #o.rows > 0 then
@@ -3047,208 +3250,6 @@ local function ShowTSMExport()
   f.edit:HighlightText()
 end
 
--- RECETAS DEL JUEGO (GoldFinderRecipes): umbrales de color exactos de cada receta.
--- y = amarilla desde, (y+g)/2 = verde desde, g = gris desde. Probabilidad de subir un punto:
--- 100% mientras es naranja; despues baja linealmente hasta 0 al ponerse gris: (g - habilidad) / (g - y).
-local recipeIdx
-local function RecipeLookup(skillLine, name)
-  local R = GoldFinderRecipes
-  if not (R and R.spells and skillLine and name) then return nil end
-  if not recipeIdx then
-    recipeIdx = {}
-    for _, x in pairs(R.spells) do
-      local t = recipeIdx[x.s]
-      if not t then t = {}; recipeIdx[x.s] = t end
-      local key = x.n:lower()
-      if not t[key] then t[key] = x end
-    end
-  end
-  local t = recipeIdx[skillLine]
-  return t and t[name:lower()] or nil
-end
-
-local function SkillUpChance(x, skill)
-  if skill < x.y then return 1 end
-  return math.max(0, (x.g - skill) / (x.g - x.y))
-end
-
-local function RecipeColor(x, skill)
-  if skill < x.y then return 0 end
-  if skill < (x.y + x.g) / 2 then return 1 end
-  if skill < x.g then return 2 end
-  return 3
-end
-
--- PLANIFICADOR DE RUTA: para subir de la habilidad actual a la objetivo, en cada punto de habilidad elige la receta
--- (de las que ya sabes) con menor coste neto esperado por punto: (materiales - valor de lo fabricado) / (probabilidad
--- de subir x puntos por fabricacion). Los materiales que ya tienes cuentan por lo que sacarias vendiendolos y se
--- van gastando. Es una estimacion: cantidades esperadas, sin sobrantes, y los intermedios se compran hechos.
--- Lo fabricado solo vale precio de subasta en sus primeras sellCap unidades (lo que el mercado absorbe); el resto
--- vale lo que paga el vendedor. Asi la ruta no apuesta a vender decenas de copias del mismo objeto.
-local function BuyPrice(id)
-  local v1 = AHApi()
-  local ah = v1 and v1.GetAuctionPriceByItemID(CALLER, id) or nil
-  if ah and ah > 0 then return ah, false end
-  local vb = GoldFinderDB.vendorBuy and GoldFinderDB.vendorBuy[id]
-  if vb and vb > 0 then return vb, false end
-  local vs = VendorPrice(id)
-  if vs and vs > 0 then return vs * 4, true end   -- el vendedor suele vender a 4 veces lo que paga
-  return nil
-end
-
-local function SellValue(id, noAH)
-  local v1 = AHApi()
-  local ah = (not noAH and v1) and v1.GetAuctionPriceByItemID(CALLER, id) or nil
-  if ah and ah <= 0 then ah = nil end
-  return math.max(ah and ah * (1 - AH_CUT) or 0, VendorPrice(id) or 0)
-end
-
-local function PlanRoute(prof, pd, target)
-  if not (pd.crafts and pd.rank and pd.skillLine) then return nil end
-  local top = math.min(target, pd.maxRank or 300)
-  if pd.rank >= top then return nil end
-  local bpCache, svCache = {}, {}
-  local function buyP(id)
-    local c = bpCache[id]
-    if c == nil then
-      local pr, est = BuyPrice(id)
-      c = { pr or false, est }
-      bpCache[id] = c
-    end
-    return c[1] or nil, c[2]
-  end
-  local function sellV(id)
-    local c = svCache[id]
-    if c == nil then c = SellValue(id); svCache[id] = c end
-    return c
-  end
-  local cands = {}
-  -- learn = receta del instructor que aun no sabes ({ n, req, cost, npc, zone, x, y }), nil si ya la sabes.
-  local function addCand(name, x, cr, learn)
-    local outVal, outVend = 0, 0
-    if cr.o then
-      local bound = select(14, C_Item.GetItemInfo(cr.o)) == 1
-      outVal = SellValue(cr.o, bound) * (cr.q or 1)
-      outVend = SellValue(cr.o, true) * (cr.q or 1)
-    end
-    local unitBuy = 0
-    for _, m in ipairs(cr.r) do unitBuy = unitBuy + m[2] * (buyP(m[1]) or 0) end
-    cands[#cands + 1] = { name = name, x = x, cr = cr, o = cr.o, outVal = outVal, outVend = outVend, unitBuy = unitBuy,
-      made = 0, learn = learn }
-  end
-  local known = {}
-  for name, cr in pairs(pd.crafts) do
-    known[name:lower()] = true
-    local x = RecipeLookup(pd.skillLine, name)
-    if x then addCand(name, x, cr) end
-  end
-  for name in pairs(pd.learned or {}) do known[name:lower()] = true end
-  -- Recetas que aun no sabes pero ensena tu instructor (anotadas al abrir su ventana): entran en la ruta desde la
-  -- habilidad que piden, con sus materiales y objeto de GoldFinderRecipes y el precio de aprenderlas.
-  local TR = GoldFinderDB.trainerRecipes and GoldFinderDB.trainerRecipes[UnitFactionGroup("player") or "?"]
-  for key, t in pairs(TR and TR[prof] or {}) do
-    local x = not known[key] and RecipeLookup(pd.skillLine, t.n)
-    if x then addCand(t.n, x, { r = x.r, o = x.o, q = x.q }, t) end
-  end
-  if #cands == 0 then return nil end
-
-  local stock = {}
-  local function held(id)
-    local v = stock[id]
-    if v == nil then
-      local b, k = Counts(id)
-      v = b + k
-      stock[id] = v
-    end
-    return v
-  end
-
-  local cap = math.max(0, Cfg("sellCap") or 5)
-  -- Valor medio de las proximas n fabricaciones de c: precio de subasta hasta cap unidades, despues el del vendedor.
-  local function nextValue(c, n)
-    local ah = math.min(n, math.max(cap - c.made, 0))
-    return (ah * c.outVal + (n - ah) * c.outVend) / n
-  end
-
-  local steps, need, learns = {}, {}, {}
-  local sk = pd.rank
-  while sk < top do
-    local best, bestEff, bestP
-    for _, c in ipairs(cands) do
-      local pch = SkillUpChance(c.x, sk)
-      if pch > 0 and c.learn and not c.learned and sk < (c.learn.req or 0) then pch = 0 end
-      if pch > 0 then
-        local cost = 0
-        for _, m in ipairs(c.cr.r) do
-          local h = held(m[1])
-          local use = math.min(h, m[2])
-          local buy = m[2] - use
-          cost = cost + use * sellV(m[1]) + buy * (buy > 0 and (buyP(m[1]) or 1e7) or 0)
-        end
-        local eff = (cost - nextValue(c, 1 / (pch * c.x.k))) / (pch * c.x.k)
-        -- Aprenderla se paga una vez: se reparte entre los puntos que aun puede dar antes de ponerse gris.
-        if c.learn and not c.learned then
-          eff = eff + (c.learn.cost or 0) / math.max(1, math.min(top, c.x.g) - sk)
-        end
-        if not best or eff < bestEff - 1e-9 then best, bestEff, bestP = c, eff, pch end
-      end
-    end
-    if not best then break end
-    if best.learn and not best.learned then
-      best.learned = true
-      learns[#learns + 1] = { t = best.learn, at = sk }
-    end
-    local frac = 1 / (bestP * best.x.k)
-    best.made = best.made + frac
-    for _, m in ipairs(best.cr.r) do
-      local total = m[2] * frac
-      local h = held(m[1])
-      stock[m[1]] = h - math.min(h, total)
-      need[m[1]] = (need[m[1]] or 0) + total
-    end
-    local last = steps[#steps]
-    if last and last.c == best then
-      last.to = sk + 1
-      last.crafts = last.crafts + frac
-    else
-      steps[#steps + 1] = { c = best, from = sk, to = sk + 1, crafts = frac }
-    end
-    sk = sk + 1
-  end
-  if #steps == 0 then return nil end
-
-  local mats, cost, sell, unknown = {}, 0, 0, 0
-  for id, q in pairs(need) do
-    local qn = math.ceil(q - 1e-9)
-    local b, k = Counts(id)
-    local have = b + k
-    local missing = math.max(qn - have, 0)
-    local pr, est
-    if missing > 0 then pr, est = buyP(id) end
-    local mc = pr and pr * missing or nil
-    if missing > 0 then
-      if mc then cost = cost + mc else unknown = unknown + 1 end
-    end
-    mats[#mats + 1] = { id = id, need = qn, have = have, missing = missing, price = pr, cost = mc, est = est }
-  end
-  table.sort(mats, function(a, b) return (a.cost or 0) > (b.cost or 0) end)
-  local learnCost = 0
-  for _, l in ipairs(learns) do learnCost = learnCost + (l.t.cost or 0) end
-  cost = cost + learnCost
-  local sold = {}
-  for _, st in ipairs(steps) do
-    st.n = math.ceil(st.crafts - 1e-9)
-    local used = sold[st.c] or 0
-    local ah = math.min(st.n, math.max(cap - used, 0))
-    st.value = ah * st.c.outVal + (st.n - ah) * st.c.outVend
-    st.ahUnits = ah
-    sold[st.c] = used + st.n
-    sell = sell + st.value
-  end
-  return { prof = prof, pd = pd, from = pd.rank, to = sk, steps = steps, mats = mats, cost = cost, sell = sell, unknown = unknown, cap = cap,
-    learns = learns, learnCost = learnCost }
-end
-
 -- Precios a los que el vendedor te vende cada objeto (se anotan al abrir un vendedor): sirven para costear materiales.
 local function RecordVendorPrices()
   if not (GetMerchantNumItems and GoldFinderDB) then return end
@@ -3492,7 +3493,7 @@ local function CreateUI(parent)
           if c and c.n > 0 then
             capRows[#capRows + 1] = {
               name = format("%s %d > %d", prof, pd.rank, c.cap),
-              reason = format("%d materiales por comprar%s (estimacion segun la guia; puede incluir alternativas)",
+              reason = format("%d materiales por comprar%s (estimacion segun tu ruta)",
                 c.n, c.unknown > 0 and (", " .. c.unknown .. " sin precio") or ""),
               c1 = c.n .. " mat.", c2 = "",
               c3 = Money(c.cost) .. (c.unknown > 0 and "+" or ""),
@@ -4044,6 +4045,7 @@ bankEvents:SetScript("OnEvent", function(_, event, arg1)
   elseif event == "BANKFRAME_CLOSED" or (event == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" and IsBankType(arg1)) then
     if GoldFinderBank then GoldFinderBank:Hide() end
   elseif event == "BAG_UPDATE_DELAYED" then
+    InvalidateRoutes()
     if GoldFinderBank and GoldFinderBank:IsShown() then pcall(RefreshBank) end
   end
 end)
@@ -4111,6 +4113,7 @@ vendorEvents:SetScript("OnEvent", function(_, event)
     return
   end
   pcall(RecordVendorPrices)
+  InvalidateRoutes()
   -- los nombres de las recetas pueden tardar en cargar: se mira dos veces
   C_Timer.After(0.3, function() pcall(RefreshVendor) end)
   if event == "MERCHANT_SHOW" then C_Timer.After(1.5, function() pcall(RefreshVendor) end) end
@@ -4167,7 +4170,7 @@ end
 local trainerEvents = CreateFrame("Frame")
 pcall(trainerEvents.RegisterEvent, trainerEvents, "TRAINER_SHOW")
 trainerEvents:SetScript("OnEvent", function()
-  C_Timer.After(0.2, function() xpcall(RecordTrainer, geterrorhandler()) end)
+  C_Timer.After(0.2, function() xpcall(RecordTrainer, geterrorhandler()); InvalidateRoutes() end)
 end)
 
 local f = CreateFrame("Frame")
@@ -4204,6 +4207,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
     local v1 = AHApi()
     if v1 and v1.RegisterForDBUpdate then
       v1.RegisterForDBUpdate(CALLER, function()
+        InvalidateRoutes()
         for _, u in ipairs(uiInstances) do pcall(u.refresh) end
         xpcall(UpdateTracker, geterrorhandler())
       end)
@@ -4211,6 +4215,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
   elseif event == "MAIL_SHOW" then
     C_Timer.After(0.2, function() pcall(RefreshMail) end)
   elseif event == "BAG_UPDATE_DELAYED" then
+    InvalidateRoutes()
     pcall(ReadSkills)
     pcall(SkillUpData)
     xpcall(UpdateTracker, geterrorhandler())
@@ -4223,6 +4228,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
   elseif event == "LOOT_OPENED" then
     pcall(RecordSources)
   elseif event == "NEW_RECIPE_LEARNED" then
+    InvalidateRoutes()
     -- recien aprendida en el entrenador: se apunta sin esperar a abrir la ventana de la profesion
     local ok, info = pcall(function() return C_TradeSkillUI.GetRecipeInfo(arg1) end)
     if ok and info and info.name then

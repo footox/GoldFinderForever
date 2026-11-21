@@ -1,10 +1,10 @@
 -- Offline tests for PlanRoute (Lua 5.1). Run from the addon folder:
 --   "C:\Program Files (x86)\Lua\5.1\lua.exe" tests\plan_route_test.lua
--- Extracts the planner from GoldFinder.lua (RecipeLookup .. RecordVendorPrices) and runs it with stubbed WoW APIs.
+-- Extracts the planner from GoldFinder.lua (RecipeLookup .. "FIN DEL PLANIFICADOR DE RUTA") and runs it with stubbed WoW APIs.
 
 local src = assert(io.open("GoldFinder.lua")):read("*a")
 local a = assert(src:find("local recipeIdx", 1, true), "start marker")
-local b = assert(src:find("-- Precios a los que el vendedor te vende", 1, true), "end marker")
+local b = assert(src:find("-- FIN DEL PLANIFICADOR DE RUTA", 1, true), "end marker")
 local chunk = src:sub(a, b - 1) .. "\nreturn PlanRoute"
 
 local prices, vendor, stock, faction = {}, {}, {}, "Horde"
