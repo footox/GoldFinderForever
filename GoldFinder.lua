@@ -5137,6 +5137,20 @@ local function ShowTSMExport()
   f.edit:HighlightText()
 end
 
+-- MERCADER: lectura de un objeto del vendedor con fallback entre APIs
+-- Devuelve name, texture, price, qty, numAvailable, isUsable, extended como GetMerchantItemInfo.
+local function MerchantItemInfo(i)
+  if GetMerchantItemInfo then return GetMerchantItemInfo(i) end
+  local CM = C_MerchantFrame
+  if CM and CM.GetItemInfo then
+    local t = CM.GetItemInfo(i)
+    if type(t) == "table" then
+      return t.name, t.texture, t.price, t.stackCount, t.numAvailable, t.isUsable, t.hasExtendedCost
+    end
+  end
+end
+-- FIN DE MERCADER
+
 -- Precios a los que el vendedor te vende cada objeto (se anotan al abrir un vendedor): sirven para costear materiales.
 local function RecordVendorPrices()
   if not (GetMerchantNumItems and GoldFinderDB) then return end
@@ -5145,7 +5159,7 @@ local function RecordVendorPrices()
     local link = GetMerchantItemLink(i)
     local id = link and tonumber(link:match("item:(%d+)"))
     if id then
-      local _, _, price, qty, _, _, _, extended = GetMerchantItemInfo(i)
+      local _, _, price, qty, _, _, _, extended = MerchantItemInfo(i)
       if price and price > 0 and not extended then
         GoldFinderDB.vendorBuy[id] = price / math.max(1, qty or 1)
       end
@@ -6738,7 +6752,7 @@ local function RefreshVendor()
     local id = link and tonumber(link:match("item:(%d+)"))
     local list = id and RecipeForOthers(id, true, true) or nil
     if list and #list > 0 then
-      local price = select(3, GetMerchantItemInfo(i))
+      local price = select(3, MerchantItemInfo(i))
       n = n + 1
       lines[#lines + 1] = format("%s  |cffb3b3b3%s|r", link, price and price > 0 and ShortMoney(price) or "")
       for _, ro in ipairs(list) do
