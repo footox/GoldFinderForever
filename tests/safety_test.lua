@@ -226,11 +226,8 @@ check("nothing known: vendor x4 estimate", p5 == 40 and est == true)
 ---------------------------------------------------------------------------
 -- AuctionPlan: one-click refused for variant gear and without a market reference
 ---------------------------------------------------------------------------
-a = assert(src:find("-- PLAN DE SUBASTA", 1, true), "plan start marker")
-b = assert(src:find("-- FIN DE PLAN DE SUBASTA", 1, true), "plan end marker")
-f = assert(loadstring(src:sub(a, b - 1) .. "\nreturn AuctionPlan"))
-setfenv(f, setmetatable({}, { __index = _G }))
-local AuctionPlan = f()
+loadCore("core/auction.lua", GF)
+local AuctionPlan = GF.AuctionPlan
 local p = AuctionPlan({ lowest = 900, market = 1000, vendor = 0, available = 3, variant = true })
 check("variant gear: no one-click", not p.post and p.reason == "precio por variante: usa Auctionator (Mayus+clic)")
 p = AuctionPlan({ lowest = 800, vendor = 0, available = 2 })
