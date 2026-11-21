@@ -75,6 +75,157 @@ do
 end
 
 ---------------------------------------------------------------------------
+-- R3 corrections: merge per profession, namesakes, generic fields, deferred surname, idempotence
+---------------------------------------------------------------------------
+-- stable serializer (sorted keys) to compare records byte by byte
+local function ser(v)
+  if type(v) ~= "table" then return type(v) == "string" and string.format("%q", v) or tostring(v) end
+  local ks = {}
+  for k in pairs(v) do ks[#ks + 1] = k end
+  table.sort(ks, function(a, b) return tostring(a) < tostring(b) end)
+  local out = {}
+  for _, k in ipairs(ks) do out[#out + 1] = "[" .. ser(k) .. "]=" .. ser(v[k]) end
+  return "{" .. table.concat(out, ",") .. "}"
+end
+
+do
+  local db = { chars = {
+    ["Ashes-forever"] = { prof = { Tailoring = { rank = 75, maxRank = 75, skillLine = 197,
+      learned = { ["Linen Boots"] = true }, crafts = { ["Linen Boots"] = { q = 1 } }, reagents = { [2320] = { per = 1 } } } },
+      keep = {} },
+    ["Ashes-?"] = { prof = { Tailoring = { rank = 120, maxRank = 150,
+      learned = { ["Bolt of Silk Cloth"] = true, ["Linen Boots"] = false }, crafts = { ["Bolt of Silk Cloth"] = { q = 2 } },
+      reagents = { [4306] = { per = 4 } } } }, keep = {} },
+  } }
+  local Char = charsEnv("Ashes", "Soulbinder", db)
+  local t = Char().prof.Tailoring
+  check("C1 same profession keeps both learned lists", t.learned["Linen Boots"] == true
+    and t.learned["Bolt of Silk Cloth"] == true)
+  check("C1 same profession keeps both crafts and reagents", t.crafts["Linen Boots"] and t.crafts["Bolt of Silk Cloth"]
+    and t.reagents[2320] and t.reagents[4306] and true)
+  check("C1 same profession keeps max rank and maxRank", t.rank == 120 and t.maxRank == 150)
+  check("C1 skillLine kept", t.skillLine == 197)
+end
+
+do
+  local soul = { prof = { Tailoring = { rank = 75 } }, keep = { [1] = true } }
+  local oldR = { prof = { Mining = { rank = 30 } }, keep = { [2] = true } }
+  local oldP = { prof = { Cooking = { rank = 5 } }, keep = { [3] = true } }
+  local db = { chars = { ["Ashes Soulbinder"] = soul, ["Ashes-forever"] = oldR, ["Ashes-?"] = oldP } }
+  local Char, Clean = charsEnv("Ashes", "Breakhand", db)
+  local c = Char()
+  Clean()
+  check("C2 namesake: old keys not claimed", db.chars["Ashes-forever"] == oldR and db.chars["Ashes-?"] == oldP
+    and not c.prof.Mining and not c.prof.Cooking)
+  check("C2 namesake: nothing deleted, other record untouched", db.chars["Ashes Soulbinder"] == soul
+    and soul.prof.Tailoring.rank == 75 and not soul.prof.Mining and not soul.prof.Cooking and count(db.chars) == 4)
+end
+
+do
+  local db = { chars = {
+    ["Ashes Soulbinder"] = { prof = {}, keep = {} }, ["Ashes Breakhand"] = { prof = {}, keep = {} },
+    ["Ashes-?"] = { prof = { Cooking = { rank = 5 } }, keep = {} },
+    ["Twistice Penguin"] = { prof = {}, keep = {} }, ["Twistice-"] = { prof = { Fishing = { rank = 9 } }, keep = {} },
+  } }
+  local _, Clean = charsEnv("Twistice", "Penguin", db)
+  Clean()
+  check("C3 single-candidate phantom merges", db.chars["Twistice-"] == nil
+    and db.chars["Twistice Penguin"].prof.Fishing ~= nil)
+  check("C3 ambiguous phantom stays", db.chars["Ashes-?"] ~= nil and not db.chars["Ashes Soulbinder"].prof.Cooking
+    and not db.chars["Ashes Breakhand"].prof.Cooking)
+end
+
+do
+  local resolveChunk = block("local function FullName()", "-- Profesiones que el jugador ha dejado fuera",
+    "\nreturn ResolveFullName")
+  local db = { chars = { ["Ashes Soulbinder"] = {}, ["Ashes Breakhand"] = {}, ["Twistice Penguin"] = {} },
+    banker = "Ashes" }
+  local R = load(resolveChunk, { GoldFinderDB = db, LEGACY_OWNER = "Twistice", UnitName = function() return "X" end })
+  check("C4 ambiguous first name returned unchanged", R("Ashes") == "Ashes")
+  check("C4 unique first name resolved", R("Twistice") == "Twistice Penguin")
+  local _, Clean = charsEnv("Twistice", "Penguin", db)
+  Clean()
+  check("C4 ambiguous banker not resolved", db.banker == "Ashes")
+end
+
+do
+  local db = { chars = {
+    ["Ashes-forever"] = { prof = {}, keep = {}, session = { real = true }, suNeed = { [1] = 2 },
+      suTracked = { Tailoring = true }, flag = 1, extra = { a = 1 } },
+    ["Ashes-?"] = { prof = {}, keep = {}, session = { phantom = true }, suTracked = { Cooking = true },
+      flag = 2, extra = { a = 9, b = 2 }, other = "x" },
+  } }
+  local c = charsEnv("Ashes", "Soulbinder", db)()
+  check("C5 generic scalar copied only when missing", c.flag == 1 and c.other == "x")
+  check("C5 generic table unioned, dst wins", c.extra.a == 1 and c.extra.b == 2)
+  check("C5 session kept whole", c.session.real == true and c.session.phantom == nil)
+  check("C5 suNeed and suTracked stay together", c.suNeed[1] == 2 and c.suTracked.Tailoring
+    and not c.suTracked.Cooking)
+  local db2 = { chars = {
+    ["Ashes-forever"] = { prof = {}, keep = {}, suTracked = { Cooking = true } },
+    ["Ashes-?"] = { prof = {}, keep = {}, suNeed = { [5] = 1 }, suTracked = { Tailoring = true } },
+  } }
+  local c2 = charsEnv("Ashes", "Soulbinder", db2)()
+  check("C5 suTracked copied with suNeed when dst lacks suNeed", c2.suNeed and c2.suNeed[5] == 1
+    and c2.suTracked.Tailoring and not c2.suTracked.Cooking)
+end
+
+do
+  local db = { chars = {
+    ["Twistice Penguin"] = { prof = { Cooking = { rank = 179 } }, keep = {} },
+    ["Twistice-forever"] = { prof = { Mining = { rank = 40 } }, keep = { [8] = true } },
+  } }
+  local c = charsEnv("Twistice", "Penguin", db)()
+  check("C6 leftover realm key merged when unambiguous", db.chars["Twistice-forever"] == nil and c.prof.Mining
+    and c.keep[8] and c.prof.Cooking.rank == 179 and true)
+  local db2 = { chars = {
+    ["Ashes Soulbinder"] = { prof = {}, keep = {} }, ["Ashes Breakhand"] = { prof = {}, keep = {} },
+    ["Ashes-forever"] = { prof = { Mining = { rank = 40 } }, keep = {} },
+  } }
+  charsEnv("Ashes", "Soulbinder", db2)()
+  check("C6 leftover realm key kept when ambiguous", db2.chars["Ashes-forever"] ~= nil
+    and not db2.chars["Ashes Soulbinder"].prof.Mining)
+end
+
+do
+  local surname
+  local db = { chars = { ["Ashes-forever"] = { prof = { Mining = { rank = 40 } }, keep = {} } } }
+  local Char = load(charsChunk, { GoldFinderDB = db, LEGACY_OWNER = "Twistice",
+    UnitName = function() return "Ashes", surname end })
+  local t = Char()
+  t.prof.Tailoring = { rank = 3 }
+  check("C7 no bare first-name record without surname", db.chars["Ashes"] == nil
+    and db.chars["Ashes-forever"] ~= nil and count(db.chars) == 1)
+  surname = "Soulbinder"
+  local c = Char()
+  check("C7 deferred migration once the surname is known", db.chars["Ashes"] == nil
+    and db.chars["Ashes-forever"] == nil and c == db.chars["Ashes Soulbinder"] and c.prof.Mining
+    and c.prof.Tailoring and true)
+end
+
+do
+  local function realShape()
+    local function p(rank, sl) return { rank = rank, maxRank = 75, skillLine = sl, count = 1, time = 1,
+      learned = { R = true }, crafts = { R = { q = 1 } }, reagents = { [1] = { per = 1 } }, recipes = { R = { d = 1 } } } end
+    return { banker = "Ashes Soulbinder", chars = {
+      ["Twistice Penguin"] = { prof = { Cooking = p(179, 185) }, keep = { [3385] = true }, off = { ["First Aid"] = true },
+        session = { items = {} }, suNeed = { [4232] = {} }, suTracked = { Cooking = true } },
+      ["Ashes Soulbinder"] = { prof = { Tailoring = p(75, 197) }, keep = {}, off = {}, session = { items = {} } },
+      ["Ashes Breakhand"] = { prof = { Mining = p(36, 186) }, keep = {}, off = {}, session = { items = {} } },
+    } }
+  end
+  local okAll = true
+  for _, who in ipairs({ { "Twistice", "Penguin" }, { "Ashes", "Soulbinder" }, { "Ashes", "Breakhand" } }) do
+    local db = realShape()
+    local before = ser(db)
+    local Char, Clean = charsEnv(who[1], who[2], db)
+    for _ = 1, 3 do Char(); Clean() end
+    if ser(db) ~= before then okAll = false; print("  changed for " .. who[1] .. " " .. who[2]) end
+  end
+  check("C8 idempotent on the real 3-character shape", okAll)
+end
+
+---------------------------------------------------------------------------
 -- 3 and 4: recipe checks (own and other characters)
 ---------------------------------------------------------------------------
 local recipeChunk = block("local function NormRecipe", "-- Requisitos para entrenar cada rango")

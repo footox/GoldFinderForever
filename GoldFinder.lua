@@ -81,64 +81,137 @@ local function FirstName(full)
   return (full or ""):match("^(%S+)") or full or ""
 end
 
--- Nombre completo a partir del nombre de pila: de las fichas ya renombradas o, si aun no, del inventario de BagBrother.
-local function ResolveFullName(name)
-  if not name or name == "" or name:find(" ", 1, true) then return name end
-  local low = name:lower()
-  for key in pairs((GoldFinderDB and GoldFinderDB.chars) or {}) do
-    if key:find(" ", 1, true) and FirstName(key):lower() == low then return key end
+local Char, CleanPhantomChars, ResolveFullName
+do
+  -- Nombres completos ("Nombre Apellido") conocidos con ese nombre de pila: fichas y, si esta, inventario de
+  -- BagBrother. Dos o mas = nombre de pila ambiguo (p. ej. dos personajes "Ashes"): no se adivina cual es.
+  local function KnownFullNames(first)
+    local low, out, seen = (first or ""):lower(), {}, {}
+    local function add(nm)
+      if type(nm) == "string" and nm:find(" ", 1, true) and not seen[nm] and FirstName(nm):lower() == low then
+        seen[nm] = true
+        out[#out + 1] = nm
+      end
+    end
+    for key in pairs((GoldFinderDB and GoldFinderDB.chars) or {}) do add(key) end
+    local db = _G.BrotherBags
+    if type(db) == "table" then
+      for _, cc in pairs(db) do
+        if type(cc) == "table" then for nm in pairs(cc) do add(nm) end end
+      end
+    end
+    table.sort(out)
+    return out
   end
-  local db = _G.BrotherBags
-  if type(db) == "table" then
-    for _, cc in pairs(db) do
-      if type(cc) == "table" then
-        for nm in pairs(cc) do
-          if type(nm) == "string" and nm:find(" ", 1, true) and FirstName(nm):lower() == low then return nm end
-        end
+
+  -- Nombre completo a partir del nombre de pila; si hay dos o mas personajes con ese nombre de pila (o ninguno)
+  -- se devuelve tal cual: el usuario elige el banquero en la lista de Ajustes.
+  function ResolveFullName(name)
+    if not name or name == "" or name:find(" ", 1, true) then return name end
+    local list = KnownFullNames(name)
+    if #list == 1 then return list[1] end
+    return name
+  end
+
+  -- Une la tabla src en dst un nivel: lo que dst ya tiene se queda, solo se completa lo que falta.
+  local function Union(dst, src)
+    for k, v in pairs(src) do if dst[k] == nil then dst[k] = v end end
+  end
+  -- Une una profesion: rango y maximo, el mayor; recetas aprendidas, fabricaciones, materiales y demas listas se
+  -- suman (manda dst si chocan); los demas valores (skillLine...) solo se completan si dst no los tiene.
+  local function MergeProf(dp, sp)
+    for k, v in pairs(sp) do
+      local cur = dp[k]
+      if cur == nil then
+        dp[k] = v
+      elseif (k == "rank" or k == "maxRank") and type(v) == "number" and type(cur) == "number" then
+        if v > cur then dp[k] = v end
+      elseif type(cur) == "table" and type(v) == "table" then
+        Union(cur, v)
       end
     end
   end
-  return name
-end
-
-local Char, CleanPhantomChars
-do
-  -- Une la ficha src en dst: lo que dst ya tiene se queda; profesiones, objetos fijados y sesion se suman.
+  -- Une la ficha src en dst, campo a campo: las tablas se suman un nivel (manda dst), los valores sueltos solo se
+  -- copian si dst no los tiene, las profesiones se unen una a una. La sesion va entera y suNeed va junto a
+  -- suTracked (se copian los dos solo si dst no tiene suNeed), para no mezclar dos sesiones o dos planes.
   local function MergeInto(dst, src)
-    dst.prof, dst.keep = dst.prof or {}, dst.keep or {}
-    for pn, pd in pairs(src.prof or {}) do if not dst.prof[pn] then dst.prof[pn] = pd end end
-    for id, v in pairs(src.keep or {}) do if dst.keep[id] == nil then dst.keep[id] = v end end
-    if src.off then
-      dst.off = dst.off or {}
-      for pn, v in pairs(src.off) do if dst.off[pn] == nil then dst.off[pn] = v end end
+    for k, v in pairs(src) do
+      local cur = dst[k]
+      if k == "suNeed" or k == "suTracked" then
+        if dst.suNeed == nil and src.suNeed ~= nil then dst.suNeed, dst.suTracked = src.suNeed, src.suTracked end
+      elseif cur == nil then
+        dst[k] = v
+      elseif k == "session" then
+        -- dst ya tiene su sesion: se queda la suya
+      elseif k == "prof" and type(cur) == "table" and type(v) == "table" then
+        for pn, pd in pairs(v) do
+          local dp = cur[pn]
+          if dp == nil then
+            cur[pn] = pd
+          elseif type(dp) == "table" and type(pd) == "table" then
+            MergeProf(dp, pd)
+          end
+        end
+      elseif type(cur) == "table" and type(v) == "table" then
+        Union(cur, v)
+      end
     end
-    if src.session and not dst.session then dst.session = src.session end
-    if src.suNeed and not dst.suNeed then dst.suNeed, dst.suTracked = src.suNeed, src.suTracked end
   end
+
+  -- fichas antiguas "Nombre-Reino" (y fantasmas "Nombre-" o "Nombre-?") con ese nombre de pila exacto; primero
+  -- las que tienen reino
+  local function OldKeys(chars, first)
+    local olds = {}
+    for k, v in pairs(chars) do
+      local n2, r2 = k:match("^([^-]+)%-(.*)$")
+      if n2 and n2 == first and type(v) == "table" then
+        olds[#olds + 1] = { k = k, v = v, real = (r2 ~= "" and r2 ~= "?") }
+      end
+    end
+    table.sort(olds, function(a, b)
+      if a.real ~= b.real then return a.real end
+      return a.k < b.k
+    end)
+    return olds
+  end
+
+  -- temp: ficha en memoria mientras el juego aun no da el apellido (FullName devuelve solo el nombre de pila).
+  -- No se guarda en chars["Nombre"] ni se une nada con el nombre de pila solo: cuando llega el nombre completo,
+  -- temp se une a la ficha definitiva (manda temp, es lo mas reciente). done: nombre completo ya revisado en
+  -- esta sesion (las fichas antiguas solo se buscan una vez).
+  local temp, done
 
   function Char()
     GoldFinderDB.chars = GoldFinderDB.chars or {}
     local chars = GoldFinderDB.chars
     local name = FirstName(UnitName("player") or "?")
     local full = FullName()
+    if not full:find(" ", 1, true) then
+      temp = temp or { prof = {}, keep = {}, off = {} }
+      return temp
+    end
     local c = chars[full]
-    if not c then
-      -- fichas antiguas "Nombre-Reino" (y fantasmas "Nombre-" o "Nombre-?"): se unen todas en la del nombre
-      -- completo; manda la que tiene reino, el resto solo completa lo que falta.
-      local olds = {}
-      for k, v in pairs(chars) do
-        local n2, r2 = k:match("^([^-]+)%-(.*)$")
-        if n2 and n2 == name and type(v) == "table" then
-          olds[#olds + 1] = { k = k, v = v, real = (r2 ~= "" and r2 ~= "?") }
+    if done ~= full then
+      done = full
+      -- las fichas antiguas solo se reclaman si ningun otro personaje conocido comparte el nombre de pila: con
+      -- dos "Ashes" no se sabe de quien son y se dejan como estan
+      local alone = true
+      for _, k in ipairs(KnownFullNames(name)) do if k ~= full then alone = false end end
+      if alone then
+        -- manda la ficha completa si ya existe; si no, la que tiene reino; el resto solo completa lo que falta
+        for _, o in ipairs(OldKeys(chars, name)) do
+          if not c then c = o.v; chars[full] = c else MergeInto(c, o.v) end
+          chars[o.k] = nil
         end
       end
-      table.sort(olds, function(a, b)
-        if a.real ~= b.real then return a.real end
-        return a.k < b.k
-      end)
-      c = olds[1] and olds[1].v or { prof = {}, keep = {} }
-      for i = 2, #olds do MergeInto(c, olds[i].v) end
-      for _, o in ipairs(olds) do chars[o.k] = nil end
+    end
+    if temp then
+      if c then MergeInto(temp, c) end
+      c, temp = temp, nil
+      chars[full] = c
+    end
+    if not c then
+      c = { prof = {}, keep = {} }
       chars[full] = c
     end
     c.prof, c.keep, c.off = c.prof or {}, c.keep or {}, c.off or {}
@@ -163,8 +236,9 @@ do
     return c
   end
 
-  -- Une y borra las fichas duplicadas sin reino ("Nombre-" o "Nombre-?") que crearon versiones anteriores: en la
-  -- ficha con reino del mismo nombre o, si ya no queda, en la del nombre completo ("Nombre Apellido").
+  -- Une y borra las fichas duplicadas sin reino ("Nombre-" o "Nombre-?") que crearon versiones anteriores: solo en
+  -- la ficha del nombre completo ("Nombre Apellido") cuando es el unico personaje conocido con ese nombre de pila.
+  -- Con dos o mas (o ninguno) se dejan: Char() las reclama al entrar su personaje si no hay duda.
   function CleanPhantomChars()
     local chars = GoldFinderDB and GoldFinderDB.chars
     if not chars then return end
@@ -173,42 +247,19 @@ do
       local name, realm = key:match("^([^-]+)-(.*)$")
       if name and (realm == "" or realm == "?") then phantoms[#phantoms + 1] = { key = key, name = name } end
     end
+    table.sort(phantoms, function(a, b) return a.key < b.key end)
     for _, ph in ipairs(phantoms) do
-      local real
-      for k2, c2 in pairs(chars) do
-        local n2, r2 = k2:match("^([^-]+)-(.*)$")
-        if n2 == ph.name and r2 ~= "" and r2 ~= "?" then real = c2; break end
-      end
-      if not real then
-        for k2, c2 in pairs(chars) do
-          if k2:find(" ", 1, true) and FirstName(k2) == ph.name then real = c2; break end
-        end
-      end
-      if real and type(chars[ph.key]) == "table" then
+      local list = KnownFullNames(ph.name)
+      local real = #list == 1 and chars[list[1]] or nil
+      if type(real) == "table" and FirstName(list[1]) == ph.name and type(chars[ph.key]) == "table" then
         MergeInto(real, chars[ph.key])
         chars[ph.key] = nil
       end
     end
+    -- banquero guardado solo con el nombre de pila: se completa si no hay duda (fichas o BagBrother)
     local b = GoldFinderDB.banker
     if type(b) == "string" and b ~= "" and not b:find(" ", 1, true) then
-      for key in pairs(chars) do
-        if key:find(" ", 1, true) and FirstName(key):lower() == b:lower() then GoldFinderDB.banker = key; break end
-      end
-      -- si aun no hay ficha completa, el inventario de BagBrother ya conoce el nombre completo
-      local nb = GoldFinderDB.banker
-      local bbdb = _G.BrotherBags
-      if nb == b and type(bbdb) == "table" then
-        for _, cc in pairs(bbdb) do
-          if type(cc) == "table" then
-            for nm in pairs(cc) do
-              if type(nm) == "string" and nm:find(" ", 1, true) and FirstName(nm):lower() == b:lower() then
-                GoldFinderDB.banker = nm
-                break
-              end
-            end
-          end
-        end
-      end
+      GoldFinderDB.banker = ResolveFullName(b)
     end
   end
 end
@@ -4230,7 +4281,7 @@ do
         waiting = waiting or w
       end
     end
-    OB.blocks = blocks
+    OB.blocks, OB.waiting = blocks, waiting
     local module = OB.available() and Section() or nil
     if module then
       if OB.frame then OB.frame:Hide() end
@@ -4242,6 +4293,14 @@ do
       OB.frame:Hide()
     end
     return waiting
+  end
+  -- true si en el aviso periodico hay que repintar aunque la firma no cambie: la pasada anterior esperaba nombres
+  -- de objetos, o ForeverCore ya esta pero la seccion aun no se ha creado (se reintenta Section en cada pasada)
+  function OB.pending()
+    if OB.waiting then return true end
+    if OB.tried or not OB.available() then return false end
+    local fc = rawget(_G, "ForeverCore")
+    return type(fc) == "table" and type(fc.TrackerSection) == "table" or false
   end
 
   -- NOTAS EN LA LISTA DE RECETAS
@@ -4412,7 +4471,7 @@ function UpdateTracker(retry, tick)
     for _, m in ipairs(e.mats or {}) do sig[#sig + 1] = sv(m.id) .. ":" .. sv(m.have) .. "/" .. sv(m.need) end
   end
   sig = table.concat(sig, ";")
-  local same = tick and Skin.trackerSig == sig
+  local same = tick and Skin.trackerSig == sig and not (Skin.Objectives and Skin.Objectives.pending())
   Skin.trackerSig = sig
   -- bloque del seguimiento de objetivos (trackerMode "objetivos") y notas de la lista de recetas
   local OB, onObjectives, obWaiting = Skin.Objectives, false, false

@@ -260,3 +260,11 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   P.select checks keys; banker list refreshed on SettingsPanel show and new profession rows on SKILL_LINES_CHANGED
   (Settings API cannot remove rows); OpenOptions verifies and falls back; 4 s ticker skips unchanged work.
   tests/r3_test.lua 28 PASS (18 FAIL against HEAD). Risk: item 1 (merges/deletes saved fichas); verifier requested.
+- L40: Independent Fable verification of R3 (c576b88): no damage to current data (idempotent on the real 3-character
+  account: Twistice Penguin, Ashes Soulbinder, Ashes Breakhand — user confirmed "Si" that Ashes Breakhand is theirs).
+  Findings: MergeInto dropped same-profession data; first-name matching unsafe with namesakes (Char, CleanPhantomChars,
+  ResolveFullName); partial field merge; leftover realm key; bare-first-name ficha when surname missing; ticker skip.
+- L41: R3b correction batch: MergeProf (per-profession union, max rank), KnownFullNames (fichas + BagBrother) blocks
+  any merge/resolution when a first name is ambiguous, generic field merge, leftover realm keys merged only when
+  unambiguous, in-memory ficha until the surname is known, ticker retries while waiting or ForeverCore section
+  missing. r3_test 49 PASS (13 FAIL against HEAD); real SavedVariables byte-identical after repeated logins.
