@@ -19,6 +19,7 @@ core/mail.lua
 core/auction.lua
 core/proftabs.lua
 core/guide.lua
+core/objective_text.lua
 core/routeplanner.lua
 adapters/wow.lua
 adapters/bags.lua
@@ -31,6 +32,7 @@ features/auction/tab.lua
 features/professions/tabs.lua
 features/guide/hybrid.lua
 features/route/helpers.lua
+features/tracker/objectives.lua
 GoldFinderRoutes.lua
 GoldFinderTrainers.lua
 GoldFinderRecipes.lua

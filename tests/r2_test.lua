@@ -96,8 +96,11 @@ p = P.PlanRoute("Leatherworking", pdU, 105)
 check("7 unpriced recipe eff is false", p and p.eff.cheap == false)
 check("7 priced recipe eff is a number", p and type(p.eff.known) == "number" and p.eff.known < 1e6)
 env.GoldFinderRecipes.spells[2].r = { { 11, 1 } }
-local notes = load(block("-- TEXTOS DE OBJETIVOS Y RECETAS", "-- FIN DE TEXTOS DE OBJETIVOS Y RECETAS",
-  "\nreturn { text = RecipeNoteText, lines = RecipeNoteLines }"))
+local nf = assert(loadfile("core/objective_text.lua"))
+setfenv(nf, setmetatable({}, { __index = _G }))
+local NG = {}
+nf("GoldFinder", NG)
+local notes = { text = NG.RecipeNoteText, lines = NG.RecipeNoteLines }
 local money = function(c) return c .. "c" end
 check("7 note text says sin precio", (notes.text(1, false, money) or ""):find("sin precio", 1, true) ~= nil)
 check("7 note tooltip says sin precio", (notes.lines(1, false, money)[2] or ""):find("sin precio", 1, true) ~= nil)

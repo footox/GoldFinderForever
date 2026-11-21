@@ -4,13 +4,11 @@
 -- RecipeNoteText / RecipeNoteLines format the skill-up chance and the cost or gain per point of a recipe;
 -- PlanRoute's plan.eff holds the planner's own cost per point of each recipe at the current skill.
 
-local src = assert(io.open("GoldFinder.lua")):read("*a")
-local a = assert(src:find("-- TEXTOS DE OBJETIVOS Y RECETAS", 1, true), "start marker")
-local b = assert(src:find("-- FIN DE TEXTOS DE OBJETIVOS Y RECETAS", 1, true), "end marker")
-local chunk = src:sub(a, b - 1) .. "\nreturn ObjectiveBlock, RecipeNoteText, RecipeNoteLines"
-local f = assert(loadstring(chunk))
+local GF = {}
+local f = assert(loadfile("core/objective_text.lua"))
 setfenv(f, setmetatable({}, { __index = _G }))
-local ObjectiveBlock, RecipeNoteText, RecipeNoteLines = f()
+f("GoldFinder", GF)
+local ObjectiveBlock, RecipeNoteText, RecipeNoteLines = GF.ObjectiveBlock, GF.RecipeNoteText, GF.RecipeNoteLines
 
 local failures = 0
 local function check(name, cond)
