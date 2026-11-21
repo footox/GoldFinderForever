@@ -33,6 +33,11 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   visible name changes (toc Title, window title, Options category, chat prefix); folder, SavedVariables and
   ADDON_LOADED name stay "GoldFinder" so saved data is kept.
 
+- S10. Like SkillUp Forever on screen (user verbatim: "Pero Skillup hacia algo en la pantalla", then "Las 2" for
+  both options): (a) GoldFinder's next step as a block inside the game's objective tracker (like SkillUp's
+  "Profession reagents" block) instead of only the floating panel; (b) per-recipe info in Blizzard's recipe list
+  (skill-up chance and cost/gain per point, as SkillUp shows "100% · +2s"), without overlapping SkillUp's own text.
+
 ## Tasks
 
 | ID | Specs | Route | Status | Commit |
@@ -44,6 +49,8 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U5 | S6 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L16 |
 | U6 | S8, S5 | delegated (context backstop) | done, verified in game | a0f11da |
 | U7 | S9 | inline | done, verified in game | 0ca4681, 40f7164 |
+| U8 | S10a | delegated (context backstop) | in progress | |
+| U9 | S10b | delegated (context backstop) | in progress | |
 
 - U1: main window and shared helpers (`Flat`, `Text`, `Btn`, `PAL`, list rows, tabs) in the classic style.
 - U2: guide, tracker, mail, bank, vendor and export frames in the classic style.
@@ -126,3 +133,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   Pending in game: Fabricar page, hiding on native tabs, U5 AH tab, U2 guide/mail/bank.
 - L18 (2026-11-20, user, verbatim): "encendidas". DEFAULTS craftTab and routeTab now true, so Ruta and Fabricar tabs
   (in /gf and in the professions window) are on for new profiles; saved explicit choices are kept.
+- L19 (2026-11-20, user, verbatim): "Pero Skillup hacia algo en la pantalla" with screenshots: SkillUp shows a
+  "Profession reagents" block in the objective tracker, chance and cost per point next to each recipe in the
+  recipe list, and a richer Route page; GoldFinder's Ruta/Fabricar tabs sit after SkillUp's Route/Supply/Buffs
+  without overlap. Then "Las 2": tasks U8 (objective tracker block) and U9 (recipe list annotations).
