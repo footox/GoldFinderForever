@@ -40,7 +40,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U1 | S2, S3, S5 | delegated (context backstop) | done, verified in game (window) | 642153f, b225f3e |
 | U2 | S4, S5 | pending | pending | |
 | U3 | S6 | pending | pending | |
-| U4 | S6, S7 | pending | pending | |
+| U4 | S6, S7 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L11 |
 | U5 | S6 | pending | pending | |
 | U6 | S8, S5 | delegated (context backstop) | done, verified in game | a0f11da |
 | U7 | S9 | inline | done, verified in game | 0ca4681, 40f7164 |
@@ -87,3 +87,9 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 - L10: In game 2026-11-20 20:51: window title "GoldFinder Forever"; Options > AddOns > GoldFinder Forever shows
   sections, checkboxes, sliders (routeSpan 25, sellCap 5, minGain 20s, banker Ashes Soulbinder) and Defaults; tabs
   relayout when Ruta is toggled; no GoldFinder errors in BugGrabber. AH tab host not yet checked.
+- L11: U4 done by a bounded writer: GoldFinderSellPanel attached to MerchantFrame ("Para vender"), rows from
+  BagRows()/Decide via pure helper VendorSellRows (markers "-- VENTA AL VENDEDOR: filas del panel" .. "-- FIN DE
+  VENTA AL VENDEDOR"), qty limited by SellQty, per-item "Vender" button selling whole stacks with
+  C_Container.UseContainerItem only while MerchantFrame is shown (existing SellItem is an auction helper, not a
+  vendor sale). Setting sellPanel (default on). tests/sell_panel_test.lua 10 PASS (RED first). Parent review fixed
+  single-backslash texture paths (Lua 5.1 drops the backslash in "\D", so the dialog border texture would not load).

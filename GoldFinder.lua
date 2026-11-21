@@ -18,6 +18,7 @@ local DEFAULTS = {
   mailPanel = false,    -- opcional: panel junto al correo con lo que conviene enviar al banquero
   bankPanel = false,    -- opcional: panel junto al banco con lo que conviene depositar
   vendorBox = false,    -- opcional: cuadrito junto al vendedor con las recetas que te sirven (el tooltip siempre las indica)
+  sellPanel = true,     -- panel junto al vendedor con lo que conviene venderle (cada objeto con su boton Vender)
   useSkillUp = false,   -- opcional: usar la lista de materiales de SkillUp Forever (si esta instalado) para decidir que guardar
   craftTab = false,     -- opcional: pestana Fabricar (que compensa fabricar con tus materiales)
   routeTab = false,     -- opcional: pestana Ruta (planificador de ruta de profesion)
@@ -3131,7 +3132,7 @@ local function MakeSettings(parent)
   sf:SetPoint("TOPLEFT", outer, "TOPLEFT", 0, 0)
   sf:SetPoint("BOTTOMRIGHT", outer, "BOTTOMRIGHT", -26, 0)
   local v = CreateFrame("Frame", nil, sf)
-  v:SetSize(700, 1005)
+  v:SetSize(700, 1037)
   sf:SetScrollChild(v)
   sf:SetScript("OnSizeChanged", function(_, w) if w and w > 0 then v:SetWidth(w) end end)
   local title = Text(v, 13, PAL.gold); title:SetPoint("TOPLEFT", v, "TOPLEFT", 0, 0); title:SetText("Opciones")
@@ -3147,6 +3148,7 @@ local function MakeSettings(parent)
     { "mailPanel", "Panel junto al correo con lo que conviene enviar al banquero (si no usas el correo de TSM)" },
     { "bankPanel", "Panel junto al banco con lo que conviene depositar (y lo que mejor llevas encima)" },
     { "vendorBox", "Cuadrito junto al vendedor con las recetas que te sirven (el tooltip siempre las indica)" },
+    { "sellPanel", "Panel de venta junto al vendedor: lo que conviene venderle, cada objeto con su boton Vender" },
     { "useSkillUp", "Usar la ruta de SkillUp Forever (si lo tienes) para decidir que materiales guardar" },
     { "craftTab", "Pestana Fabricar: que compensa fabricar con tus materiales (valor del objeto fabricado)" },
     { "routeTab", "Pestana Ruta: planificador de ruta de profesion con tus recetas y los precios de la subasta" },
@@ -4226,6 +4228,156 @@ bankEvents:SetScript("OnEvent", function(_, event, arg1)
 end)
 
 ---------------------------------------------------------------------------
+-- PANEL DE VENTA: al abrir un vendedor, junto a su ventana, la lista de lo que GoldFinder te recomienda
+-- venderle (la misma decision que la pestana Bolsas), cada objeto con su boton Vender. Nada se vende sin clic.
+---------------------------------------------------------------------------
+-- VENTA AL VENDEDOR: filas del panel
+-- rows: filas de BagRows (verdict, vendor, count, quest). qtyFn(id) opcional: unidades que se pueden vender
+-- (sin lo reservado). Devuelve las filas a vender (qty, value) de mas a menos valor y el total.
+local function VendorSellRows(rows, qtyFn)
+  local list, total = {}, 0
+  for _, r in ipairs(rows or {}) do
+    local price = r.vendor or 0
+    if r.verdict == "VENDOR" and price > 0 and not r.quest and (r.count or 0) > 0 then
+      local qty = r.count
+      if qtyFn then qty = math.min(qty, qtyFn(r.id) or qty) end
+      if qty > 0 then
+        local e = { id = r.id, qty = qty, count = r.count, vendor = price, value = qty * price }
+        list[#list + 1] = e
+        total = total + e.value
+      end
+    end
+  end
+  table.sort(list, function(x, y)
+    if x.value ~= y.value then return x.value > y.value end
+    return x.id < y.id
+  end)
+  return list, total
+end
+-- FIN DE VENTA AL VENDEDOR
+
+local SELL_LINES = 12
+
+local function RefreshSellPanel()
+  local f = GoldFinderSellPanel
+  local open = MerchantFrame and MerchantFrame:IsShown()
+  if not Cfg("sellPanel") or not open then
+    if f then f:Hide() end
+    return
+  end
+  local CC = C_Container
+  if not (CC and CC.GetContainerNumSlots and CC.GetContainerItemInfo and CC.UseContainerItem) then return end
+  if not f then
+    f = NewFrame("Frame", "GoldFinderSellPanel", MerchantFrame, "BackdropTemplate")
+      or CreateFrame("Frame", "GoldFinderSellPanel", MerchantFrame)
+    f:SetWidth(300)
+    f:SetFrameStrata("HIGH")
+    local okB = f.SetBackdrop and pcall(f.SetBackdrop, f, {
+      bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+      tile = true, tileSize = 32, edgeSize = 32, insets = { left = 11, right = 12, top = 12, bottom = 11 },
+    })
+    if not okB then local bg = Flat(f, "BACKGROUND", PAL.bg); bg:SetAllPoints() end
+    f:SetPoint("TOPLEFT", MerchantFrame, "TOPRIGHT", 2, -12)
+    f.title = Text(f, 13, PAL.gold, "CENTER")
+    f.title:SetPoint("TOP", f, "TOP", 0, -16)
+    f.title:SetText("GoldFinder Forever")
+    f.sub = Text(f, 12, PAL.text)
+    f.sub:SetPoint("TOPLEFT", f, "TOPLEFT", 18, -36)
+    f.sub:SetText("Para vender")
+    f.empty = Text(f, 12, PAL.dim)
+    f.empty:SetPoint("TOPLEFT", f, "TOPLEFT", 18, -60)
+    f.empty:SetText("Nada que venderle a este vendedor")
+    f.more = Text(f, 11, PAL.dim)
+    f.total = Text(f, 12, PAL.gold)
+    f.total:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 18, 16)
+    f.rows = {}
+    -- vende al vendedor las pilas de ese objeto (pilas enteras, sin pasar de las unidades que no estan reservadas)
+    f.sell = function(id, qty)
+      if not (MerchantFrame and MerchantFrame:IsShown()) then return end
+      local sold, left = 0, 0
+      for bag = 0, (NUM_BAG_SLOTS or 4) do
+        for slot = 1, (CC.GetContainerNumSlots(bag) or 0) do
+          local info = CC.GetContainerItemInfo(bag, slot)
+          if info and info.itemID == id and not info.isLocked and not info.hasNoValue then
+            local n = info.stackCount or 1
+            if sold + n <= qty then
+              CC.UseContainerItem(bag, slot)
+              sold = sold + n
+            else
+              left = left + n
+            end
+          end
+        end
+      end
+      if sold < qty and left > 0 then
+        Print(format("Vendidas %d unidades; quedan pilas que superan lo que conviene vender (lo demas esta reservado).", sold))
+      end
+      C_Timer.After(0.5, function() pcall(RefreshSellPanel) end)
+    end
+  end
+  for _, row in ipairs(f.rows) do row:Hide() end
+
+  local rows = BagRows()
+  for _, r in ipairs(rows) do
+    local classID = select(6, C_Item.GetItemInfoInstant(r.id))
+    if classID == 12 then r.quest = true end   -- objetos de mision
+  end
+  local list, total = VendorSellRows(rows, SellQty)
+  local shown = math.min(#list, SELL_LINES)
+  for i = 1, shown do
+    local e = list[i]
+    local row = f.rows[i]
+    if not row then
+      row = CreateFrame("Frame", nil, f)
+      row:SetSize(264, 24)
+      row:SetPoint("TOPLEFT", f, "TOPLEFT", 18, -56 - (i - 1) * 26)
+      row.icon = row:CreateTexture(nil, "ARTWORK")
+      row.icon:SetSize(20, 20)
+      row.icon:SetPoint("LEFT", row, "LEFT", 0, 0)
+      row.btn = Btn(row, "Vender", 62, 20)
+      row.btn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+      row.money = Text(row, 11, PAL.text, "RIGHT")
+      row.money:SetPoint("RIGHT", row.btn, "LEFT", -6, 0)
+      row.money:SetWidth(80)
+      row.name = Text(row, 11, PAL.text)
+      row.name:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
+      row.name:SetPoint("RIGHT", row.money, "LEFT", -4, 0)
+      row:EnableMouse(true)
+      row:SetScript("OnEnter", function(self)
+        if not self.id then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetItemByID(self.id)
+        GameTooltip:Show()
+      end)
+      row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      row.btn:SetScript("OnClick", function() if row.id then f.sell(row.id, row.qty) end end)
+      f.rows[i] = row
+    end
+    row.id, row.qty = e.id, e.qty
+    row.icon:SetTexture(C_Item.GetItemIconByID(e.id))
+    local name = C_Item.GetItemNameByID(e.id) or ("objeto " .. e.id)
+    row.name:SetText(format("%s |cffffffffx%d|r", name, e.qty))
+    row.money:SetText(ShortMoney(e.value))
+    row:Show()
+  end
+  local y = -56 - shown * 26
+  if #list > SELL_LINES then
+    f.more:ClearAllPoints()
+    f.more:SetPoint("TOPLEFT", f, "TOPLEFT", 18, y - 2)
+    f.more:SetText(format("+%d mas", #list - SELL_LINES))
+    f.more:Show()
+    y = y - 18
+  else
+    f.more:Hide()
+  end
+  if #list == 0 then f.empty:Show(); y = y - 22 else f.empty:Hide() end
+  f.total:SetText("Total: " .. Money(total))
+  f.total:SetShown(#list > 0)
+  f:SetHeight(-y + 40)
+  f:Show()
+end
+
+---------------------------------------------------------------------------
 -- VENDEDOR: al abrirlo, un cuadrito lista las recetas que ese vendedor tiene y que alguno de tus
 -- personajes (tu o los demas, si esta activado el aviso de otros personajes) aun no sabe.
 ---------------------------------------------------------------------------
@@ -4271,27 +4423,40 @@ local function RefreshVendor()
     f.body:SetWidth(338)
     f.body:SetSpacing(3)
     f.body:SetJustifyV("TOP")
-    f:SetPoint("TOPLEFT", MerchantFrame, "TOPRIGHT", 2, -12)
   end
+  -- debajo del panel de venta si esta abierto; si no, junto a la ventana del vendedor
+  f:ClearAllPoints()
+  local sp = GoldFinderSellPanel
+  if sp and sp:IsShown() then f:SetPoint("TOPLEFT", sp, "BOTTOMLEFT", 0, -4)
+  else f:SetPoint("TOPLEFT", MerchantFrame, "TOPRIGHT", 2, -12) end
   f.body:SetText(table.concat(lines, "\n"))
   f:SetHeight(30 + (f.body:GetStringHeight() or 0) + 12)
   f:Show()
 end
 
 local vendorEvents = CreateFrame("Frame")
-for _, ev in ipairs({ "MERCHANT_SHOW", "MERCHANT_UPDATE", "MERCHANT_CLOSED" }) do
+for _, ev in ipairs({ "MERCHANT_SHOW", "MERCHANT_UPDATE", "MERCHANT_CLOSED", "BAG_UPDATE_DELAYED" }) do
   pcall(vendorEvents.RegisterEvent, vendorEvents, ev)
+end
+local function RefreshMerchantPanels()
+  pcall(RefreshSellPanel)
+  pcall(RefreshVendor)
 end
 vendorEvents:SetScript("OnEvent", function(_, event)
   if event == "MERCHANT_CLOSED" then
+    if GoldFinderSellPanel then GoldFinderSellPanel:Hide() end
     if GoldFinderVendor then GoldFinderVendor:Hide() end
+    return
+  end
+  if event == "BAG_UPDATE_DELAYED" then
+    if MerchantFrame and MerchantFrame:IsShown() then RefreshMerchantPanels() end
     return
   end
   pcall(RecordVendorPrices)
   InvalidateRoutes()
-  -- los nombres de las recetas pueden tardar en cargar: se mira dos veces
-  C_Timer.After(0.3, function() pcall(RefreshVendor) end)
-  if event == "MERCHANT_SHOW" then C_Timer.After(1.5, function() pcall(RefreshVendor) end) end
+  -- los nombres de las recetas y de los objetos pueden tardar en cargar: se mira dos veces
+  C_Timer.After(0.3, RefreshMerchantPanels)
+  if event == "MERCHANT_SHOW" then C_Timer.After(1.5, RefreshMerchantPanels) end
 end)
 
 -- RECETAS DEL INSTRUCTOR: las tablas del juego no dicen que habilidad pide cada receta ni quien la ensena, asi que
@@ -4398,6 +4563,7 @@ local function RegisterOptions()
         end
       end
     end
+    if key == "sellPanel" or key == "vendorBox" then pcall(RefreshSellPanel); pcall(RefreshVendor) end
     if key == "routeSpan" or key == "sellCap" then
       InvalidateRoutes()
       tracker()
@@ -4460,6 +4626,8 @@ local function RegisterOptions()
   check("bankPanel", "Panel junto al banco", "Panel junto al banco con lo que conviene depositar (y lo que mejor llevas encima).")
   check("vendorBox", "Recetas junto al vendedor",
     "Cuadrito junto al vendedor con las recetas que te sirven (el tooltip siempre las indica).")
+  check("sellPanel", "Panel de venta junto al vendedor",
+    "Al abrir un vendedor, panel junto a su ventana con los objetos que conviene venderle, cada uno con su boton Vender. Nada se vende sin clic.")
 
   header("Profesiones y ruta",
     "GoldFinder lee tus profesiones y tu habilidad al entrar. Las recetas se memorizan al abrir la ventana de cada profesion.")
