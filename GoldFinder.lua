@@ -3118,6 +3118,10 @@ function UpdateTracker(retry)
   end
 end
 
+-- Abre GoldFinder en Opciones > AddOns (se define mas abajo, junto al registro). Devuelve false si no se pudo
+-- (cliente sin la API Settings o en combate): entonces la pestana Ajustes muestra la pagina de abajo.
+local OpenOptions
+
 local settingsScrollCount = 0
 local function MakeSettings(parent)
   local outer = CreateFrame("Frame", nil, parent)
@@ -3453,6 +3457,8 @@ local function CreateUI(parent)
     end
     b:SetScript("OnClick", function()
       if PlaySound and SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then pcall(PlaySound, SOUNDKIT.IG_CHARACTER_INFO_TAB) end
+      -- Ajustes abre la pagina de Opciones > AddOns; si no se puede, queda la pagina propia de la ventana
+      if def[1] == "ajustes" and OpenOptions and OpenOptions() then return end
       ui.open(def[1])
     end)
     ui.nav[def[1]] = b
@@ -4357,6 +4363,205 @@ trainerEvents:SetScript("OnEvent", function()
   C_Timer.After(0.2, function() xpcall(RecordTrainer, geterrorhandler()); InvalidateRoutes() end)
 end)
 
+---------------------------------------------------------------------------
+-- OPCIONES en Opciones > AddOns > GoldFinder, con la API nativa Settings (casillas, secciones, Predeterminados
+-- y busqueda del juego). Cada fila entra por Settings.RegisterInitializer, que la inserta desde el codigo seguro
+-- de Blizzard: asi la busqueda de opciones no se contamina con el codigo del addon. Sin la API (u otro cliente)
+-- no se registra nada y la pestana Ajustes de /gf sigue mostrando su pagina propia (MakeSettings).
+---------------------------------------------------------------------------
+local optionsCategory
+
+local function RegisterOptions()
+  local S = Settings
+  if optionsCategory or type(S) ~= "table" or type(S.VarType) ~= "table" then return end
+  for _, fn in ipairs({ "RegisterVerticalLayoutCategory", "RegisterAddOnCategory", "RegisterAddOnSetting",
+      "RegisterProxySetting", "RegisterInitializer", "CreateCheckboxInitializer", "CreateSliderOptions",
+      "CreateSliderInitializer" }) do
+    if type(S[fn]) ~= "function" then return end
+  end
+  local BOOL, NUM = S.VarType.Boolean, S.VarType.Number
+  local cat = S.RegisterVerticalLayoutCategory("GoldFinder")
+
+  local function refreshAll() for _, u in ipairs(uiInstances) do pcall(u.refresh) end end
+  local function refreshShown() for _, u in ipairs(uiInstances) do if u:IsVisible() then pcall(u.refresh) end end end
+  local function tracker() xpcall(UpdateTracker, geterrorhandler()) end
+
+  -- los mismos efectos que tenia la pagina de Ajustes (y los comandos /gf ruta y /gf tope)
+  local function applied(key)
+    if key == "nextSteps" or key == "gamePlan" then tracker() end
+    if key == "shopping" or key == "craftTab" or key == "routeTab" then
+      for _, u in ipairs(uiInstances) do
+        pcall(u.layoutNav)
+        if (not Cfg("shopping") and u.current == "compras") or (not Cfg("craftTab") and u.current == "fabricar")
+            or (not Cfg("routeTab") and u.current == "ruta") then
+          pcall(u.open, "resumen")
+        end
+      end
+    end
+    if key == "routeSpan" or key == "sellCap" then
+      InvalidateRoutes()
+      tracker()
+      refreshAll()
+    else
+      refreshShown()
+    end
+  end
+
+  local function header(name, tip)
+    local make = CreateSettingsListSectionHeaderInitializer
+    if type(make) ~= "function" then return end
+    if type(CreateSecureDelegate) == "function" then make = CreateSecureDelegate(make) end
+    local init = make(name, tip)
+    if type(init) == "table" then S.RegisterInitializer(cat, init) end
+  end
+
+  local function check(key, label, tip)
+    local setting = S.RegisterAddOnSetting(cat, "GoldFinder_" .. key, key, GoldFinderDB, BOOL, label, DEFAULTS[key])
+    setting:SetValueChangedCallback(function() applied(key) end)
+    S.RegisterInitializer(cat, S.CreateCheckboxInitializer(setting, nil, tip))
+  end
+
+  local function slider(setting, lo, hi, step, fmt, tip)
+    local o = S.CreateSliderOptions(lo, hi, step)
+    local mixin = MinimalSliderWithSteppersMixin
+    if fmt and o.SetLabelFormatter and mixin and mixin.Label then o:SetLabelFormatter(mixin.Label.Right, fmt) end
+    S.RegisterInitializer(cat, S.CreateSliderInitializer(setting, o, tip))
+  end
+
+  -- numeros enteros guardados tal cual en GoldFinderDB (mismos nombres que usan Cfg y los comandos)
+  local function number(key, label, lo, hi, step, tip)
+    local setting = S.RegisterAddOnSetting(cat, "GoldFinder_" .. key, key, GoldFinderDB, NUM, label, DEFAULTS[key])
+    setting:SetValueChangedCallback(function()
+      local v = tonumber(GoldFinderDB[key])
+      if v and v ~= floor(v) then GoldFinderDB[key] = floor(v + 0.5) end
+      applied(key)
+    end)
+    slider(setting, lo, hi, step, function(v) return tostring(floor(v + 0.5)) end, tip)
+  end
+
+  header("Consejos y tooltips")
+  check("tip", "Consejo en los tooltips", "Consejo vender / subastar / guardar en los tooltips de los objetos.")
+  check("track", "Registrar el cuero que recoges", "Registrar el cuero que recoges (pestana Sesion).")
+  check("crossChars", "Materiales de mis otros personajes",
+    "Avisar de materiales que sirven a las profesiones de mis otros personajes.")
+  check("useSkillUp", "Usar la ruta de SkillUp Forever",
+    "Usar la ruta de SkillUp Forever (si lo tienes) para decidir que materiales guardar.")
+  number("reserve", "Fabricaciones a reservar", 0, 200, 1,
+    "Fabricaciones a reservar de cada material (para subir tu profesion).")
+
+  header("Ventanas y paneles")
+  check("nextSteps", "Ventana del siguiente paso", "Ventana flotante con el siguiente paso de las guias de profesion.")
+  check("gamePlan", "Siguiente paso segun la subasta",
+    "Siguiente paso segun mis recetas y los precios de la subasta (en vez de la guia).")
+  check("readyAlert", "Aviso al reunir los materiales", "Avisar (chat y sonido) cuando reuna los materiales de un paso.")
+  check("shopping", "Pestana Compras", "Pestana Compras: materiales que me faltan para el paso actual, con precios.")
+  check("mailPanel", "Panel junto al correo",
+    "Panel junto al correo con lo que conviene enviar al banquero (si no usas el correo de TSM).")
+  check("bankPanel", "Panel junto al banco", "Panel junto al banco con lo que conviene depositar (y lo que mejor llevas encima).")
+  check("vendorBox", "Recetas junto al vendedor",
+    "Cuadrito junto al vendedor con las recetas que te sirven (el tooltip siempre las indica).")
+
+  header("Profesiones y ruta",
+    "GoldFinder lee tus profesiones y tu habilidad al entrar. Las recetas se memorizan al abrir la ventana de cada profesion.")
+  check("craftTab", "Pestana Fabricar", "Pestana Fabricar: que compensa fabricar con tus materiales (valor del objeto fabricado).")
+  check("routeTab", "Pestana Ruta",
+    "Pestana Ruta: planificador de ruta de profesion con tus recetas y los precios de la subasta.")
+  number("routeSpan", "Puntos que planifica la ruta", 5, 100, 1,
+    "Puntos de habilidad que planifica la pestana Ruta, de 5 a 100 (lo mismo que /gf ruta N).")
+  number("sellCap", "Unidades a precio de subasta", 0, 1000, 1,
+    "Unidades de cada objeto fabricado que la pestana Ruta valora a precio de subasta; el resto, a precio del vendedor (lo mismo que /gf tope N).")
+  -- profesiones de este personaje que cuentan (materiales a guardar, patrones y siguiente paso)
+  local profs = {}
+  for prof in pairs(Char().prof) do profs[#profs + 1] = prof end
+  table.sort(profs)
+  for _, prof in ipairs(profs) do
+    local setting = S.RegisterProxySetting(cat, "GoldFinder_prof_" .. (prof:gsub("[^%w]", "_")), BOOL,
+      "Cuenta: " .. prof, true,
+      function() return not Char().off[prof] end,
+      function(on)
+        Char().off[prof] = (not on) or nil
+        tracker()
+        refreshAll()
+      end)
+    S.RegisterInitializer(cat, S.CreateCheckboxInitializer(setting, nil,
+      "Profesiones que cuentan (materiales a guardar, patrones y siguiente paso). Solo para este personaje."))
+  end
+
+  header("Subasta y banquero")
+  local gain = S.RegisterProxySetting(cat, "GoldFinder_minGain", NUM, "Ganancia minima de la subasta",
+    floor(DEFAULTS.minGain / 100),
+    function() return floor((tonumber(Cfg("minGain")) or 0) / 100 + 0.5) end,
+    function(silver)
+      GoldFinderDB.minGain = math.max(0, floor((tonumber(silver) or 0) + 0.5)) * 100
+      refreshShown()
+    end)
+  slider(gain, 0, 5000, 5, function(silver) return Money(floor(silver + 0.5) * 100) end,
+    "Ganancia minima (oro) para recomendar subasta en vez de vendedor.")
+  -- banquero: se elige entre los personajes con los que ya has entrado; un deslizador con pasos en vez de un
+  -- desplegable, porque el desplegable nativo falla en el cliente Forever (lo mismo hace SkillUp Forever)
+  local names, seen = {}, {}
+  local function addName(n)
+    if n and n ~= "" and not seen[n:lower()] then seen[n:lower()] = true; names[#names + 1] = n end
+  end
+  for key in pairs(GoldFinderDB.chars or {}) do addName(ResolveFullName(key:match("^([^-]+)") or key)) end
+  addName(BankerName())
+  table.sort(names)
+  table.insert(names, 1, "")   -- "" = ninguno
+  local function bankerIndex()
+    local cur = BankerName()
+    if not cur then return 1 end
+    for i, name in ipairs(names) do
+      if name ~= "" and (name:lower() == cur:lower()
+          or (not cur:find(" ", 1, true) and FirstName(name):lower() == cur:lower())) then
+        return i
+      end
+    end
+    return 1
+  end
+  local banker = S.RegisterProxySetting(cat, "GoldFinder_banker", NUM, "Personaje banquero", 1, bankerIndex,
+    function(i)
+      GoldFinderDB.banker = ResolveFullName(names[floor((tonumber(i) or 1) + 0.5)] or "") or ""
+      refreshAll()
+    end)
+  slider(banker, 1, math.max(2, #names), 1, function(i)
+    local n = names[floor(i + 0.5)]
+    return (n and n ~= "") and n or "(ninguno)"
+  end, "Personaje banquero: al que envias lo que hay que subastar. Se elige entre los personajes con los que ya has entrado.")
+
+  S.RegisterAddOnCategory(cat)
+  optionsCategory = cat
+end
+
+OpenOptions = function()
+  if not optionsCategory then return false end
+  if InCombatLockdown and InCombatLockdown() then
+    Print("Las opciones del juego se abren fuera de combate.")
+    return false
+  end
+  local id = optionsCategory.GetID and optionsCategory:GetID()
+  -- el abridor del cliente, llamado de forma segura (como SkillUp Forever); si no esta, el de la API Settings
+  local open = C_SettingsUtil and C_SettingsUtil.OpenSettingsPanel
+  if type(open) == "function" and type(securecallfunction) == "function" then
+    securecallfunction(open, id)
+    return true
+  end
+  if Settings and type(Settings.OpenToCategory) == "function" then
+    return (pcall(Settings.OpenToCategory, id))
+  end
+  return false
+end
+
+-- Cambia una opcion por la API Settings (asi la pagina de opciones y sus efectos quedan al dia) o, sin ella,
+-- directamente en GoldFinderDB.
+local function SetOption(key, value)
+  if optionsCategory and Settings.SetValue and pcall(Settings.SetValue, "GoldFinder_" .. key, value)
+      and GoldFinderDB[key] == value then
+    return
+  end
+  GoldFinderDB[key] = value
+  for _, u in ipairs(uiInstances) do pcall(u.refresh) end
+end
+
 local f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
 f:RegisterEvent("PLAYER_LOGIN")
@@ -4378,7 +4583,12 @@ f:SetScript("OnEvent", function(_, event, arg1)
   elseif event == "PLAYER_LOGIN" then
     pcall(MarkSessionBaseline)
     C_Timer.After(1, function() pcall(CleanPhantomChars) end)
-    C_Timer.After(2, function() pcall(ReadSkills); xpcall(UpdateTracker, geterrorhandler()) end)
+    C_Timer.After(2, function()
+      pcall(ReadSkills); xpcall(UpdateTracker, geterrorhandler())
+      -- despues de leer las profesiones y ordenar las fichas: la pagina lista profesiones y personajes
+      local okO, errO = pcall(RegisterOptions)
+      if not okO then Print("No pude registrar las opciones en Opciones > AddOns: " .. tostring(errO)) end
+    end)
     -- la API de SkillUp puede tardar en estar lista tras entrar: se lee varias veces durante el primer minuto
     for _, d in ipairs({ 8, 20, 40, 65 }) do
       C_Timer.After(d, function() suCache.t = -10; pcall(SkillUpData) end)
@@ -4439,20 +4649,26 @@ SlashCmdList["GOLDFINDER"] = function(msg)
   elseif cmd == "ruta" or cmd == "route" then
     local n = tonumber(rest)
     if n and n >= 5 and n <= 100 then
-      GoldFinderDB.routeSpan = math.floor(n)
+      SetOption("routeSpan", math.floor(n))
       Print("La ruta planifica " .. GoldFinderDB.routeSpan .. " puntos de habilidad.")
-      for _, u in ipairs(uiInstances) do pcall(u.refresh) end
     else
       Print("Uso: /gf ruta 25 (puntos de habilidad que planifica la pestana Ruta, de 5 a 100)")
     end
   elseif cmd == "tope" or cmd == "cap" then
     local n = tonumber(rest)
     if n and n >= 0 and n <= 1000 then
-      GoldFinderDB.sellCap = math.floor(n)
+      SetOption("sellCap", math.floor(n))
       Print("La ruta valora a precio de subasta las primeras " .. GoldFinderDB.sellCap .. " unidades de cada objeto fabricado; el resto, a precio del vendedor.")
-      for _, u in ipairs(uiInstances) do pcall(u.refresh) end
     else
       Print("Uso: /gf tope 5 (unidades de cada objeto fabricado que la pestana Ruta valora a precio de subasta, de 0 a 1000)")
+    end
+  elseif cmd == "ajustes" or cmd == "config" or cmd == "opciones" then
+    if not OpenOptions() then
+      -- sin la pagina de Opciones (o en combate): la pestana Ajustes de la ventana
+      if not (GoldFinderWindow and GoldFinderWindow:IsShown()) then ToggleWindow() end
+      for _, u in ipairs(uiInstances) do
+        if GoldFinderWindow and u:GetParent() == GoldFinderWindow then pcall(u.open, "ajustes") end
+      end
     end
   elseif cmd == "guia" or cmd == "guide" then
     OpenGuide(rest)
@@ -4468,6 +4684,6 @@ SlashCmdList["GOLDFINDER"] = function(msg)
       ToggleWindow()
     end
   else
-    Print("Comandos: /gf (abre la ventana) | /gf guia [profesion] (guia completa) | /gf ruta N (puntos que planifica la pestana Ruta, 5-100) | /gf tope N (unidades valoradas a precio de subasta en la Ruta) | /gf icono (muestra u oculta el icono del minimapa) | /gf session reset")
+    Print("Comandos: /gf (abre la ventana) | /gf ajustes (opciones en Opciones > AddOns) | /gf guia [profesion] (guia completa) | /gf ruta N (puntos que planifica la pestana Ruta, 5-100) | /gf tope N (unidades valoradas a precio de subasta en la Ruta) | /gf icono (muestra u oculta el icono del minimapa) | /gf session reset")
   end
 end
