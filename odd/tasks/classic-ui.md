@@ -38,8 +38,8 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | ID | Specs | Route | Status | Commit |
 |----|-------|-------|--------|--------|
 | U1 | S2, S3, S5 | delegated (context backstop) | done, verified in game (window) | 642153f, b225f3e |
-| U2 | S4, S5 | delegated (context backstop) | done (offline checks), in-game check pending | see Log L15 |
-| U3 | S6 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L14 |
+| U2 | S4, S5 | delegated (context backstop) | done, tracker verified in game; guide, mail, bank pending | 7460f3a |
+| U3 | S6 | delegated (context backstop) | done, verified in game (Ruta) | 8ee8024, 385f293 |
 | U4 | S6, S7 | delegated (context backstop) | done, verified in game | bbd009a, 454b833 |
 | U5 | S6 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L16 |
 | U6 | S8, S5 | delegated (context backstop) | done, verified in game | a0f11da |
@@ -118,3 +118,9 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   Ajustes as a header button opening the options page. Helpers AHViewKeys/AHBagOrder between markers
   "-- VISTAS DE LA CASA DE SUBASTAS" .. "-- FIN DE VISTAS DE LA CASA DE SUBASTAS"; tests/ah_tab_test.lua 7 PASS
   (RED first). /gf unchanged.
+- L17: In game: tracker restyle visible (title "GoldFinder Forever: siguiente paso", native icons). U3 tabs Ruta and
+  Fabricar visible at the bottom-left of the professions window, but clicking showed nothing: the tab got
+  selected (so P.current was set and the page was shown) yet the page stayed behind the recipe list. Fix 385f293:
+  page on the strata above the window plus SetToplevel. Verified 21:57: Ruta page inside Cooking, filtered to
+  Cooking 176>201 with buy rows. No GoldFinder errors (one BugGrabber entry came from a truncated /run test line).
+  Pending in game: Fabricar page, hiding on native tabs, U5 AH tab, U2 guide/mail/bank.
