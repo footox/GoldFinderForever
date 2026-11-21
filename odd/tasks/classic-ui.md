@@ -70,7 +70,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U8 | S10a | delegated (context backstop) | done, verified in game | c3eab1d, 60be0a1 |
 | U9 | S10b | delegated (context backstop) | done, verified in game | c3eab1d |
 | U12 | S13 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L36 |
-| U11 | S12 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L31 |
+| U11 | S12 | delegated (context backstop) | done, verified in game | 7c8b61d, 87c2e12 |
 | U10 | S11 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L25 |
 
 - U1: main window and shared helpers (`Flat`, `Text`, `Btn`, `PAL`, list rows, tabs) in the classic style.
@@ -268,3 +268,5 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   any merge/resolution when a first name is ambiguous, generic field merge, leftover realm keys merged only when
   unambiguous, in-memory ficha until the surname is known, ticker retries while waiting or ForeverCore section
   missing. r3_test 49 PASS (13 FAIL against HEAD); real SavedVariables byte-identical after repeated logins.
+- L42 (2026-11-21, user, verbatim): "ya envie un correo" and "ya recibio el correo": mail from Twistice reached the
+  banker Ashes Soulbinder; no GoldFinder errors in BugGrabber (saved 00:32). Pending in game: one-click Subastar.
