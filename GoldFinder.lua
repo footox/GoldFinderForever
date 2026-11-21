@@ -4379,7 +4379,12 @@ do
     local page = CreateFrame("Frame", "GoldFinderProfessionPage", win)
     page:SetPoint("TOPLEFT", win, "TOPLEFT", 4, -58)
     page:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -4, 4)
+    -- capa superior a la de la ventana: con solo subir el nivel, la lista de recetas (y skins como EllesmereUI)
+    -- quedaba por encima y la pagina no se veia aunque estuviera mostrada
+    local above = { BACKGROUND = "LOW", LOW = "MEDIUM", MEDIUM = "HIGH", HIGH = "DIALOG", DIALOG = "FULLSCREEN" }
+    page:SetFrameStrata(above[win:GetFrameStrata()] or "HIGH")
     page:SetFrameLevel(math.min(win:GetFrameLevel() + 40, 9000))
+    page:SetToplevel(true)
     page:EnableMouse(true)
     local bg = Flat(page, "BACKGROUND", { 0.05, 0.05, 0.05, 0.97 }); bg:SetAllPoints()
     page:Hide()
