@@ -93,3 +93,8 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   C_Container.UseContainerItem only while MerchantFrame is shown (existing SellItem is an auction helper, not a
   vendor sale). Setting sellPanel (default on). tests/sell_panel_test.lua 10 PASS (RED first). Parent review fixed
   single-backslash texture paths (Lua 5.1 drops the backslash in "\D", so the dialog border texture would not load).
+- L12 (2026-11-20, user, verbatim): "Bueno, hay items que no se deben vender, como el cozy sleep bag jeje" and
+  "Y no se puedes desplazar la lista". Fix: IsUtilityItem (on-use effect, not consumable, not gray) blocks VENDOR in
+  Decide (AH still evaluated); tests/utility_item_test.lua 7 PASS (RED first). Sell panel: scrollable list
+  (UIPanelScrollFrameTemplate, 12 visible rows, mouse wheel), per-row "Guardar" button pinning the item
+  (Char().keep, released from the Bolsas tab), panel width 360.

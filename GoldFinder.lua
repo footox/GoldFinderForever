@@ -1012,6 +1012,18 @@ local function IsLeather(id)
   return classID == 7 and subClassID == 6
 end
 
+-- Objeto de uso (bolsa de dormir, juguetes, abalorios con efecto): tiene un efecto "Usar:" y no es consumible
+-- (clase 0) ni basura gris. Nunca se recomienda venderlo al vendedor.
+local function IsUtilityItem(id)
+  local _, _, _, _, _, classID = C_Item.GetItemInfoInstant(id)
+  if not classID or classID == 0 then return false end
+  local getSpell = C_Item.GetItemSpell or GetItemSpell
+  if not (getSpell and getSpell(id)) then return false end
+  local q = C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(id)
+  return q ~= nil and q >= 1
+end
+-- FIN DE OBJETOS DE USO
+
 local function RecordSources()
   if not GoldFinderDB then return end
   local zone = GetRealZoneText()
@@ -1213,7 +1225,10 @@ local function Decide(id, bags, bank, bound)
       return d
     end
   end
-  if vendor > 0 and vendor >= ahNet then
+  -- objetos de uso (bolsa de dormir, juguetes...): nunca al vendedor; si valen en la subasta, se sigue evaluando
+  local utility = IsUtilityItem(id)
+  if utility then d.reason = "objeto de uso: no se recomienda venderlo" end
+  if vendor > 0 and vendor >= ahNet and not utility then
     d.verdict, d.unit = "VENDOR", vendor
     return d
   end
@@ -1230,7 +1245,7 @@ local function Decide(id, bags, bank, bound)
       return d
     end
   end
-  if vendor > 0 then d.verdict, d.unit = "VENDOR", vendor end
+  if vendor > 0 and not utility then d.verdict, d.unit = "VENDOR", vendor end
   return d
 end
 
@@ -4270,7 +4285,7 @@ local function RefreshSellPanel()
   if not f then
     f = NewFrame("Frame", "GoldFinderSellPanel", MerchantFrame, "BackdropTemplate")
       or CreateFrame("Frame", "GoldFinderSellPanel", MerchantFrame)
-    f:SetWidth(300)
+    f:SetWidth(360)
     f:SetFrameStrata("HIGH")
     local okB = f.SetBackdrop and pcall(f.SetBackdrop, f, {
       bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
@@ -4287,7 +4302,14 @@ local function RefreshSellPanel()
     f.empty = Text(f, 12, PAL.dim)
     f.empty:SetPoint("TOPLEFT", f, "TOPLEFT", 18, -60)
     f.empty:SetText("Nada que venderle a este vendedor")
-    f.more = Text(f, 11, PAL.dim)
+    -- lista con barra de desplazamiento (y rueda del raton): muestra SELL_LINES filas y el resto se desplaza
+    f.scroll = NewFrame("ScrollFrame", "GoldFinderSellPanelScroll", f, "UIPanelScrollFrameTemplate")
+      or CreateFrame("ScrollFrame", "GoldFinderSellPanelScroll", f)
+    f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -54)
+    f.scroll:SetPoint("RIGHT", f, "RIGHT", -34, 0)
+    f.content = CreateFrame("Frame", nil, f.scroll)
+    f.content:SetSize(310, 1)
+    f.scroll:SetScrollChild(f.content)
     f.total = Text(f, 12, PAL.gold)
     f.total:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 18, 16)
     f.rows = {}
@@ -4323,22 +4345,30 @@ local function RefreshSellPanel()
     if classID == 12 then r.quest = true end   -- objetos de mision
   end
   local list, total = VendorSellRows(rows, SellQty)
-  local shown = math.min(#list, SELL_LINES)
-  for i = 1, shown do
+  for i = 1, #list do
     local e = list[i]
     local row = f.rows[i]
     if not row then
-      row = CreateFrame("Frame", nil, f)
-      row:SetSize(264, 24)
-      row:SetPoint("TOPLEFT", f, "TOPLEFT", 18, -56 - (i - 1) * 26)
+      row = CreateFrame("Frame", nil, f.content)
+      row:SetSize(306, 24)
+      row:SetPoint("TOPLEFT", f.content, "TOPLEFT", 4, -(i - 1) * 26)
       row.icon = row:CreateTexture(nil, "ARTWORK")
       row.icon:SetSize(20, 20)
       row.icon:SetPoint("LEFT", row, "LEFT", 0, 0)
-      row.btn = Btn(row, "Vender", 62, 20)
+      row.btn = Btn(row, "Vender", 56, 20)
       row.btn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+      -- Guardar: no volver a recomendar venderlo (lo fija, igual que en la pestana Bolsas; ahi se suelta)
+      row.keep = Btn(row, "Guardar", 60, 20)
+      row.keep:SetPoint("RIGHT", row.btn, "LEFT", -4, 0)
+      row.keep:SetScript("OnClick", function()
+        if not row.id then return end
+        Char().keep[row.id] = true
+        for _, u in ipairs(uiInstances) do pcall(u.refresh) end
+        pcall(RefreshSellPanel)
+      end)
       row.money = Text(row, 11, PAL.text, "RIGHT")
-      row.money:SetPoint("RIGHT", row.btn, "LEFT", -6, 0)
-      row.money:SetWidth(80)
+      row.money:SetPoint("RIGHT", row.keep, "LEFT", -6, 0)
+      row.money:SetWidth(64)
       row.name = Text(row, 11, PAL.text)
       row.name:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
       row.name:SetPoint("RIGHT", row.money, "LEFT", -4, 0)
@@ -4360,16 +4390,11 @@ local function RefreshSellPanel()
     row.money:SetText(ShortMoney(e.value))
     row:Show()
   end
-  local y = -56 - shown * 26
-  if #list > SELL_LINES then
-    f.more:ClearAllPoints()
-    f.more:SetPoint("TOPLEFT", f, "TOPLEFT", 18, y - 2)
-    f.more:SetText(format("+%d mas", #list - SELL_LINES))
-    f.more:Show()
-    y = y - 18
-  else
-    f.more:Hide()
-  end
+  local visible = math.min(#list, SELL_LINES)
+  f.content:SetHeight(math.max(1, #list * 26))
+  f.scroll:SetHeight(math.max(1, visible * 26))
+  f.scroll:SetShown(#list > 0)
+  local y = -56 - visible * 26
   if #list == 0 then f.empty:Show(); y = y - 22 else f.empty:Hide() end
   f.total:SetText("Total: " .. Money(total))
   f.total:SetShown(#list > 0)
