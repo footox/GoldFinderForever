@@ -18,6 +18,7 @@ core/routeplanner.lua
 adapters/wow.lua
 adapters/bags.lua
 adapters/quests.lua
+ui/widgets.lua
 GoldFinderRoutes.lua
 GoldFinderTrainers.lua
 GoldFinderRecipes.lua

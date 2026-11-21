@@ -17,9 +17,9 @@ Branch: refactor/split-architecture | Delivery: ask-on-risk | Test runner: `lua.
 - [x] T1 (S1,S2) Namespace + `core/` utilities (Print, Money, ShortMoney, Cfg, Char) | route: inline | commit: GF-15 (in-game /reload OK)
 - [x] T2 (S2) `adapters/wow.lua`: merchant, bags, quests, spells, addons with fallbacks and pcall helper | route: inline | commit: GF-16 (in-game /reload OK; write actions PickupContainerItem/UseContainerItem and quest/auction adapters move with their features)
 - [x] T3 (S1,S3) Decision logic to `core/decision.lua` | route: inline + quest need (core/quest_need.lua, adapters/quests.lua) | commit: GF-17 (in-game /reload OK)
-- [x] T4 (S1,S3) Route planner to `core/routeplanner.lua` | route: inline | commit: GF-18 (in-game /reload pending)
+- [x] T4 (S1,S3) Route planner to `core/routeplanner.lua` | route: inline | commit: GF-18 (in-game /reload OK)
 - [ ] T5 (S1) Features one by one: vendor, mail, auction, professions, guide (each its own commit) | route: inline | commit: -
-- [ ] T6 (S1) `ui/` presentational components | route: inline | commit: -
+- [x] T6 (S1) `ui/` presentational components | route: inline  (shared primitives + Skin helpers first, features depend on them; feature-specific components move with each feature) | commit: GF-19 (in-game /reload pending)
 - [ ] T7 (S6) Localization: `locales/` + `GF.L`, extract all Spanish strings, enUS base, command aliases, language option | route: inline | commit: -
 - [ ] T8 (S3,S4) Update tests to new paths and add locale tests, final lint, TOC, README/CHANGELOG, package | route: inline | commit: -
 
@@ -32,3 +32,4 @@ Risk: item 6 (UI is not covered by offline tests); mitigated by the in-game `/re
 - L3 (2026-11-21, user): "ASi como codigo seguro etc."
 - L4 Analysis: 190 top-level locals, 129 used outside their own section (Cfg and Char in 19 sections each, Print and Money in 11); 17 tests extract code from GoldFinder.lua by text markers. Engram mirror `odd/split-architecture/tasks`: pending.
 - L5 (2026-11-21, user): "Asi como el soporte de Ingles US" -> added S6 and T7 (localization); Spanish stays supported. After release, update the CurseForge description line "The interface is in Spanish" and the .toc Notes.
+- L6 (2026-11-21): reordered, T6 (ui primitives) before T5 because every feature window needs Flat/Text/Btn/Skin. T1-T4 verified in game by the user.
