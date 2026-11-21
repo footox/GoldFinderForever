@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="35%" r="75%">
+      <stop offset="0" stop-color="#3a2a14"/>
+      <stop offset="1" stop-color="#110b05"/>
+    </radialGradient>
+    <radialGradient id="skin" cx="45%" cy="35%" r="70%">
+      <stop offset="0" stop-color="#9be36b"/>
+      <stop offset="0.6" stop-color="#5fae3c"/>
+      <stop offset="1" stop-color="#2f6b1f"/>
+    </radialGradient>
+    <linearGradient id="ear" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7fcf55"/>
+      <stop offset="1" stop-color="#356f22"/>
+    </linearGradient>
+    <radialGradient id="coin" cx="38%" cy="32%" r="72%">
+      <stop offset="0" stop-color="#fff4b0"/>
+      <stop offset="0.45" stop-color="#f4c446"/>
+      <stop offset="1" stop-color="#9a6a12"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe9a0"/>
+      <stop offset="1" stop-color="#7a4f0a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- fondo con marco dorado -->
+  <rect x="0" y="0" width="400" height="400" rx="56" fill="url(#bg)"/>
+  <rect x="10" y="10" width="380" height="380" rx="48" fill="none" stroke="#c9952e" stroke-width="6"/>
+
+  <!-- orejas -->
+  <path d="M120 170 L22 112 L48 150 L30 160 L112 214 Z" fill="url(#ear)" stroke="#1f4a14" stroke-width="5"
+        stroke-linejoin="round"/>
+  <path d="M108 178 L60 146 L70 170 Z" fill="#c98a7a" opacity="0.55"/>
+  <path d="M280 170 L378 112 L352 150 L370 160 L288 214 Z" fill="url(#ear)" stroke="#1f4a14" stroke-width="5"
+        stroke-linejoin="round"/>
+  <path d="M292 178 L340 146 L330 170 Z" fill="#c98a7a" opacity="0.55"/>
+
+  <!-- cabeza -->
+  <ellipse cx="200" cy="190" rx="102" ry="112" fill="url(#skin)" stroke="#1f4a14" stroke-width="6"/>
+
+  <!-- cejas pícaras -->
+  <path d="M132 142 Q160 124 188 146" fill="none" stroke="#1f3a10" stroke-width="9" stroke-linecap="round"/>
+  <path d="M212 146 Q240 124 268 142" fill="none" stroke="#1f3a10" stroke-width="9" stroke-linecap="round"/>
+
+  <!-- ojos amarillos -->
+  <ellipse cx="164" cy="168" rx="24" ry="18" fill="#ffe14a" stroke="#1f3a10" stroke-width="4"/>
+  <ellipse cx="236" cy="168" rx="24" ry="18" fill="#ffe14a" stroke="#1f3a10" stroke-width="4"/>
+  <ellipse cx="170" cy="170" rx="7" ry="11" fill="#1a1206"/>
+  <ellipse cx="230" cy="170" rx="7" ry="11" fill="#1a1206"/>
+  <circle cx="173" cy="165" r="3" fill="#ffffff"/>
+  <circle cx="233" cy="165" r="3" fill="#ffffff"/>
+
+  <!-- nariz larga -->
+  <path d="M200 176 Q214 214 230 230 Q206 236 188 222 Q190 200 200 176 Z" fill="#4f9a32" stroke="#1f4a14"
+        stroke-width="5" stroke-linejoin="round"/>
+
+  <!-- sonrisa con colmillos -->
+  <path d="M138 240 Q200 296 262 240 Q200 268 138 240 Z" fill="#3b1408" stroke="#1f3a10" stroke-width="5"
+        stroke-linejoin="round"/>
+  <path d="M160 248 L168 266 L176 252 Z" fill="#fff6dc"/>
+  <path d="M224 252 L232 266 L240 248 Z" fill="#fff6dc"/>
+
+  <!-- mano con la moneda -->
+  <circle cx="300" cy="300" r="66" fill="url(#rim)" stroke="#5a3a08" stroke-width="4"/>
+  <circle cx="300" cy="300" r="54" fill="url(#coin)"/>
+  <circle cx="300" cy="300" r="44" fill="none" stroke="#a8761a" stroke-width="3" stroke-dasharray="5 6"/>
+  <text x="300" y="322" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="62"
+        font-weight="bold" fill="#6b4507" stroke="#fff0b0" stroke-width="1.5">G</text>
+  <path d="M262 312 Q248 330 262 346 Q282 360 300 352" fill="#5fae3c" stroke="#1f4a14" stroke-width="5"
+        stroke-linejoin="round"/>
+  <path d="M262 312 Q276 318 284 332" fill="none" stroke="#1f4a14" stroke-width="4" stroke-linecap="round"/>
+  <path d="M270 344 Q280 336 292 340" fill="none" stroke="#1f4a14" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- brillo de la moneda -->
+  <path d="M272 274 a34 34 0 0 1 22 -12" fill="none" stroke="#ffffff" stroke-opacity="0.8" stroke-width="6"
+        stroke-linecap="round"/>
+</svg>
