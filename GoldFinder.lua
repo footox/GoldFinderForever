@@ -22,6 +22,7 @@ local DEFAULTS = {
   craftTab = false,     -- opcional: pestana Fabricar (que compensa fabricar con tus materiales)
   routeTab = false,     -- opcional: pestana Ruta (planificador de ruta de profesion)
   routeSpan = 25,       -- puntos de habilidad que planifica la ruta
+  sellCap = 5,          -- ruta: unidades de cada objeto fabricado que se valoran a precio de subasta (el resto, a precio del vendedor)
   banker = "",        -- nombre del personaje banquero al que se envia lo que hay que subastar
 }
 
@@ -3082,6 +3083,8 @@ end
 -- (de las que ya sabes) con menor coste neto esperado por punto: (materiales - valor de lo fabricado) / (probabilidad
 -- de subir x puntos por fabricacion). Los materiales que ya tienes cuentan por lo que sacarias vendiendolos y se
 -- van gastando. Es una estimacion: cantidades esperadas, sin sobrantes, y los intermedios se compran hechos.
+-- Lo fabricado solo vale precio de subasta en sus primeras sellCap unidades (lo que el mercado absorbe); el resto
+-- vale lo que paga el vendedor. Asi la ruta no apuesta a vender decenas de copias del mismo objeto.
 local function BuyPrice(id)
   local v1 = AHApi()
   local ah = v1 and v1.GetAuctionPriceByItemID(CALLER, id) or nil
@@ -3123,17 +3126,18 @@ local function PlanRoute(prof, pd, target)
   for name, cr in pairs(pd.crafts) do
     local x = RecipeLookup(pd.skillLine, name)
     if x then
-      local outVal = 0
+      local outVal, outVend = 0, 0
       if cr.o then
         local bound = select(14, C_Item.GetItemInfo(cr.o)) == 1
         outVal = SellValue(cr.o, bound) * (cr.q or 1)
+        outVend = SellValue(cr.o, true) * (cr.q or 1)
       end
       local unitBuy = 0
       for _, m in ipairs(cr.r) do
         local pr = buyP(m[1])
         unitBuy = unitBuy + m[2] * (pr or 0)
       end
-      cands[#cands + 1] = { name = name, x = x, cr = cr, o = cr.o, outVal = outVal, unitBuy = unitBuy }
+      cands[#cands + 1] = { name = name, x = x, cr = cr, o = cr.o, outVal = outVal, outVend = outVend, unitBuy = unitBuy, made = 0 }
     end
   end
   if #cands == 0 then return nil end
@@ -3147,6 +3151,13 @@ local function PlanRoute(prof, pd, target)
       stock[id] = v
     end
     return v
+  end
+
+  local cap = math.max(0, Cfg("sellCap") or 5)
+  -- Valor medio de las proximas n fabricaciones de c: precio de subasta hasta cap unidades, despues el del vendedor.
+  local function nextValue(c, n)
+    local ah = math.min(n, math.max(cap - c.made, 0))
+    return (ah * c.outVal + (n - ah) * c.outVend) / n
   end
 
   local steps, need = {}, {}
@@ -3163,12 +3174,13 @@ local function PlanRoute(prof, pd, target)
           local buy = m[2] - use
           cost = cost + use * sellV(m[1]) + buy * (buy > 0 and (buyP(m[1]) or 1e7) or 0)
         end
-        local eff = (cost - c.outVal) / (pch * c.x.k)
+        local eff = (cost - nextValue(c, 1 / (pch * c.x.k))) / (pch * c.x.k)
         if not best or eff < bestEff - 1e-9 then best, bestEff, bestP = c, eff, pch end
       end
     end
     if not best then break end
     local frac = 1 / (bestP * best.x.k)
+    best.made = best.made + frac
     for _, m in ipairs(best.cr.r) do
       local total = m[2] * frac
       local h = held(m[1])
@@ -3201,11 +3213,17 @@ local function PlanRoute(prof, pd, target)
     mats[#mats + 1] = { id = id, need = qn, have = have, missing = missing, price = pr, cost = mc, est = est }
   end
   table.sort(mats, function(a, b) return (a.cost or 0) > (b.cost or 0) end)
+  local sold = {}
   for _, st in ipairs(steps) do
     st.n = math.ceil(st.crafts - 1e-9)
-    sell = sell + st.n * st.c.outVal
+    local used = sold[st.c] or 0
+    local ah = math.min(st.n, math.max(cap - used, 0))
+    st.value = ah * st.c.outVal + (st.n - ah) * st.c.outVend
+    st.ahUnits = ah
+    sold[st.c] = used + st.n
+    sell = sell + st.value
   end
-  return { prof = prof, pd = pd, from = pd.rank, to = sk, steps = steps, mats = mats, cost = cost, sell = sell, unknown = unknown }
+  return { prof = prof, pd = pd, from = pd.rank, to = sk, steps = steps, mats = mats, cost = cost, sell = sell, unknown = unknown, cap = cap }
 end
 
 -- Precios a los que el vendedor te vende cada objeto (se anotan al abrir un vendedor): sirven para costear materiales.
@@ -3556,7 +3574,8 @@ local function CreateUI(parent)
             reason = format("Compras %s | vendiendo lo fabricado recuperas %s | neto %s%s%s", Money(plan.cost), Money(plan.sell),
               net >= 0 and "" or "-", Money(math.abs(net)),
               plan.unknown > 0 and (" | " .. plan.unknown .. " materiales sin precio") or "")
-              .. "\nCantidades esperadas, sin sobrantes: puede hacer falta alguna fabricacion mas.",
+              .. "\nCantidades esperadas, sin sobrantes: puede hacer falta alguna fabricacion mas."
+              .. format("\nLo fabricado vale precio de subasta solo en sus primeras %d unidades; el resto, lo que paga el vendedor (/gf tope).", plan.cap),
             c1 = "", c2 = Money(plan.cost), c3 = Money(plan.sell),
           }
           for _, st in ipairs(plan.steps) do
@@ -3565,8 +3584,9 @@ local function CreateUI(parent)
             out[#out + 1] = {
               id = st.c.o,
               name = format("Fabricar %s  |cffb3b3b3(%d > %d)|r  %d%%", nm, st.from, st.to, math.floor(chance * 100 + 0.5)),
-              reason = format("%s | por fabricacion: materiales %s, vale %s", st.c.name, Money(st.c.unitBuy), Money(st.c.outVal)),
-              c1 = "x" .. st.n, c2 = Money(st.n * st.c.unitBuy), c3 = Money(st.n * st.c.outVal),
+              reason = format("%s | por fabricacion: materiales %s, vale %s en subasta (%d de %d) y %s al vendedor (el resto)",
+                st.c.name, Money(st.c.unitBuy), Money(st.c.outVal), st.ahUnits, st.n, Money(st.c.outVend)),
+              c1 = "x" .. st.n, c2 = Money(st.n * st.c.unitBuy), c3 = Money(st.value),
             }
           end
           local shown = 0
@@ -4149,6 +4169,15 @@ SlashCmdList["GOLDFINDER"] = function(msg)
     else
       Print("Uso: /gf ruta 25 (puntos de habilidad que planifica la pestana Ruta, de 5 a 100)")
     end
+  elseif cmd == "tope" or cmd == "cap" then
+    local n = tonumber(rest)
+    if n and n >= 0 and n <= 1000 then
+      GoldFinderDB.sellCap = math.floor(n)
+      Print("La ruta valora a precio de subasta las primeras " .. GoldFinderDB.sellCap .. " unidades de cada objeto fabricado; el resto, a precio del vendedor.")
+      for _, u in ipairs(uiInstances) do pcall(u.refresh) end
+    else
+      Print("Uso: /gf tope 5 (unidades de cada objeto fabricado que la pestana Ruta valora a precio de subasta, de 0 a 1000)")
+    end
   elseif cmd == "guia" or cmd == "guide" then
     OpenGuide(rest)
   elseif cmd == "icono" or cmd == "minimap" then
@@ -4163,6 +4192,6 @@ SlashCmdList["GOLDFINDER"] = function(msg)
       ToggleWindow()
     end
   else
-    Print("Comandos: /gf (abre la ventana) | /gf guia [profesion] (guia completa) | /gf icono (muestra u oculta el icono del minimapa) | /gf session reset")
+    Print("Comandos: /gf (abre la ventana) | /gf guia [profesion] (guia completa) | /gf ruta N (puntos que planifica la pestana Ruta, 5-100) | /gf tope N (unidades valoradas a precio de subasta en la Ruta) | /gf icono (muestra u oculta el icono del minimapa) | /gf session reset")
   end
 end
