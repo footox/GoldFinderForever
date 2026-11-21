@@ -2,13 +2,11 @@
 -- state (skill, known recipes, recorded trainer recipes, live route plan, bags). Run from the addon folder:
 --   "C:\Program Files (x86)\Lua\5.1\lua.exe" tests\guide_test.lua
 
-local src = assert(io.open("GoldFinder.lua")):read("*a")
-local a = assert(src:find("-- MEZCLA DE LA GUIA", 1, true), "start marker")
-local b = assert(src:find("-- FIN DE MEZCLA DE LA GUIA", 1, true), "end marker")
-local chunk = src:sub(a, b - 1) .. "\nreturn GuideMerge"
-local f = assert(loadstring(chunk))
+local GF = {}
+local f = assert(loadfile("core/guide.lua"))
 setfenv(f, setmetatable({}, { __index = _G }))
-local GuideMerge = f()
+f("GoldFinder", GF)
+local GuideMerge = GF.GuideMerge
 
 local failures = 0
 local function check(name, cond)
