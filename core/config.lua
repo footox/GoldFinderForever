@@ -35,6 +35,7 @@ GF.DEFAULTS = {
   postUndercut = 1,     -- cobre por debajo de la subasta mas barata
   postCapDays = 2,      -- tope de unidades: lo que se vende en la region en estos dias (si TSM lo sabe)
   postDuration = 24,    -- duracion de la subasta en horas (12 o 24)
+  language = "auto",    -- idioma: "auto" (el del cliente), "enUS" o "esES"
 }
 
 -- SavedVariables value if set, else the default. GoldFinderDB is read at call time (it is replaced on login).

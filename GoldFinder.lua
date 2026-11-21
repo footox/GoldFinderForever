@@ -4490,6 +4490,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
   if event == "ADDON_LOADED" and arg1 == "GoldFinder" then
     GoldFinderDB = GoldFinderDB or {}
     GoldFinderDB.chars = GoldFinderDB.chars or {}
+    GF.SetLocale(GF.ResolveLocale(Cfg("language"), GetLocale()))
     -- datos de versiones anteriores (comunes a la cuenta): pasan a la ficha de su personaje al entrar
     if GoldFinderDB.prof or GoldFinderDB.keep or GoldFinderDB.session then
       GoldFinderDB.legacy = GoldFinderDB.legacy or

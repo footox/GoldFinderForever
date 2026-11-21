@@ -11,6 +11,9 @@
 ## SavedVariables: GoldFinderDB
 
 core/config.lua
+core/locale.lua
+locales/enUS.lua
+locales/esES.lua
 core/money.lua
 core/quest_need.lua
 core/decision.lua

@@ -20,7 +20,7 @@ Branch: refactor/split-architecture | Delivery: ask-on-risk | Test runner: `lua.
 - [x] T4 (S1,S3) Route planner to `core/routeplanner.lua` | route: inline | commit: GF-18 (in-game /reload OK)
 - [ ] T5 (S1) Features one by one: vendor, mail, auction, professions, guide (each its own commit) | route: inline | commit: vendor GF-20 (in-game /reload OK); mail GF-21 (in-game /reload OK); auction post GF-22 (in-game /reload OK, posted 27 Sweet Nectar); professions tabs GF-23 (in-game /reload OK); auction house tab GF-24 (in-game /reload OK); hybrid guide GF-25 (in-game /reload OK); route helpers GF-26 (in-game /reload pending); on-screen tracker GF-29 (in-game /reload pending); route plan, farm combos pending
 - [x] T6 (S1) `ui/` presentational components | route: inline  (shared primitives + Skin helpers first, features depend on them; feature-specific components move with each feature) | commit: GF-19 (in-game /reload OK)
-- [ ] T7 (S6) Localization: `locales/` + `GF.L`, extract all Spanish strings, enUS base, command aliases, language option | route: inline | commit: -
+- [ ] T7 (S6) Localization: `locales/` + `GF.L`, extract all Spanish strings, enUS base, command aliases, language option | route: inline | commit: infrastructure GF-30 (core/locale.lua, locales/enUS.lua, locales/esES.lua, tests/locale_test.lua, `language` option default auto, applied at ADDON_LOADED); migration per file pending (about 1000 strings: main 745, mail 50, vendor 37, objective text 30, auction 27, guide 24, decision 23, tracker 19, route 15, others under 15)
 - [ ] T8 (S3,S4) Update tests to new paths and add locale tests, final lint, TOC, README/CHANGELOG, package | route: inline | commit: -
 
 Risk: item 6 (UI is not covered by offline tests); mitigated by the in-game `/reload` per slice.
@@ -34,3 +34,4 @@ Risk: item 6 (UI is not covered by offline tests); mitigated by the in-game `/re
 - L5 (2026-11-21, user): "Asi como el soporte de Ingles US" -> added S6 and T7 (localization); Spanish stays supported. After release, update the CurseForge description line "The interface is in Spanish" and the .toc Notes.
 - L6 (2026-11-21): reordered, T6 (ui primitives) before T5 because every feature window needs Flat/Text/Btn/Skin. T1-T4 verified in game by the user.
 - L7 (2026-11-21, user): the "Fijar" button keeps an item (verdict GUARDAR) and the name is confusing -> in T7 rename it to "Guardar" (inverse "Soltar") and the reason "lo fijaste tu" to "lo guardaste tu"; the options help text mentions Fijar too.
+- L8 (2026-11-21): T7 rule: no `L[...]` lookup at file-load scope, only inside functions (SavedVariables are read after the files run, so the language override is only known at ADDON_LOADED); frames built lazily (CreateUI) already follow it.
