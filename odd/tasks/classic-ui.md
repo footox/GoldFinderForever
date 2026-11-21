@@ -124,3 +124,5 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   page on the strata above the window plus SetToplevel. Verified 21:57: Ruta page inside Cooking, filtered to
   Cooking 176>201 with buy rows. No GoldFinder errors (one BugGrabber entry came from a truncated /run test line).
   Pending in game: Fabricar page, hiding on native tabs, U5 AH tab, U2 guide/mail/bank.
+- L18 (2026-11-20, user, verbatim): "encendidas". DEFAULTS craftTab and routeTab now true, so Ruta and Fabricar tabs
+  (in /gf and in the professions window) are on for new profiles; saved explicit choices are kept.
