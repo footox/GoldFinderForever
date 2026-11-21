@@ -7029,6 +7029,17 @@ f:SetScript("OnEvent", function(_, event, arg1)
     pcall(SkillUpData)
     xpcall(UpdateTracker, geterrorhandler())
     if GoldFinderMail and GoldFinderMail:IsShown() then pcall(RefreshMail) end
+    -- la lista visible (ventana o pestana de la subasta) se rehace cuando cambian las bolsas: tras publicar,
+    -- vender o recibir correo el objeto desaparece sin pulsar nada (una vez por rafaga de cambios)
+    if not Skin.bagRefresh then
+      Skin.bagRefresh = true
+      C_Timer.After(0.3, function()
+        Skin.bagRefresh = false
+        for _, u in ipairs(uiInstances) do
+          if u.IsVisible and u:IsVisible() and u.refresh then pcall(u.refresh) end
+        end
+      end)
+    end
   elseif event == "SKILL_LINES_CHANGED" or event == "CHAT_MSG_SKILL" then
     -- el juego a veces actualiza la habilidad un instante despues del aviso: se lee varias veces
     for _, d in ipairs({ 0, 0.5, 2 }) do
