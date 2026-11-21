@@ -2929,7 +2929,9 @@ function UpdateTracker(retry)
     end
     local ss = skillSess[e.prof]
     local prevStep = lastStep[e.prof]
-    if ss and prevStep and e.upto and e.upto > prevStep then ss.done = now end
+    -- La ruta se recalcula (precios, bolsas): el objetivo del paso puede subir sin haberlo cumplido. Solo cuenta
+    -- como completado si tu habilidad llego al objetivo anterior.
+    if ss and prevStep and e.upto and e.upto > prevStep and e.rank and e.rank >= prevStep then ss.done = now end
     lastStep[e.prof] = e.upto or prevStep
     local collapsed = GoldFinderDB.trackerCollapsed
     local txt
