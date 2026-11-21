@@ -19,9 +19,8 @@ professions cheaply. Nothing is sold, posted or mailed without your click. The i
 
 ## Requisitos
 
-- Obligatorios: **Auctionator** (precios de subasta) y **Questie** con su base de datos **QuestieDB** (objetos de
-  misiones y cadenas).
-- Opcionales: **TradeSkillMaster** (precios de mercado) y **SkillUp Forever**.
+- Obligatorios: **Auctionator** (precios de subasta) y **QuestieDB** (objetos de misiones y cadenas).
+- Opcional: **TradeSkillMaster** (precios de mercado).
 
 ## Comandos
 

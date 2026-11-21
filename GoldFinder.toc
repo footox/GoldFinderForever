@@ -6,7 +6,7 @@
 ## Version: 2.1
 ## X-License: MIT
 ## Dependencies: Auctionator, QuestieDB
-## OptionalDeps: TradeSkillMaster, Questie, SkillUpForever
+## OptionalDeps: TradeSkillMaster
 ## SavedVariables: GoldFinderDB
 
 GoldFinderRoutes.lua

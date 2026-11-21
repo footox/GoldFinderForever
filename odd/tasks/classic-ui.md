@@ -298,3 +298,6 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   el Questie". toc: Dependencies Auctionator, QuestieDB (the database GoldFinder reads); OptionalDeps TradeSkillMaster,
   Questie, SkillUpForever. README requirements updated. This supersedes S5's "QuestieDB optional at runtime" for
   the packaged addon; code stays guarded.
+- L48 (2026-11-21, user, verbatim): "Questie y SkillUp Forever hay que quitarlos." OptionalDeps now only
+  TradeSkillMaster; README requirements: Auctionator + QuestieDB required, TSM optional. Runtime integrations with
+  SkillUp/ForeverCore stay guarded (used only if present; no load-order need since they are read after login).
