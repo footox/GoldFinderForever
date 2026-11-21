@@ -1,0 +1,61 @@
+# classic-ui
+
+Objective: make GoldFinder look like a native classic WoW window instead of the flat modern style.
+Branch: `feat/classic-ui`. Delivery: ask-on-risk. Checks: `luac -p` (Lua 5.1), the offline suites in `tests/`,
+and in-game screenshots + BugGrabber (UI can only be verified in game).
+
+## Specs
+
+- S1. User request (verbatim): "Incluso el diseño se que lo hizo moderno Cowrok pero me gustaria que se integrase
+  mas natural al diseño clasico de wow". Chosen option (verbatim answer "2"): "Rediseño al estilo de las ventanas
+  del juego: que GoldFinder se vea como una ventana nativa, con marco tipo ButtonFrameTemplate, pestañas abajo como
+  en la ventana de personaje y portada con ícono. Requiere reestructurar CreateUI."
+- S2. The main window (`/gf`, `GoldFinderWindow`) uses Blizzard frame templates: portrait frame with icon and title,
+  bottom tabs in the character-window style, inset content area, Blizzard fonts and buttons.
+- S3. The same `CreateUI` content keeps working inside the auction house tab (LibAHTab host), which already has its
+  own Blizzard frame.
+- S4. Secondary frames (guide, next-step tracker, mail, bank and vendor panels, export box) use classic Blizzard
+  backdrops, fonts and buttons, so the whole addon looks consistent.
+- S5. No behaviour change: same tabs, lists, columns, actions and data.
+- S6. Each feature lives in the game window where it is used, like SkillUp Forever adds tabs to the professions
+  window. User (verbatim): "Lo relacionado a venta, compra a su respestiva venta, asi como la de action house."
+  Mapping proposed and kept: professions window = Ruta and Fabricar; merchant window = sell advice; auction house
+  tab = what to auction and shopping list; mail and bank = existing panels; `/gf` = Resumen, Cuero, Sesion, Ajustes.
+- S7. Merchant window (verbatim): "cuando encuentras un NPC de venta compra, ahi deberia salir una ventana añadida
+  con los objetos que te recomienda vender." and (verbatim) "y con su boton." Each recommended item has a button
+  that sells it to the vendor on click (the existing `SellItem` path); nothing is sold without a click.
+
+## Tasks
+
+| ID | Specs | Route | Status | Commit |
+|----|-------|-------|--------|--------|
+| U1 | S2, S3, S5 | delegated (context backstop) | done, in-game check pending | see Log L5 |
+| U2 | S4, S5 | pending | pending | |
+| U3 | S6 | pending | pending | |
+| U4 | S6, S7 | pending | pending | |
+| U5 | S6 | pending | pending | |
+
+- U1: main window and shared helpers (`Flat`, `Text`, `Btn`, `PAL`, list rows, tabs) in the classic style.
+- U2: guide, tracker, mail, bank, vendor and export frames in the classic style.
+- U3: Ruta and Fabricar as tabs inside the professions window (PanelTabButtonTemplate on ProfessionsFrame).
+- U4: panel attached to the merchant window listing the items recommended to sell to the vendor.
+- U5: auction house tab content focused on what to auction and the shopping list.
+
+## Log
+
+- L1 (2026-11-20, user, verbatim): "Incluso el diseño se que lo hizo moderno Cowrok pero me gustaria que se
+  integrase mas natural al diseño clasico de wow". Then "2" (full native-window redesign).
+- L2: `CreateUI(parent)` is hosted by `GoldFinderWindow` (ToggleWindow) and by the auction house tab (BuildTab,
+  LibAHTab). The client has the modern auction house, so modern Blizzard templates are expected to exist; this is
+  unverified until tested in game.
+- L3 (2026-11-20, user, verbatim): "Porque el skillUp se integra a la pestaña de profesiones". Verified:
+  SkillUpForever UI/Pages.lua:249 adds PanelTabButtonTemplate tabs to ProfessionsFrame; UI/Shopping.lua:581 notes
+  CharacterFrameTabButtonTemplate is not loaded by the Forever client.
+- L4 (2026-11-20, user, verbatim): "Lo relacionado a venta, compra a su respestiva venta, asi como la de action
+  house." then "cuando encuentras un NPC de venta compra, ahi deberia salir una ventana añadida con los objetos que
+  te recomienda vender." Added S6, S7 and tasks U3-U5.
+- L5: U1 done by a bounded writer: GoldFinderWindow from ButtonFrameTemplate (coin portrait, title, template close
+  button; flat fallback if the template is missing), bottom PanelTabButtonTemplate tabs (Btn fallback), Inset
+  content, Text/Btn mapped to Blizzard font objects and UIPanelButtonTemplate, QuestTitleHighlight row hover,
+  tooltip-border summary cards. AH host keeps a 30px header without title. luac OK; offline suites 7/23/5/10 PASS.
+  Risk: item 6 (visual, only verifiable in game).

@@ -1614,29 +1614,80 @@ local function Flat(parent, layer, c)
   return t
 end
 
+-- Plantillas de Blizzard: si alguna no existe en este cliente, CreateFrame falla y se devuelve nil
+-- para que quien llama use su plan B.
+local function NewFrame(kind, name, parent, template)
+  local ok, f = pcall(CreateFrame, kind, name, parent, template)
+  if ok and f then return f end
+  return nil
+end
+
+-- Fuentes del juego (las de las ventanas de Blizzard) segun el color y el tamano pedidos.
+local function FontFor(size, color)
+  local names
+  if color == PAL.gold then
+    names = size >= 18 and "GameFontNormalLarge" or (size <= 11 and "GameFontNormalSmall" or "GameFontNormal")
+  elseif color == PAL.dim then
+    names = size <= 11 and "GameFontDisableSmall" or "GameFontDisable"
+  else
+    names = size <= 11 and "GameFontHighlightSmall" or "GameFontHighlight"
+  end
+  return _G[names]
+end
+
 local function Text(parent, size, color, justify)
   local fs = parent:CreateFontString(nil, "OVERLAY")
-  fs:SetFont(STANDARD_TEXT_FONT, size or 12, "")
-  local c = color or PAL.text
-  fs:SetTextColor(c[1], c[2], c[3])
+  local font = FontFor(size or 12, color)
+  if font then
+    fs:SetFontObject(font)
+  else
+    fs:SetFont(STANDARD_TEXT_FONT, size or 12, "")
+    local c = color or PAL.text
+    fs:SetTextColor(c[1], c[2], c[3])
+  end
   fs:SetJustifyH(justify or "LEFT")
   fs:SetWordWrap(false)
   return fs
 end
 
+-- Boton rojo clasico (UIPanelButtonTemplate). b.label es su texto y b.bg un tinte aditivo opcional
+-- (b.base) para marcar un boton seleccionado. Sin la plantilla, el boton plano de antes.
 local function Btn(parent, label, w, h, base, onClick)
-  local b = CreateFrame("Button", nil, parent)
+  local tpl = NewFrame("Button", nil, parent, "UIPanelButtonTemplate")
+  local b = tpl or CreateFrame("Button", nil, parent)
   b:SetSize(w, h)
-  b.base = base or { 1, 1, 1, 0.09 }
-  b.bg = Flat(b, "BACKGROUND", b.base)
-  b.bg:SetAllPoints()
-  b.label = Text(b, 12, PAL.text, "CENTER")
-  b.label:SetPoint("CENTER")
-  b.label:SetText(label)
-  b:SetScript("OnEnter", function(self) self.bg:SetColorTexture(1, 0.82, 0.25, 0.30) end)
-  b:SetScript("OnLeave", function(self)
-    self.bg:SetColorTexture(self.base[1], self.base[2], self.base[3], self.base[4] or 1)
-  end)
+  if tpl then
+    if h <= 20 then
+      local fn, fh, fd = _G["GameFontNormalSmall"], _G["GameFontHighlightSmall"], _G["GameFontDisableSmall"]
+      if fn then b:SetNormalFontObject(fn) end
+      if fh then b:SetHighlightFontObject(fh) end
+      if fd then b:SetDisabledFontObject(fd) end
+    end
+    b:SetText(label)
+    b.label = b.Text or b:GetFontString()
+    if not b.label then
+      b.label = Text(b, 12, PAL.gold, "CENTER")
+      b.label:SetPoint("CENTER")
+      b:SetFontString(b.label)
+      b.label:SetText(label)
+    end
+    b.base = base or { 1, 1, 1, 0 }
+    b.bg = b:CreateTexture(nil, "OVERLAY")
+    b.bg:SetPoint("TOPLEFT", 3, -3); b.bg:SetPoint("BOTTOMRIGHT", -3, 3)
+    b.bg:SetColorTexture(b.base[1], b.base[2], b.base[3], b.base[4] or 1)
+    b.bg:SetBlendMode("ADD")
+  else
+    b.base = base or { 1, 1, 1, 0.09 }
+    b.bg = Flat(b, "BACKGROUND", b.base)
+    b.bg:SetAllPoints()
+    b.label = Text(b, 12, PAL.text, "CENTER")
+    b.label:SetPoint("CENTER")
+    b.label:SetText(label)
+    b:SetScript("OnEnter", function(self) self.bg:SetColorTexture(1, 0.82, 0.25, 0.30) end)
+    b:SetScript("OnLeave", function(self)
+      self.bg:SetColorTexture(self.base[1], self.base[2], self.base[3], self.base[4] or 1)
+    end)
+  end
   if onClick then b:SetScript("OnClick", onClick) end
   return b
 end
@@ -1661,8 +1712,8 @@ local function MakeList(parent)
   v:SetAllPoints(parent)
   local head = CreateFrame("Frame", nil, v)
   head:SetPoint("TOPLEFT"); head:SetPoint("TOPRIGHT"); head:SetHeight(24)
-  local hb = Flat(head, "BACKGROUND", { 1, 1, 1, 0.05 }); hb:SetAllPoints()
-  local hName, h1, h2, h3 = Text(head, 11, PAL.dim), Text(head, 11, PAL.dim), Text(head, 11, PAL.dim), Text(head, 11, PAL.dim)
+  local hb = Flat(head, "BACKGROUND", { 0, 0, 0, 0.30 }); hb:SetAllPoints()
+  local hName, h1, h2, h3 = Text(head, 11, PAL.gold), Text(head, 11, PAL.gold), Text(head, 11, PAL.gold), Text(head, 11, PAL.gold)
   PlaceCols(head, hName, h1, h2, h3, true)
 
   scrollCount = scrollCount + 1
@@ -1693,9 +1744,12 @@ local function MakeList(parent)
     row:SetHeight(ROW_H)
     row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -(i - 1) * ROW_H)
     row:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -(i - 1) * ROW_H)
-    local zebra = Flat(row, "BACKGROUND", { 1, 1, 1, (i % 2 == 0) and 0.035 or 0 })
+    local zebra = Flat(row, "BACKGROUND", { 1, 1, 1, (i % 2 == 0) and 0.03 or 0 })
     zebra:SetAllPoints()
-    local hl = Flat(row, "HIGHLIGHT", { 1, 0.82, 0.25, 0.10 })
+    -- resaltado de las listas de Blizzard (registro de misiones) al pasar el raton
+    local hl = row:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+    hl:SetBlendMode("ADD")
     hl:SetAllPoints()
     row.icon = row:CreateTexture(nil, "ARTWORK")
     row.icon:SetSize(22, 22)
@@ -1705,7 +1759,7 @@ local function MakeList(parent)
     PlaceCols(row, row.name, row.c1, row.c2, row.c3, true, curW, curAct)
     row.act = {}
     for k = 1, 2 do
-      local b = Btn(row, "", 50, 20, { 1, 1, 1, 0.10 })
+      local b = Btn(row, "", 50, 20)
       b:SetPoint("RIGHT", row, "RIGHT", -6 - (2 - k) * 54, 0)
       b:Hide()
       row.act[k] = b
@@ -1769,14 +1823,22 @@ local function MakeList(parent)
 end
 
 local function Card(parent, title)
-  local f = CreateFrame("Frame", nil, parent)
+  -- recuadro con el borde de los tooltips; sin BackdropTemplate, el fondo plano de antes
+  local f = NewFrame("Frame", nil, parent, "BackdropTemplate") or CreateFrame("Frame", nil, parent)
   f:SetSize(200, 96)
-  local bg = Flat(f, "BACKGROUND", PAL.card); bg:SetAllPoints()
-  local accent = Flat(f, "ARTWORK", { 1, 0.82, 0.25, 1 })
-  accent:SetPoint("TOPLEFT"); accent:SetPoint("BOTTOMLEFT"); accent:SetWidth(3)
-  f.title = Text(f, 11, PAL.dim); f.title:SetPoint("TOPLEFT", 14, -12); f.title:SetText(title)
+  local okB = f.SetBackdrop and pcall(f.SetBackdrop, f, {
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 16, insets = { left = 4, right = 4, top = 4, bottom = 4 },
+  })
+  if okB then
+    f:SetBackdropColor(0, 0, 0, 0.45)
+    f:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+  else
+    local bg = Flat(f, "BACKGROUND", PAL.card); bg:SetAllPoints()
+  end
+  f.title = Text(f, 11, PAL.gold); f.title:SetPoint("TOPLEFT", 14, -12); f.title:SetText(title)
   f.value = Text(f, 20, PAL.gold); f.value:SetPoint("TOPLEFT", 14, -32)
-  f.sub = Text(f, 11, PAL.dim); f.sub:SetPoint("TOPLEFT", 14, -68)
+  f.sub = Text(f, 11); f.sub:SetPoint("TOPLEFT", 14, -68)
   return f
 end
 
@@ -3318,23 +3380,47 @@ local function RecordVendorPrices()
 end
 
 local function CreateUI(parent)
-  local ui = CreateFrame("Frame", nil, parent)
+  -- native: la ventana propia con marco de Blizzard (retrato, titulo e Inset del ButtonFrameTemplate).
+  -- Si no, el contenido va incrustado (pestana de la subasta, que ya tiene su marco) con su propio Inset.
+  local native = parent.gfNative
+  local ui = CreateFrame("Frame", "GoldFinderUI" .. (#uiInstances + 1), parent)
   ui:SetAllPoints(parent)
   ui:SetFrameLevel(parent:GetFrameLevel() + 20)
-  local bg = Flat(ui, "BACKGROUND", PAL.bg); bg:SetAllPoints()
 
   local header = CreateFrame("Frame", nil, ui)
-  header:SetPoint("TOPLEFT"); header:SetPoint("TOPRIGHT"); header:SetHeight(52)
-  local hb = Flat(header, "BACKGROUND", PAL.panel); hb:SetAllPoints()
-  local hline = Flat(header, "ARTWORK", { 1, 0.82, 0.25, 0.5 })
-  hline:SetPoint("BOTTOMLEFT"); hline:SetPoint("BOTTOMRIGHT"); hline:SetHeight(1)
-  local title = Text(header, 20, PAL.gold); title:SetPoint("TOPLEFT", 18, -8); title:SetText("GoldFinder")
-  ui.status = Text(header, 11, PAL.dim)
-  ui.status:SetPoint("TOPLEFT", 18, -33)
-  ui.status:SetPoint("RIGHT", header, "RIGHT", -260, 0)
-  local bScan = Btn(header, "Escanear", 90, 26, { 1, 0.82, 0.25, 0.30 }, function() StartFullScan() end)
-  bScan:SetPoint("RIGHT", header, "RIGHT", -52, 0)
-  local bReset = Btn(header, "Reiniciar sesion", 110, 26, nil, function()
+  if native then
+    -- franja entre la barra del titulo y el Inset, a la derecha del retrato
+    header:SetPoint("TOPLEFT", ui, "TOPLEFT", 60, -24); header:SetPoint("TOPRIGHT", ui, "TOPRIGHT", -8, -24)
+    header:SetHeight(34)
+  elseif parent.gfPadRight then
+    -- ventana propia sin plantilla: titulo dibujado aqui
+    header:SetPoint("TOPLEFT"); header:SetPoint("TOPRIGHT"); header:SetHeight(42)
+    local title = Text(header, 18, PAL.gold); title:SetPoint("TOPLEFT", 6, -4); title:SetText("GoldFinder")
+  else
+    -- dentro de la subasta el titulo ya lo pone el marco de la casa de subastas
+    header:SetPoint("TOPLEFT"); header:SetPoint("TOPRIGHT"); header:SetHeight(30)
+  end
+  ui.status = Text(header, 11, PAL.text)
+  if parent.gfPadRight then ui.status:SetPoint("TOPLEFT", 6, -26) else ui.status:SetPoint("LEFT", header, "LEFT", 8, 0) end
+  ui.status:SetPoint("RIGHT", header, "RIGHT", -240, 0)
+  local bScan = Btn(header, "Escanear", 90, 22, nil, function() StartFullScan() end)
+  bScan:SetPoint("RIGHT", header, "RIGHT", -(parent.gfPadRight or 4), 0)
+
+  local inset = native and parent.Inset
+  if not inset then
+    inset = NewFrame("Frame", nil, ui, "InsetFrameTemplate")
+    if not inset then
+      inset = CreateFrame("Frame", nil, ui)
+      local ib = Flat(inset, "BACKGROUND", { 0, 0, 0, 0.35 }); ib:SetAllPoints()
+    end
+    if native then
+      inset:SetPoint("TOPLEFT", ui, "TOPLEFT", 4, -60); inset:SetPoint("BOTTOMRIGHT", ui, "BOTTOMRIGHT", -6, 6)
+    else
+      -- abajo queda sitio para las pestanas, que cuelgan del Inset
+      inset:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -2); inset:SetPoint("BOTTOMRIGHT", ui, "BOTTOMRIGHT", 0, 32)
+    end
+  end
+  local bReset = Btn(header, "Reiniciar sesion", 110, 22, nil, function()
     Char().session = nil
     Sess()
     MarkSessionBaseline()
@@ -3342,34 +3428,38 @@ local function CreateUI(parent)
   end)
   bReset:SetPoint("RIGHT", bScan, "LEFT", -8, 0)
   bReset:Hide()
-  local bExport = Btn(header, "Exportar a TSM", 110, 26, nil, function() ShowTSMExport() end)
+  local bExport = Btn(header, "Exportar a TSM", 110, 22, nil, function() ShowTSMExport() end)
   bExport:SetPoint("RIGHT", bScan, "LEFT", -8, 0)
   bExport:Hide()
 
-  local side = CreateFrame("Frame", nil, ui)
-  side:SetPoint("TOPLEFT", header, "BOTTOMLEFT"); side:SetPoint("BOTTOMLEFT"); side:SetWidth(150)
-  local sb = Flat(side, "BACKGROUND", PAL.panel); sb:SetAllPoints()
+  -- pestanas abajo, como en la ventana de personaje (PanelTabButtonTemplate). Sin la plantilla, botones.
   local navDefs = {
     { "resumen", "Resumen" }, { "bolsas", "Bolsas" }, { "compras", "Compras" }, { "fabricar", "Fabricar" }, { "ruta", "Ruta" }, { "cuero", "Cuero" },
     { "sesion", "Sesion" }, { "ajustes", "Ajustes" },
   }
   ui.nav = {}
+  ui.Tabs = {}
   for i, def in ipairs(navDefs) do
-    local b = CreateFrame("Button", nil, side)
-    b:SetHeight(34)
-    b:SetPoint("TOPLEFT", side, "TOPLEFT", 0, -10 - (i - 1) * 36)
-    b:SetPoint("TOPRIGHT", side, "TOPRIGHT", 0, -10 - (i - 1) * 36)
-    b.bg = Flat(b, "BACKGROUND", { 1, 0.82, 0.25, 0 }); b.bg:SetAllPoints()
-    b.bar = Flat(b, "ARTWORK", { 1, 0.82, 0.25, 1 })
-    b.bar:SetPoint("TOPLEFT"); b.bar:SetPoint("BOTTOMLEFT"); b.bar:SetWidth(3); b.bar:Hide()
-    local hl = Flat(b, "HIGHLIGHT", { 1, 1, 1, 0.06 }); hl:SetAllPoints()
-    b.label = Text(b, 13); b.label:SetPoint("LEFT", 18, 0); b.label:SetText(def[2])
-    b:SetScript("OnClick", function() ui.open(def[1]) end)
+    local b = NewFrame("Button", ui:GetName() .. "Tab" .. i, ui, "PanelTabButtonTemplate")
+    if b then
+      b.gfTab = true
+      b:SetID(i)
+      b:SetText(def[2])
+      if PanelTemplates_TabResize then pcall(PanelTemplates_TabResize, b, 0) end
+      b:SetScript("OnEnter", nil); b:SetScript("OnLeave", nil)
+    else
+      b = Btn(ui, def[2], 90, 22)
+    end
+    b:SetScript("OnClick", function()
+      if PlaySound and SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then pcall(PlaySound, SOUNDKIT.IG_CHARACTER_INFO_TAB) end
+      ui.open(def[1])
+    end)
     ui.nav[def[1]] = b
+    ui.Tabs[i] = b
   end
 
   function ui.layoutNav()
-    local n = 0
+    local prev
     for _, def in ipairs(navDefs) do
       local b = ui.nav[def[1]]
       if (def[1] == "compras" and not Cfg("shopping")) or (def[1] == "fabricar" and not Cfg("craftTab"))
@@ -3377,18 +3467,23 @@ local function CreateUI(parent)
         b:Hide()
       else
         b:ClearAllPoints()
-        b:SetPoint("TOPLEFT", side, "TOPLEFT", 0, -10 - n * 36)
-        b:SetPoint("TOPRIGHT", side, "TOPRIGHT", 0, -10 - n * 36)
+        if prev then
+          b:SetPoint("LEFT", prev, "RIGHT", b.gfTab and -16 or 4, 0)
+        elseif native then
+          b:SetPoint("TOPLEFT", parent, "BOTTOMLEFT", 11, 2)
+        else
+          b:SetPoint("TOPLEFT", inset, "BOTTOMLEFT", 6, 2)
+        end
         b:Show()
-        n = n + 1
+        prev = b
       end
     end
   end
   ui.layoutNav()
 
   local area = CreateFrame("Frame", nil, ui)
-  area:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 162, -12)
-  area:SetPoint("BOTTOMRIGHT", ui, "BOTTOMRIGHT", -12, 12)
+  area:SetPoint("TOPLEFT", inset, "TOPLEFT", 8, -8)
+  area:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", -6, 6)
   ui.summary = MakeSummary(area)
   ui.list = MakeList(area)
   local okS, settings = pcall(MakeSettings, area)
@@ -3754,8 +3849,10 @@ local function CreateUI(parent)
     ui.current = key
     for k, b in pairs(ui.nav) do
       local on = (k == key)
-      if on then b.bar:Show() else b.bar:Hide() end
-      b.bg:SetColorTexture(1, 0.82, 0.25, on and 0.12 or 0)
+      if b.gfTab then
+        local fn = on and PanelTemplates_SelectTab or PanelTemplates_DeselectTab
+        if fn then pcall(fn, b) end
+      elseif on then b:LockHighlight() else b:UnlockHighlight() end
     end
     ui.summary:Hide(); ui.list:Hide()
     if ui.settings then ui.settings:Hide() end
@@ -3789,7 +3886,10 @@ end
 
 local function ToggleWindow()
   if not GoldFinderWindow then
-    local w = CreateFrame("Frame", "GoldFinderWindow", UIParent)
+    -- marco nativo (retrato, titulo, boton de cerrar e Inset); sin la plantilla, el marco plano de antes
+    local w = NewFrame("Frame", "GoldFinderWindow", UIParent, "ButtonFrameTemplate")
+    local native = w ~= nil
+    w = w or CreateFrame("Frame", "GoldFinderWindow", UIParent)
     w:SetSize(980, 580)
     w:SetPoint("CENTER")
     w:SetFrameStrata("HIGH")
@@ -3799,8 +3899,31 @@ local function ToggleWindow()
     w:SetScript("OnDragStart", w.StartMoving)
     w:SetScript("OnDragStop", w.StopMovingOrSizing)
     w:SetClampedToScreen(true)
-    local edge = Flat(w, "BACKGROUND", { 1, 0.82, 0.25, 0.40 })
-    edge:SetPoint("TOPLEFT", -1, 1); edge:SetPoint("BOTTOMRIGHT", 1, -1)
+    if native then
+      w.gfNative = true
+      -- sin la barra de botones de abajo: el Inset llega hasta el borde y las pestanas cuelgan debajo
+      if ButtonFrameTemplate_HideButtonBar then pcall(ButtonFrameTemplate_HideButtonBar, w) end
+      local icon = "Interface\\Icons\\INV_Misc_Coin_01"
+      if w.SetPortraitToAsset then
+        pcall(w.SetPortraitToAsset, w, icon)
+      else
+        local p = (w.PortraitContainer and w.PortraitContainer.portrait) or w.portrait or _G["GoldFinderWindowPortrait"]
+        if p and p.SetTexture then
+          if SetPortraitToTexture then pcall(SetPortraitToTexture, p, icon) else p:SetTexture(icon) end
+        end
+      end
+      if w.SetTitle then
+        pcall(w.SetTitle, w, "GoldFinder")
+      else
+        local t = (w.TitleContainer and w.TitleContainer.TitleText) or w.TitleText or _G["GoldFinderWindowTitleText"]
+        if t then t:SetText("GoldFinder") end
+      end
+    else
+      local edge = Flat(w, "BACKGROUND", { 1, 0.82, 0.25, 0.40 })
+      edge:SetPoint("TOPLEFT", -1, 1); edge:SetPoint("BOTTOMRIGHT", 1, -1)
+      local bg = Flat(w, "BORDER", PAL.bg); bg:SetAllPoints()
+      w.gfPadRight = 30
+    end
     local ok, err = pcall(CreateUI, w)
     if not ok then
       Print("No pude crear la ventana: " .. tostring(err))
@@ -3808,9 +3931,11 @@ local function ToggleWindow()
       _G["GoldFinderWindow"] = nil   -- para reintentar limpio la proxima vez
       return
     end
-    local close = CreateFrame("Button", nil, w, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", 2, 2)
-    close:SetFrameLevel(w:GetFrameLevel() + 50)
+    if not (native and (w.CloseButton or _G["GoldFinderWindowCloseButton"])) then
+      local close = CreateFrame("Button", nil, w, "UIPanelCloseButton")
+      close:SetPoint("TOPRIGHT", 2, 2)
+      close:SetFrameLevel(w:GetFrameLevel() + 50)
+    end
     table.insert(UISpecialFrames, "GoldFinderWindow")
     w:Show()
     return
