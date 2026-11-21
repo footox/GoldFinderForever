@@ -40,7 +40,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U1 | S2, S3, S5 | delegated (context backstop) | done, verified in game (window) | 642153f, b225f3e |
 | U2 | S4, S5 | pending | pending | |
 | U3 | S6 | pending | pending | |
-| U4 | S6, S7 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L11 |
+| U4 | S6, S7 | delegated (context backstop) | done, verified in game | bbd009a, 454b833 |
 | U5 | S6 | pending | pending | |
 | U6 | S8, S5 | delegated (context backstop) | done, verified in game | a0f11da |
 | U7 | S9 | inline | done, verified in game | 0ca4681, 40f7164 |
@@ -98,3 +98,6 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   Decide (AH still evaluated); tests/utility_item_test.lua 7 PASS (RED first). Sell panel: scrollable list
   (UIPanelScrollFrameTemplate, 12 visible rows, mouse wheel), per-row "Guardar" button pinning the item
   (Char().keep, released from the Bolsas tab), panel width 360.
+- L13: In game 21:07-21:08: sell panel next to Innkeeper Adegwa with scroll bar, Guardar/Vender per row, total;
+  sleeping bag no longer listed; a sale happened; Guardar persisted ids in Char().keep (3385, 17058, 3827, 929...);
+  no GoldFinder errors in BugGrabber after /reload.
