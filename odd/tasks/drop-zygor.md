@@ -27,12 +27,12 @@ Branch: `feat/drop-zygor`. Delivery: ask-on-risk. Test runner: none (no Lua test
 
 | ID | Specs | Route | Status | Commit |
 |----|-------|-------|--------|--------|
-| T1 | S5, S7 | inline | done, in-game check pending | 981becc |
-| T2 | S2 | inline | done (offline tests), in-game check pending | see Log L6 |
-| T3 | S2, S3 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L8 |
-| T4 | S4, S5 | inline | done (offline tests), in-game check pending | see Log L9 |
-| T5 | S6 | inline | done (offline tests), in-game check pending | a9e9b3f |
-| T6 | S1 | inline | done, in-game check pending | see Log L11 |
+| T1 | S5, S7 | inline | done, in-game check pending | 13beced |
+| T2 | S2 | inline | done (offline tests), in-game check pending | 7ecfe8e |
+| T3 | S2, S3 | delegated (context backstop) | done (offline tests), in-game check pending | 50cf4ac |
+| T4 | S4, S5 | inline | done (offline tests), in-game check pending | dad3cde |
+| T5 | S6 | inline | done (offline tests), in-game check pending | 0f4842a |
+| T6 | S1 | inline | done, in-game check pending | 0d8e33f |
 
 - T1: record trainer offerings per profession (recipe, required skill, cost, trainer, zone) on trainer window open.
 - T2: route planner also considers recorded learnable trainer recipes and adds a "learn" step with its cost.
@@ -85,6 +85,11 @@ parallel-writer reason exists; all inline.
   Zygor skinning requirement tag is dropped. tests/sources_test.lua: 5 PASS.
 - L11: T6: GoldFinderData.lua removed from the .toc and the repo. No code references GoldFinderData; only three
   comments mention Zygor as history. All offline suites pass (7 + 23 + 10 + 5). Note: the initial commit
-  84d5cd6 still contains GoldFinderData.lua in git history; rewrite or squash history before publishing the repo.
+  still contained GoldFinderData.lua in git history.
+- L12 (2026-11-20, user, verbatim): "Si hay que limpiar" and, for commit messages, "La idea es id - tarea ,
+  lijera descripció en commits, sin referencias de IA." History rewritten with git filter-branch: GoldFinderData.lua
+  removed from every commit and messages renamed to `ID - task` (T1..T6 for tasks, GF-n otherwise). Old objects
+  purged (refs/original, reflog, gc). Backup of the previous history: J:\Repository\GoldFinder-backup.bundle
+  (contains the Zygor data; private). All offline suites still pass.
 - L3: Engram mirror pending: the Engram server only resolves project `repository` (its cwd is J:\Repository),
   so `goldfinder` cannot be written yet.
