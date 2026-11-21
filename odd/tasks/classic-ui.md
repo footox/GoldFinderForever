@@ -56,6 +56,11 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   the planner's cheaper alternative with the player's prices, cost and missing materials; visited trainers correct
   required skill and cost.
 
+- S14. Quest item protection (user verbatim): "Zygor se supone trae una guia de leveo,pero siento que no esta
+  actualizada al 100" then "si, agrega la protección de objetos de misión". GoldFinder never recommends selling,
+  auctioning, mailing or vendoring items that an active quest (or, with QuestieDB, the next quest of its chain)
+  needs; they show "guardar: para la mision X" and the needed units are reserved. No leveling guide.
+
 ## Tasks
 
 | ID | Specs | Route | Status | Commit |
@@ -69,6 +74,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U7 | S9 | inline | done, verified in game | 0ca4681, 40f7164 |
 | U8 | S10a | delegated (context backstop) | done, verified in game | c3eab1d, 60be0a1 |
 | U9 | S10b | delegated (context backstop) | done, verified in game | c3eab1d |
+| U13 | S14 | delegated (context backstop) | in progress | |
 | U12 | S13 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L36 |
 | U11 | S12 | delegated (context backstop) | done, verified in game | 7c8b61d, 87c2e12 |
 | U10 | S11 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L25 |
@@ -270,3 +276,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   missing. r3_test 49 PASS (13 FAIL against HEAD); real SavedVariables byte-identical after repeated logins.
 - L42 (2026-11-21, user, verbatim): "ya envie un correo" and "ya recibio el correo": mail from Twistice reached the
   banker Ashes Soulbinder; no GoldFinder errors in BugGrabber (saved 00:32). Pending in game: one-click Subastar.
+- L43 (2026-11-21, user, verbatim): "Estoy teniendo temas con el seguimiento de misiones.", "Algunas son cadenas",
+  "Zygor se supone trae una guia de leveo,pero siento que no esta actualizada al 100" and "si, agrega la protección
+  de objetos de misión". BugGrabber tracker errors come from MapUtils/SkillUp/Zygor, not GoldFinder. Suggested RXP
+  Guides (installed) and Questie for leveling; GoldFinder adds quest item protection (task U13).
