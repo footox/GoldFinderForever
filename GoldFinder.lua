@@ -28,6 +28,12 @@ local DEFAULTS = {
   banker = "",        -- nombre del personaje banquero al que se envia lo que hay que subastar
   trackerMode = "objetivos", -- siguiente paso: "objetivos" (bloque en el seguimiento de objetivos) o "flotante"
   recipeNotes = true,   -- probabilidad de subir y coste o ganancia por punto en la lista de recetas de profesiones
+  -- boton Subastar (precio y cantidad como una operacion de TSM)
+  postMinPct = 60,      -- precio minimo: % del valor de mercado (nunca por debajo de lo que paga el vendedor)
+  postMaxPct = 200,     -- precio maximo: % del valor de mercado (si la mas barata pasa de aqui, precio normal)
+  postUndercut = 1,     -- cobre por debajo de la subasta mas barata
+  postCapDays = 2,      -- tope de unidades: lo que se vende en la region en estos dias (si TSM lo sabe)
+  postDuration = 24,    -- duracion de la subasta en horas (12 o 24)
 }
 
 local function Print(msg)
@@ -1737,6 +1743,198 @@ local Skin = {
   BOOK = { "Interface\\Icons\\INV_Misc_Book_09", nil, "Interface\\Buttons\\ButtonHilight-Square" },
 }
 
+-- Boton Subastar de la lista Bolsas: calcula precio y cantidad (como una operacion de TSM) y publica con UN clic.
+-- Nunca publica sin clic: cada clic es una sola llamada a la API de la subasta. Se expone en Skin.Auction.
+do
+  -- PLAN DE SUBASTA
+  -- Funcion pura. input: lowest (la subasta mas barata ahora), market (valor de mercado), vendor (lo que paga el
+  -- vendedor), available (unidades sin reservar), soldPerDay (ventas al dia en la region, opcional) y los ajustes
+  -- minPct, maxPct, undercut, capDays; cut = comision de la subasta; money = formato del dinero para los textos.
+  -- Devuelve { post, unit, qty, reason, min, normal, max, cap }.
+  local function AuctionPlan(input)
+    local money = input.money or tostring
+    local cut = input.cut or 0.05
+    local lowest = (input.lowest and input.lowest > 0) and input.lowest or nil
+    local market = (input.market and input.market > 0) and input.market or nil
+    local vendor = input.vendor or 0
+    local p = { post = false, unit = 0, qty = 0 }
+    -- sin valor de mercado, la referencia es la propia subasta mas barata
+    local ref = market or lowest
+    if not ref then p.reason = "sin precio: escanea"; return p end
+    -- minimo: % del mercado, y nunca menos de lo que paga el vendedor despues de la comision
+    local vendorFloor = vendor > 0 and math.ceil(vendor * 1.05 / (1 - cut)) or 0
+    p.min = math.max(math.floor(ref * (input.minPct or 60) / 100), vendorFloor, 1)
+    p.max = math.max(math.floor(ref * (input.maxPct or 200) / 100), p.min)
+    p.normal = math.min(math.max(math.floor(ref), p.min), p.max)
+    local why
+    if lowest and lowest < p.min then
+      p.reason = "debajo del minimo: espera (la mas barata esta a " .. money(lowest) .. ", minimo " .. money(p.min) .. ")"
+      return p
+    elseif not lowest then
+      p.unit, why = p.normal, "sin competencia: precio normal"
+    elseif lowest > p.max then
+      p.unit, why = p.normal, "la mas barata (" .. money(lowest) .. ") pasa del maximo: precio normal"
+    else
+      local under = math.max(math.floor(input.undercut or 1), 0)
+      p.unit = math.max(lowest - under, p.min)
+      why = (p.unit == lowest) and ("igual a la mas barata (" .. money(lowest) .. ")")
+        or (money(lowest - p.unit) .. " por debajo de la mas barata (" .. money(lowest) .. ")")
+    end
+    local avail = math.floor(input.available or 0)
+    if avail <= 0 then p.reason = "todo reservado para tus profesiones"; return p end
+    p.qty = avail
+    local spd = tonumber(input.soldPerDay)
+    if spd and spd > 0 then
+      local cap = math.max(1, math.ceil(spd * (input.capDays or 2)))
+      if avail > cap then
+        p.qty, p.cap = cap, cap
+        why = why .. string.format("; tope de %d (en la region se venden ~%.1f al dia)", cap, spd)
+      end
+    end
+    p.post, p.reason = true, why
+    return p
+  end
+  -- FIN DE PLAN DE SUBASTA
+
+  local DURATION = { [12] = 1, [24] = 2, [48] = 3 }   -- horas -> valor de duracion de la API (igual que Auctionator)
+  local function Hours() return (tonumber(Cfg("postDuration")) or 24) <= 12 and 12 or 24 end
+  local function AHOpen() return AuctionHouseFrame and AuctionHouseFrame:IsShown() and C_AuctionHouse and true or false end
+  local function Pos(v) return (type(v) == "number" and v > 0) and v or nil end
+
+  -- primer hueco de las bolsas con ese objeto que la subasta acepta (solo con la subasta abierta)
+  local function FindLoc(id)
+    local CC = C_Container
+    if not (AHOpen() and CC and ItemLocation and C_AuctionHouse.IsSellItemValid) then return nil end
+    for bag = 0, (NUM_BAG_SLOTS or 4) do
+      for slot = 1, (CC.GetContainerNumSlots(bag) or 0) do
+        local info = CC.GetContainerItemInfo(bag, slot)
+        if info and info.itemID == id and not info.isLocked then
+          local loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
+          local ok, valid = pcall(C_AuctionHouse.IsSellItemValid, loc, false)
+          if ok and valid and loc:IsValid() then return loc end
+        end
+      end
+    end
+    return nil
+  end
+
+  local function IsCommodity(loc)
+    if not (C_AuctionHouse.GetItemCommodityStatus and Enum and Enum.ItemCommodityStatus) then return false end
+    local ok, st = pcall(C_AuctionHouse.GetItemCommodityStatus, loc)
+    return ok and st == Enum.ItemCommodityStatus.Commodity
+  end
+
+  -- plan con los datos del momento: Auctionator (la mas barata), TSM (mercado y ventas al dia), reservas de SellQty
+  local function Plan(id, loc)
+    local v1 = AHApi()
+    local okL, lowest = false, nil
+    if v1 then okL, lowest = pcall(v1.GetAuctionPriceByItemID, CALLER, id) end
+    lowest = okL and Pos(lowest) or nil
+    local market = Pos(TSMValue("DBMarket", id)) or Pos(TSMValue("DBRegionMarketAvg", id)) or Pos(RefPrice(id))
+    -- TSM redondea los valores a entero: las ventas al dia se piden x1000 (como hace su tooltip)
+    local spd = Pos(TSMValue("DBRegionSoldPerDay * 1000", id))
+    local available = SellQty(id)
+    if loc and C_AuctionHouse.GetAvailablePostCount then
+      local ok, n = pcall(C_AuctionHouse.GetAvailablePostCount, loc)
+      if ok and type(n) == "number" then available = math.min(available, n) end
+    end
+    local p = AuctionPlan({
+      lowest = lowest, market = market, vendor = VendorPrice(id) or 0, available = available,
+      soldPerDay = spd and spd / 1000, cut = AH_CUT, money = Money,
+      minPct = tonumber(Cfg("postMinPct")), maxPct = tonumber(Cfg("postMaxPct")),
+      undercut = tonumber(Cfg("postUndercut")), capDays = tonumber(Cfg("postCapDays")),
+    })
+    p.hours, p.lowest, p.market = Hours(), lowest, market
+    if loc and p.qty > 0 then
+      local ok, dep
+      if IsCommodity(loc) then
+        if C_AuctionHouse.CalculateCommodityDeposit then
+          ok, dep = pcall(C_AuctionHouse.CalculateCommodityDeposit, id, DURATION[p.hours], p.qty)
+        end
+      elseif C_AuctionHouse.CalculateItemDeposit then
+        ok, dep = pcall(C_AuctionHouse.CalculateItemDeposit, loc, DURATION[p.hours], p.qty)
+      end
+      if ok and type(dep) == "number" then p.deposit = dep end
+    end
+    return p
+  end
+
+  local function Tooltip(tt, id, toBanker)
+    local p = Plan(id, FindLoc(id))
+    tt:AddLine("Subastar con un clic", 1, 0.82, 0)
+    if not AHOpen() then tt:AddLine("Abre la casa de subastas para publicarlo.", 1, 0.3, 0.3, true) end
+    if p.post then
+      tt:AddDoubleLine("Precio c/u", Money(p.unit), 1, 1, 1, 1, 1, 1)
+      tt:AddDoubleLine("Cantidad", tostring(p.qty), 1, 1, 1, 1, 1, 1)
+      tt:AddDoubleLine("Total", Money(p.unit * p.qty), 1, 1, 1, 1, 1, 1)
+      tt:AddDoubleLine("Recibes (tras la comision)", Money(floor(p.unit * p.qty * (1 - AH_CUT))), 1, 1, 1, 1, 1, 1)
+      tt:AddDoubleLine("Deposito", p.deposit and Money(p.deposit) or "(con la subasta abierta)", 1, 1, 1, 1, 1, 1)
+      tt:AddDoubleLine("Duracion", p.hours .. " h", 1, 1, 1, 1, 1, 1)
+    end
+    tt:AddLine((p.post and "" or "No se publica: ") .. p.reason, p.post and 0.42 or 1, p.post and 0.71 or 0.3,
+      p.post and 1 or 0.3, true)
+    if p.min then
+      tt:AddLine(format("Minimo %s / normal %s / maximo %s", Money(p.min), Money(p.normal), Money(p.max)),
+        0.6, 0.6, 0.6, true)
+    end
+    if toBanker then
+      tt:AddLine("Tu banquero es " .. BankerName() .. ": puedes enviarselo, o publicarlo aqui mismo.", 0.42, 0.71, 1, true)
+    end
+    tt:AddLine("Mayus+clic (o Mayus+clic en la fila): abrirlo en la pestana Selling de Auctionator.", 0.6, 0.6, 0.6, true)
+  end
+
+  local function RefreshShown()
+    for _, u in ipairs(uiInstances) do if u:IsVisible() then pcall(u.refresh) end end
+  end
+
+  -- una publicacion por clic; si la subasta esta ocupada (limite de mensajes) no se hace nada
+  local function Post(id)
+    if not AHOpen() then Print("Abre la casa de subastas primero."); return end
+    if C_AuctionHouse.IsThrottledMessageSystemReady and not C_AuctionHouse.IsThrottledMessageSystemReady() then
+      Print("La casa de subastas esta ocupada: espera un momento y vuelve a pulsar Subastar.")
+      return
+    end
+    local loc = FindLoc(id)
+    if not loc then Print("No puedo publicar ese objeto (ligado, bloqueado o ya no esta en la bolsa)."); return end
+    local p = Plan(id, loc)
+    if not p.post then Print("No se publica: " .. p.reason); return end
+    local dur = DURATION[p.hours]
+    local commodity = IsCommodity(loc)
+    local fn = commodity and C_AuctionHouse.PostCommodity or C_AuctionHouse.PostItem
+    if type(fn) ~= "function" then Print("Este cliente no permite publicar desde GoldFinder."); return end
+    local ok, res
+    if commodity then ok, res = pcall(fn, loc, dur, p.qty, p.unit)
+    else ok, res = pcall(fn, loc, dur, p.qty, nil, p.unit) end
+    if not ok then Print("La casa de subastas rechazo la publicacion: " .. tostring(res)); return end
+    -- si el cliente pide confirmar (dialogo de Blizzard), el marco de venta necesita la publicacion pendiente
+    if res then
+      pcall(function()
+        local sf = commodity and AuctionHouseFrame.CommoditiesSellFrame or AuctionHouseFrame.ItemSellFrame
+        if commodity then sf:CachePendingPost(loc, dur, p.qty, p.unit)
+        else sf:CachePendingPost(loc, dur, p.qty, nil, p.unit) end
+      end)
+    end
+    local name = C_Item.GetItemInfo(id) or ("objeto " .. id)
+    Print(format("Publicado: %d x %s a %s c/u (%d h)", p.qty, name, Money(p.unit), p.hours))
+    C_Timer.After(1, RefreshShown)
+  end
+
+  -- avisos de la subasta: error al publicar y lista al dia cuando se crea la subasta
+  local ev = CreateFrame("Frame")
+  for _, e in ipairs({ "AUCTION_HOUSE_AUCTION_CREATED", "AUCTION_HOUSE_POST_ERROR" }) do pcall(ev.RegisterEvent, ev, e) end
+  ev:SetScript("OnEvent", function(_, e)
+    if e == "AUCTION_HOUSE_POST_ERROR" then Print("La casa de subastas no acepto la publicacion.") end
+    RefreshShown()
+  end)
+
+  Skin.Auction = {
+    Plan = function(id) return Plan(id, FindLoc(id)) end,
+    Tooltip = Tooltip,
+    Post = Post,
+    AuctionPlan = AuctionPlan,
+  }
+end
+
 -- Marco con borde de dialogo (style "dialog") o de tooltip ("tooltip"); sin BackdropTemplate, fondo plano.
 function Skin.Panel(name, parent, style)
   local f = NewFrame("Frame", name, parent, "BackdropTemplate") or CreateFrame("Frame", name, parent)
@@ -1908,6 +2106,10 @@ local function MakeList(parent)
       end
     end)
     row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    -- Mayus+clic en la fila: accion secundaria de la fila (p. ej. abrir el objeto en Auctionator)
+    row:SetScript("OnClick", function(self)
+      if self.data and self.data.shift and IsShiftKeyDown() then self.data.shift() end
+    end)
     return row
   end
 
@@ -1933,6 +2135,21 @@ local function MakeList(parent)
         if a then
           b.label:SetText(a[1])
           b:SetScript("OnClick", function() a[2]() end)
+          -- opcional: a.tip(tooltip) al pasar el raton y a.disabled (boton apagado; el tooltip sigue saliendo)
+          if b.gfEnter == nil then b.gfEnter, b.gfLeave = b:GetScript("OnEnter") or false, b:GetScript("OnLeave") or false end
+          if a.tip then
+            b:SetScript("OnEnter", function(self)
+              GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+              pcall(a.tip, GameTooltip)
+              GameTooltip:Show()
+            end)
+            b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+          else
+            b:SetScript("OnEnter", b.gfEnter or nil)
+            b:SetScript("OnLeave", b.gfLeave or nil)
+          end
+          if b.SetMotionScriptsWhileDisabled then b:SetMotionScriptsWhileDisabled(true) end
+          if a.disabled then b:Disable() else b:Enable() end
           b:Show()
         else
           b:Hide()
@@ -3751,7 +3968,7 @@ local function MakeSettings(parent)
   sf:SetPoint("TOPLEFT", outer, "TOPLEFT", 0, 0)
   sf:SetPoint("BOTTOMRIGHT", outer, "BOTTOMRIGHT", -26, 0)
   local v = CreateFrame("Frame", nil, sf)
-  v:SetSize(700, 1133)
+  v:SetSize(700, 1303)
   sf:SetScrollChild(v)
   sf:SetScript("OnSizeChanged", function(_, w) if w and w > 0 then v:SetWidth(w) end end)
   local title = Text(v, 13, PAL.gold); title:SetPoint("TOPLEFT", v, "TOPLEFT", 0, 0); title:SetText("Opciones")
@@ -3835,6 +4052,36 @@ local function MakeSettings(parent)
   local l2 = Text(v, 13); l2:SetPoint("LEFT", eb2, "RIGHT", 12, 0)
   l2:SetText("Fabricaciones a reservar de cada material (para subir tu profesion)")
   y = y - 34
+  -- boton Subastar (mismas claves que en Opciones > AddOns)
+  for _, o in ipairs({
+    { "postMinPct", "Subastar: precio minimo (% del mercado; nunca menos que el vendedor)", 0, 100 },
+    { "postMaxPct", "Subastar: precio maximo (% del mercado; por encima, precio normal)", 100, 500 },
+    { "postUndercut", "Subastar: rebaja en cobre bajo la subasta mas barata", 0, 500 },
+    { "postCapDays", "Subastar: tope de unidades (dias de ventas en la region, si TSM lo sabe)", 1, 14 },
+    { "postDuration", "Subastar: duracion en horas (12 o 24)", 12, 24 },
+  }) do
+    local box = CreateFrame("EditBox", nil, v, "InputBoxTemplate")
+    box:SetSize(70, 22)
+    box:SetPoint("TOPLEFT", v, "TOPLEFT", 8, y)
+    box:SetAutoFocus(false)
+    local function showO() box:SetText(tostring(Cfg(o[1]))) end
+    local function saveO()
+      local val = tonumber(box:GetText())
+      if val then
+        val = math.min(math.max(floor(val + 0.5), o[3]), o[4])
+        if o[1] == "postDuration" then val = val <= 12 and 12 or 24 end
+        GoldFinderDB[o[1]] = val
+      end
+      showO()
+    end
+    box:SetScript("OnEnterPressed", function(self) saveO(); self:ClearFocus() end)
+    box:SetScript("OnEditFocusLost", saveO)
+    showO()
+    v.postShows = v.postShows or {}
+    v.postShows[#v.postShows + 1] = showO
+    local lo = Text(v, 13); lo:SetPoint("LEFT", box, "RIGHT", 12, 0); lo:SetText(o[2])
+    y = y - 34
+  end
   local bh = Text(v, 13, PAL.gold)
   bh:SetPoint("TOPLEFT", v, "TOPLEFT", 0, y)
   bh:SetText("Personaje banquero (al que envias lo que hay que subastar)")
@@ -3936,6 +4183,7 @@ local function MakeSettings(parent)
     end
     show()
     show2()
+    for _, fn in ipairs(v.postShows or {}) do fn() end
     layoutBankers()
     layoutProfs()
     v.info:SetText("GoldFinder lee tus profesiones y tu habilidad al entrar. Las recetas se memorizan al abrir la ventana de cada profesion.\nLos objetos que marques con Fijar tambien se guardan.")
@@ -4270,9 +4518,19 @@ local function CreateUI(parent, opts)
         if r.verdict == "AH" and r.toBanker and not r.bound then
           name = name .. " " .. BLUE .. "> " .. BankerName() .. "|r"
         end
-        local acts = {}
-        if r.verdict == "AH" and not r.bound and not r.toBanker then
-          acts[#acts + 1] = { "Vender", function() SellItem(r.id) end }
+        local acts, shift = {}, nil
+        -- Subastar: publica con un clic al precio y cantidad calculados (tambien si hay banquero: estas en la
+        -- subasta). Mayus+clic (en el boton o en la fila): prepararlo en la pestana Selling de Auctionator.
+        if r.verdict == "AH" and not r.bound then
+          local A = Skin.Auction
+          local okP, pl = pcall(A.Plan, r.id)
+          shift = function() SellItem(r.id) end
+          acts[#acts + 1] = {
+            "Subastar",
+            function() if IsShiftKeyDown() then SellItem(r.id) else A.Post(r.id) end end,
+            tip = function(tt) A.Tooltip(tt, r.id, r.toBanker) end,
+            disabled = not (okP and pl and pl.post),
+          }
         end
         if r.manual then
           acts[#acts + 1] = { "Soltar", function() Char().keep[r.id] = nil; ui.refresh() end }
@@ -4280,9 +4538,9 @@ local function CreateUI(parent, opts)
           acts[#acts + 1] = { "Fijar", function() Char().keep[r.id] = true; ui.refresh() end }
         end
         out[#out + 1] = {
-          id = r.id, name = name,
+          id = r.id, name = name, shift = shift,
           reason = r.reason or ((r.sellQty and r.sellQty > 0 and r.sellQty < r.count)
-            and format("Se prepararan %d de tus %d: el resto queda reservado.", r.sellQty, r.count) or nil),
+            and format("Se publicaran como mucho %d de tus %d: el resto queda reservado.", r.sellQty, r.count) or nil),
           c1 = "x" .. r.count .. (r.bank > 0 and (" +" .. r.bank .. "b") or ""),
           c2 = c2, c3 = r.verdict == "KEEP" and (DIM .. Money(r.value) .. "|r") or Money(r.value), actions = acts,
         }
@@ -5640,6 +5898,16 @@ local function RegisterOptions()
     end)
   slider(gain, 0, 5000, 5, function(silver) return Money(floor(silver + 0.5) * 100) end,
     "Ganancia minima (oro) para recomendar subasta en vez de vendedor.")
+  -- boton Subastar de la lista Bolsas (como una operacion de TSM)
+  number("postMinPct", "Subastar: precio minimo (% del mercado)", 0, 100, 5,
+    "Por debajo de este % del valor de mercado no se publica: espera. Nunca baja de lo que paga el vendedor.")
+  number("postMaxPct", "Subastar: precio maximo (% del mercado)", 100, 500, 10,
+    "Si la subasta mas barata pasa de este % del valor de mercado, se publica al precio normal (el de mercado).")
+  number("postUndercut", "Subastar: rebaja (cobre)", 0, 500, 1,
+    "Cobre por debajo de la subasta mas barata.")
+  number("postCapDays", "Subastar: tope (dias de ventas)", 1, 14, 1,
+    "Como mucho se publican las unidades que se venden en la region en estos dias (si TSM lo sabe).")
+  number("postDuration", "Subastar: duracion (horas)", 12, 24, 12, "Duracion de la subasta: 12 o 24 horas.")
   -- banquero: se elige entre los personajes con los que ya has entrado; un deslizador con pasos en vez de un
   -- desplegable, porque el desplegable nativo falla en el cliente Forever (lo mismo hace SkillUp Forever)
   local names, seen = {}, {}

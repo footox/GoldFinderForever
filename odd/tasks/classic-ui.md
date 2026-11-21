@@ -57,7 +57,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U7 | S9 | inline | done, verified in game | 0ca4681, 40f7164 |
 | U8 | S10a | delegated (context backstop) | done, verified in game | c3eab1d, 60be0a1 |
 | U9 | S10b | delegated (context backstop) | done, verified in game | c3eab1d |
-| U10 | S11 | delegated (context backstop) | in progress | |
+| U10 | S11 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L25 |
 
 - U1: main window and shared helpers (`Flat`, `Text`, `Btn`, `PAL`, list rows, tabs) in the classic style.
 - U2: guide, tracker, mail, bank, vendor and export frames in the classic style.
@@ -166,3 +166,16 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   /gf guia restyle, mail and bank panels.
 - L24 (2026-11-20, user, verbatim): "Realmente no se si es funcional lo que muestra." then the S11 quotes. Current
   "Vender" action in the AH Bolsas rows only prepares the item in Auctionator's Selling tab (two steps). Task U10.
+- L25: U10 done by a bounded writer: pure AuctionPlan (markers "-- PLAN DE SUBASTA" .. "-- FIN DE PLAN DE SUBASTA",
+  via Skin.Auction): market = TSM DBMarket / DBRegionMarketAvg / RefPrice (lowest if none), min = max(market*60%,
+  vendor floor after cut), max = 200%, undercut 1c, cap = 2 days of region sales. "Subastar" button posts with
+  C_AuctionHouse.PostCommodity / PostItem (commodity status, duration 12h=1/24h=2 like Auctionator), deposit and
+  reason in tooltip, disabled with reason when not worth it, shift-click opens Auctionator. Settings postMinPct,
+  postMaxPct, postUndercut, postCapDays, postDuration. tests/auction_plan_test.lua 20 PASS (RED first).
+  Risk: real auctions and deposits on click; verify in game.
+- L26 (2026-11-20, user, verbatim): "Y despues haz una revisión con Fable de cada funcionalidad.", "Aparte evaluar y
+  lleva el seguimiento de items, que debes guardar, subaster, vender para que no pierdas objetos para tus
+  profesiones, y si conviene fabricar un objeto porque renta vender o subastarlo." and "Y pues hace el cruce de
+  profesiones de tus alts, si llegas a un vendedor incluso en el tooltip de indica que debes comprar esa receta
+  para la profesion de ese personaje si aun no la tiene aprendida." Existing code: RecipeForOthers (tooltip and
+  vendor box). Next: Fable review by feature area.
