@@ -257,12 +257,9 @@ check("escanea row is listed in Bolsas", BagListed(scan) == true)
 check("plain NONE row stays hidden", BagListed({ verdict = "NONE" }) == false)
 check("AH/VENDOR/KEEP rows listed", BagListed({ verdict = "AH" }) and BagListed({ verdict = "VENDOR" })
   and BagListed({ verdict = "KEEP" }))
-a = assert(src:find("-- VENTA AL VENDEDOR: filas del panel", 1, true), "sell start marker")
-b = assert(src:find("-- FIN DE VENTA AL VENDEDOR", 1, true), "sell end marker")
-f = assert(loadstring(src:sub(a, b - 1) .. "\nreturn VendorSellRows"))
-setfenv(f, setmetatable({}, { __index = _G }))
+loadCore("core/vendor.lua", GF)
 local scanV = { id = 9, verdict = "NONE", reason = "sin datos de subasta: escanea", vendor = 50, count = 2 }
-check("escanea row not in the merchant panel", #f()({ scanV }) == 0)
+check("escanea row not in the merchant panel", #GF.VendorSellRows({ scanV }) == 0)
 
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")

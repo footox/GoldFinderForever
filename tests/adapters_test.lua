@@ -60,7 +60,7 @@ check("item: no C_Item gives nil", noItem.ItemInfoInstant(1) == nil and noItem.I
 
 -- bags
 local bagsData = {
-  [0] = { { itemID = 10, stackCount = 5, isBound = true }, nil, { itemID = 11, isLocked = true } },
+  [0] = { { itemID = 10, stackCount = 5, isBound = true }, nil, { itemID = 11, isLocked = true, hasNoValue = true } },
   [1] = { { itemID = 10, stackCount = 2 } },
 }
 local sizes = { [0] = 3, [1] = 1 }
@@ -73,6 +73,7 @@ check("bags: ready with the container API", B.BagApiReady() == true)
 check("bags: lists only occupied slots", #slots == 3)
 check("bags: fields", slots[1].bag == 0 and slots[1].slot == 1 and slots[1].id == 10 and slots[1].count == 5 and slots[1].bound == true)
 check("bags: count defaults to 1 and keeps locked", slots[2].id == 11 and slots[2].count == 1 and slots[2].locked == true)
+check("bags: noValue flag is exposed for the vendor sale", slots[2].noValue == true and slots[1].noValue == nil)
 check("bags: second bag read", slots[3].bag == 1 and slots[3].id == 10 and slots[3].count == 2)
 local none = load("adapters/bags.lua", {})
 check("bags: missing API gives an empty list", none.BagApiReady() == false and #none.BagSlots() == 0)

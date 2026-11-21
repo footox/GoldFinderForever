@@ -8,7 +8,7 @@ function GF.BagApiReady()
   return (CC and CC.GetContainerNumSlots and CC.GetContainerItemInfo) and true or false
 end
 
--- { bag, slot, id, count, locked, bound } for every occupied slot of the backpack and the bag slots.
+-- { bag, slot, id, count, locked, bound, noValue } for every occupied slot of the backpack and the bag slots.
 function GF.BagSlots()
   local slots = {}
   if not GF.BagApiReady() then return slots end
@@ -18,7 +18,7 @@ function GF.BagSlots()
       local ok, info = pcall(CC.GetContainerItemInfo, bag, slot)
       if ok and info and info.itemID then
         slots[#slots + 1] = { bag = bag, slot = slot, id = info.itemID, count = info.stackCount or 1,
-          locked = info.isLocked, bound = info.isBound }
+          locked = info.isLocked, bound = info.isBound, noValue = info.hasNoValue }
       end
     end
   end

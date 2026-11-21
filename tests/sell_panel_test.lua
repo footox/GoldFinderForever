@@ -2,13 +2,11 @@
 -- the vendor, with a vendor price, sorted by value, and with the right total. Run from the addon folder:
 --   "C:\Program Files (x86)\Lua\5.1\lua.exe" tests\sell_panel_test.lua
 
-local src = assert(io.open("GoldFinder.lua")):read("*a")
-local a = assert(src:find("-- VENTA AL VENDEDOR: filas del panel", 1, true), "start marker")
-local b = assert(src:find("-- FIN DE VENTA AL VENDEDOR", 1, true), "end marker")
-local chunk = src:sub(a, b - 1) .. "\nreturn VendorSellRows"
-local f = assert(loadstring(chunk))
+local GF = {}
+local f = assert(loadfile("core/vendor.lua"))
 setfenv(f, setmetatable({}, { __index = _G }))
-local VendorSellRows = f()
+f("GoldFinder", GF)
+local VendorSellRows = GF.VendorSellRows
 
 local failures = 0
 local function check(name, cond)
