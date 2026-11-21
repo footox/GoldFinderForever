@@ -38,7 +38,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | ID | Specs | Route | Status | Commit |
 |----|-------|-------|--------|--------|
 | U1 | S2, S3, S5 | delegated (context backstop) | done, verified in game (window) | 642153f, b225f3e |
-| U2 | S4, S5 | pending | pending | |
+| U2 | S4, S5 | delegated (context backstop) | done (offline checks), in-game check pending | see Log L15 |
 | U3 | S6 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L14 |
 | U4 | S6, S7 | delegated (context backstop) | done, verified in game | bbd009a, 454b833 |
 | U5 | S6 | pending | pending | |
@@ -108,3 +108,8 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   HookScript on native pages). CreateUI(parent, opts) gains embedded/only/onNav/back and ui.profFilter. Helper
   ProfTabKeys (tests/prof_tabs_test.lua 9 PASS, RED first). Setting profTabs (default on); tabs also require
   craftTab/routeTab, which default to off (on in the user's profile). Open question for sharing: default visibility.
+- L15: U2 done by a bounded writer: helper `Skin` (Panel/Head/Close/Icon/Fold/Bar/Quest, guarded with flat
+  fallbacks). Guide from ButtonFrameTemplate with PanelTabButtonTemplate profession tabs; tracker with tooltip
+  backdrop, title "GoldFinder Forever: siguiente paso", native close, plus/minus and book icon buttons with
+  tooltips; mail, bank, vendor recipes and TSM export with dialog backdrops. Suites pass; no single-backslash texture
+  paths; no new globals.

@@ -1709,6 +1709,109 @@ local function Btn(parent, label, w, h, base, onClick)
   return b
 end
 
+-- Marcos clasicos para las ventanas secundarias (guia, siguiente paso, correo, banco, vendedor, exportar).
+-- Cada pieza tiene plan B: sin la plantilla o sin SetBackdrop queda el estilo plano de antes.
+local Skin = {
+  dialog = { bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    tile = true, tileSize = 32, edgeSize = 32, insets = { left = 11, right = 12, top = 12, bottom = 11 } },
+  tooltip = { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 16, insets = { left = 4, right = 4, top = 4, bottom = 4 } },
+  PLUS = { "Interface\\Buttons\\UI-PlusButton-Up", "Interface\\Buttons\\UI-PlusButton-Down",
+    "Interface\\Buttons\\UI-PlusButton-Hilight" },
+  MINUS = { "Interface\\Buttons\\UI-MinusButton-Up", "Interface\\Buttons\\UI-MinusButton-Down",
+    "Interface\\Buttons\\UI-PlusButton-Hilight" },
+  BOOK = { "Interface\\Icons\\INV_Misc_Book_09", nil, "Interface\\Buttons\\ButtonHilight-Square" },
+}
+
+-- Marco con borde de dialogo (style "dialog") o de tooltip ("tooltip"); sin BackdropTemplate, fondo plano.
+function Skin.Panel(name, parent, style)
+  local f = NewFrame("Frame", name, parent, "BackdropTemplate") or CreateFrame("Frame", name, parent)
+  local ok = f.SetBackdrop and pcall(f.SetBackdrop, f, Skin[style] or Skin.dialog)
+  if ok and style == "tooltip" then
+    if f.SetBackdropColor then pcall(f.SetBackdropColor, f, 0, 0, 0, 0.75) end
+    if f.SetBackdropBorderColor then pcall(f.SetBackdropBorderColor, f, 0.8, 0.8, 0.8, 1) end
+  end
+  if not ok then
+    local bg = Flat(f, "BACKGROUND", PAL.bg); bg:SetAllPoints()
+    local bar = Flat(f, "ARTWORK", { 1, 0.82, 0.25, 1 })
+    bar:SetPoint("TOPLEFT"); bar:SetPoint("BOTTOMLEFT"); bar:SetWidth(3)
+  end
+  f.gfSkinned = ok and true or false
+  return f
+end
+
+-- Titulo centrado arriba, como en los dialogos del juego.
+function Skin.Head(f, text)
+  local h = Text(f, 13, PAL.gold, "CENTER")
+  h:SetPoint("TOP", f, "TOP", 0, -16)
+  h:SetText(text)
+  return h
+end
+
+-- Boton de cerrar del juego (la X roja); sin la plantilla, el boton "x" de antes.
+function Skin.Close(parent, onClick, size)
+  local b = NewFrame("Button", nil, parent, "UIPanelCloseButton")
+  if not b then return Btn(parent, "x", 18, 18, nil, onClick) end
+  b:SetSize(size or 26, size or 26)
+  b:SetScript("OnClick", onClick)
+  return b
+end
+
+function Skin.SetIcon(b, tex)
+  b:SetNormalTexture(tex[1])
+  b:SetPushedTexture(tex[2] or tex[1])
+  if not tex[2] then
+    local p = b:GetPushedTexture()
+    if p then p:SetVertexColor(0.6, 0.6, 0.6) end
+  end
+  if tex[3] then b:SetHighlightTexture(tex[3], "ADD") end
+end
+
+-- Boton pequeno con icono (y tooltip); si no se pueden poner las texturas, el boton con letra de antes.
+function Skin.Icon(parent, size, tex, label, tip, onClick)
+  local b = CreateFrame("Button", nil, parent)
+  b:SetSize(size, size)
+  if pcall(Skin.SetIcon, b, tex) then
+    b.gfIcon = true
+    b:SetScript("OnClick", onClick)
+  else
+    b:Hide()
+    b = Btn(parent, label, 18, 18, nil, onClick)
+  end
+  if tip then
+    b:HookScript("OnEnter", function(self)
+      GameTooltip:SetOwner(self, "ANCHOR_TOP")
+      GameTooltip:SetText(tip, 1, 1, 1)
+      GameTooltip:Show()
+    end)
+    b:HookScript("OnLeave", function() GameTooltip:Hide() end)
+  end
+  return b
+end
+
+-- Boton de plegar: "+" si esta plegado, "-" si esta desplegado (icono o letra segun como se creo).
+function Skin.Fold(b, collapsed)
+  if b.gfIcon then pcall(Skin.SetIcon, b, collapsed and Skin.PLUS or Skin.MINUS)
+  elseif b.label then b.label:SetText(collapsed and "+" or "-") end
+end
+
+-- Barra de progreso con la textura de las barras del juego (dorada).
+function Skin.Bar(t)
+  pcall(t.SetTexture, t, "Interface\\TargetingFrame\\UI-StatusBar")
+  t:SetVertexColor(1, 0.82, 0.25, 1)
+  return t
+end
+
+-- Resaltado de las listas de misiones (aditivo), con el color pedido.
+function Skin.Quest(t, r, g, b, a)
+  pcall(t.SetTexture, t, "Interface\\QuestFrame\\UI-QuestTitleHighlight")
+  t:SetBlendMode("ADD")
+  t:SetVertexColor(r or 1, g or 1, b or 1, a or 1)
+  return t
+end
+
 local ROW_H, ACT_W = 30, 112
 -- Las columnas se estrechan cuando hay poco ancho (por ejemplo dentro de la casa de subastas).
 local function PlaceCols(owner, name, c1, c2, c3, hasIcon, w, act)
@@ -2252,7 +2355,7 @@ local function TrackerRow(f, i)
   r = CreateFrame("Button", nil, f)
   r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   r:SetWidth(TRACK_W)
-  local hl = Flat(r, "HIGHLIGHT", { 1, 0.82, 0.25, 0.08 })
+  local hl = Skin.Quest(r:CreateTexture(nil, "HIGHLIGHT"), 1, 0.82, 0.25, 0.6)
   hl:SetAllPoints()
   r.text = Text(r, 12, PAL.text)
   r.text:SetPoint("TOPLEFT", 0, 0)
@@ -2264,7 +2367,7 @@ local function TrackerRow(f, i)
   r.barBg:SetHeight(4)
   r.barBg:SetPoint("BOTTOMLEFT")
   r.barBg:SetPoint("BOTTOMRIGHT")
-  r.bar = Flat(r, "ARTWORK", { 1, 0.82, 0.25, 1 })
+  r.bar = Skin.Bar(Flat(r, "ARTWORK", { 1, 0.82, 0.25, 1 }))
   r.bar:SetHeight(4)
   r.bar:SetPoint("BOTTOMLEFT")
   r.flashTex = Flat(r, "BACKGROUND", { 0.35, 0.92, 0.55, 1 })
@@ -2432,18 +2535,21 @@ local function GuideRow(content, i)
   r = CreateFrame("Button", nil, content)
   r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   r:SetWidth(GUIDE_W - 14)
-  r.bg = Flat(r, "BACKGROUND", { 0.27, 0.32, 0.50, 0.55 })
+  -- paso actual: resaltado de la lista de misiones en dorado
+  r.bg = Skin.Quest(r:CreateTexture(nil, "BACKGROUND"), 1, 0.82, 0.25, 0.45)
   r.bg:SetAllPoints()
   r.curBar = Flat(r, "ARTWORK", { 1, 0.82, 0.25, 1 })
   r.curBar:SetPoint("TOPLEFT")
   r.curBar:SetPoint("BOTTOMLEFT")
   r.curBar:SetWidth(2)
   r.curBar:Hide()
-  local hl = Flat(r, "HIGHLIGHT", { 1, 1, 1, 0.05 })
+  local hl = Skin.Quest(r:CreateTexture(nil, "HIGHLIGHT"))
   hl:SetAllPoints()
-  r.dot = Flat(r, "ARTWORK", { 0.5, 0.5, 0.56, 1 })
-  r.dot:SetSize(8, 8)
-  r.dot:SetPoint("TOPLEFT", 8, -8)
+  -- paso pendiente: casilla vacia (la marca de hecho es la casilla con check)
+  r.dot = r:CreateTexture(nil, "ARTWORK")
+  r.dot:SetTexture("Interface\\Buttons\\UI-CheckBox-Up")
+  r.dot:SetSize(22, 22)
+  r.dot:SetPoint("TOPLEFT", 1, -2)
   r.check = r:CreateTexture(nil, "OVERLAY")
   r.check:SetTexture("Interface/Buttons/UI-CheckBox-Check")
   r.check:SetSize(22, 22)
@@ -2458,7 +2564,7 @@ local function GuideRow(content, i)
   r.barBg:SetHeight(4)
   r.barBg:SetPoint("BOTTOMLEFT", 28, 2)
   r.barBg:SetPoint("BOTTOMRIGHT", -6, 2)
-  r.bar = Flat(r, "ARTWORK", { 1, 0.82, 0.25, 1 })
+  r.bar = Skin.Bar(Flat(r, "ARTWORK", { 1, 0.82, 0.25, 1 }))
   r.bar:SetHeight(4)
   r.bar:SetPoint("BOTTOMLEFT", 28, 2)
   r:SetScript("OnClick", function(self, btn)
@@ -2745,21 +2851,49 @@ function RefreshGuide()
   for i, name in ipairs(names) do
     local b = f.tabs[i]
     if not b then
-      b = Btn(f, "", tw, 20, nil, function(self)
+      local function pick(self)
+        if self.gfTab and PlaySound and SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then
+          pcall(PlaySound, SOUNDKIT.IG_CHARACTER_INFO_TAB)
+        end
         guideProf = self.profName
         f.needScroll = true
         RefreshGuide()
-      end)
+      end
+      -- marco nativo: pestanas abajo como en la ventana de personaje; si no, botones arriba
+      b = f.native and NewFrame("Button", "GoldFinderGuideTab" .. i, f, "PanelTabButtonTemplate")
+      if b then
+        b.gfTab = true
+        b:SetID(i)
+        b:SetScript("OnEnter", nil); b:SetScript("OnLeave", nil)
+        b:SetScript("OnClick", pick)
+      else
+        b = Btn(f, "", tw, 20, nil, pick)
+      end
       f.tabs[i] = b
     end
-    b:SetSize(tw, 20)
-    b:ClearAllPoints()
-    b:SetPoint("TOPLEFT", f, "TOPLEFT", 12 + (i - 1) * (tw + 4), -30)
     b.profName = name
-    b.label:SetWidth(tw - 4)
-    b.label:SetText(name)
-    b.base = (name == guideProf) and { 1, 0.82, 0.25, 0.30 } or { 1, 1, 1, 0.09 }
-    b.bg:SetColorTexture(b.base[1], b.base[2], b.base[3], b.base[4])
+    b:ClearAllPoints()
+    if b.gfTab then
+      b:SetText(name)
+      local maxW = math.floor((GUIDE_W + 34 - 20 + 8 * (tn - 1)) / tn)
+      if PanelTemplates_TabResize then pcall(PanelTemplates_TabResize, b, 12, nil, math.min(70, maxW), maxW) end
+      if i == 1 then b:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 11, 2)
+      else b:SetPoint("LEFT", f.tabs[i - 1], "RIGHT", -8, 0) end
+      local fn = (name == guideProf) and PanelTemplates_SelectTab or PanelTemplates_DeselectTab
+      if fn then pcall(fn, b) end
+    else
+      b:SetSize(tw, 20)
+      if f.native then
+        b:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 12 + (i - 1) * (tw + 4), -2)
+      else
+        b:SetPoint("TOPLEFT", f, "TOPLEFT", 12 + (i - 1) * (tw + 4), -30)
+      end
+      b.label:SetWidth(tw - 4)
+      b.label:SetText(name)
+      if name == guideProf then b:LockHighlight() else b:UnlockHighlight() end
+      b.base = (name == guideProf) and { 1, 0.82, 0.25, 0.30 } or { 1, 1, 1, 0.09 }
+      b.bg:SetColorTexture(b.base[1], b.base[2], b.base[3], b.base[4])
+    end
     b:Show()
   end
   for i = #names + 1, #f.tabs do f.tabs[i]:Hide() end
@@ -2803,7 +2937,7 @@ function RefreshGuide()
     return
   end
   f.title:SetText(format("%s  %d / %d", guideProf, pd.rank or 0, pd.maxRank or 0))
-  f.gbar:SetWidth(math.max(1, (GUIDE_W + 34 - 24) * math.min(1, (pd.rank or 0) / 300)))
+  f.gbar:SetWidth(math.max(1, (f.gbarW or (GUIDE_W + 34 - 24)) * math.min(1, (pd.rank or 0) / 300)))
 
   local y, curTop, missing = 0, 0, false
   for i, it in ipairs(items) do
@@ -2889,7 +3023,7 @@ function RefreshGuide()
   end
   for i = #items + 1, #guideRows do guideRows[i]:Hide() end
   f.content:SetHeight(y + 8)
-  f:SetHeight(math.min(520, math.max(200, y + 78)))   -- se ajusta a los pasos
+  f:SetHeight(math.min(520, math.max(200, y + (f.padH or 78))))   -- se ajusta a los pasos
   f.curTop = curTop
   if f.needScroll then
     f.needScroll = false
@@ -2907,7 +3041,10 @@ end
 function OpenGuide(name)
   local f = GoldFinderGuide
   if not f then
-    f = CreateFrame("Frame", "GoldFinderGuide", UIParent)
+    -- marco nativo (retrato con libro, titulo, X e Inset) y pestanas abajo; sin la plantilla, el marco plano
+    f = NewFrame("Frame", "GoldFinderGuide", UIParent, "ButtonFrameTemplate")
+    f = f or CreateFrame("Frame", "GoldFinderGuide", UIParent)
+    f.native = f.Inset ~= nil
     f:SetSize(GUIDE_W + 34, 520)
     f:SetFrameStrata("MEDIUM")
     f:SetClampedToScreen(true)
@@ -2920,25 +3057,59 @@ function OpenGuide(name)
       local point, _, relPoint, x, y = self:GetPoint()
       GoldFinderDB.guidePos = { point, relPoint, x, y }
     end)
-    local bg = Flat(f, "BACKGROUND", PAL.bg)
-    bg:SetAllPoints()
-    local bar = Flat(f, "ARTWORK", { 1, 0.82, 0.25, 1 })
-    bar:SetPoint("TOPLEFT"); bar:SetPoint("BOTTOMLEFT"); bar:SetWidth(3)
+    -- top: donde va el texto de la profesion; gx: margen izquierdo (a la derecha del retrato si es nativo)
+    local top, gx = -8, 12
+    if f.native then
+      top, gx = -30, 66
+      if ButtonFrameTemplate_HideButtonBar then pcall(ButtonFrameTemplate_HideButtonBar, f) end
+      local icon = "Interface\\Icons\\INV_Misc_Book_09"
+      if f.SetPortraitToAsset then
+        pcall(f.SetPortraitToAsset, f, icon)
+      else
+        local p = (f.PortraitContainer and f.PortraitContainer.portrait) or f.portrait or _G["GoldFinderGuidePortrait"]
+        if p and p.SetTexture then
+          if SetPortraitToTexture then pcall(SetPortraitToTexture, p, icon) else p:SetTexture(icon) end
+        end
+      end
+      if f.SetTitle then
+        pcall(f.SetTitle, f, "GoldFinder Forever")
+      else
+        local t = (f.TitleContainer and f.TitleContainer.TitleText) or f.TitleText or _G["GoldFinderGuideTitleText"]
+        if t then t:SetText("GoldFinder Forever") end
+      end
+    else
+      local bg = Flat(f, "BACKGROUND", PAL.bg)
+      bg:SetAllPoints()
+      local bar = Flat(f, "ARTWORK", { 1, 0.82, 0.25, 1 })
+      bar:SetPoint("TOPLEFT"); bar:SetPoint("BOTTOMLEFT"); bar:SetWidth(3)
+    end
     f.title = Text(f, 13, PAL.gold)
-    f.title:SetPoint("TOPLEFT", 12, -8)
+    f.title:SetPoint("TOPLEFT", gx, top)
+    local gy = f.native and -50 or -53
     f.gbg = Flat(f, "BACKGROUND", { 1, 1, 1, 0.10 })
     f.gbg:SetHeight(4)
-    f.gbg:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -53)
-    f.gbg:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -53)
-    f.gbar = Flat(f, "ARTWORK", { 1, 0.82, 0.25, 1 })
+    f.gbg:SetPoint("TOPLEFT", f, "TOPLEFT", gx, gy)
+    f.gbg:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, gy)
+    f.gbar = Skin.Bar(Flat(f, "ARTWORK", { 1, 0.82, 0.25, 1 }))
     f.gbar:SetHeight(4)
-    f.gbar:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -53)
-    local close = Btn(f, "x", 18, 18, nil, function() f:Hide() end)
-    close:SetPoint("TOPRIGHT", -6, -6)
+    f.gbar:SetPoint("TOPLEFT", f, "TOPLEFT", gx, gy)
+    f.gbarW = GUIDE_W + 34 - gx - 12
+    if not (f.native and (f.CloseButton or _G["GoldFinderGuideCloseButton"])) then
+      local close = Skin.Close(f, function() f:Hide() end)
+      close:SetPoint("TOPRIGHT", f.native and 2 or -2, f.native and 2 or -2)
+      close:SetFrameLevel(f:GetFrameLevel() + 50)
+    end
     f.tabs = {}
     local sf = CreateFrame("ScrollFrame", "GoldFinderGuideScroll", f, "UIPanelScrollFrameTemplate")
-    sf:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -58)
-    sf:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -28, 10)
+    if f.native then
+      -- la lista va dentro del Inset (el recuadro hundido de las ventanas del juego)
+      sf:SetPoint("TOPLEFT", f.Inset, "TOPLEFT", 6, -6)
+      sf:SetPoint("BOTTOMRIGHT", f.Inset, "BOTTOMRIGHT", -26, 6)
+      f.padH = 84
+    else
+      sf:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -58)
+      sf:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -28, 10)
+    end
     f.content = CreateFrame("Frame", nil, sf)
     f.content:SetSize(GUIDE_W - 14, 100)
     sf:SetScrollChild(f.content)
@@ -2987,7 +3158,8 @@ function UpdateTracker(retry)
     return
   end
   if not f then
-    f = CreateFrame("Frame", "GoldFinderTracker", UIParent)
+    -- panel ligero como el seguimiento de misiones: borde de tooltip y fondo translucido
+    f = Skin.Panel("GoldFinderTracker", UIParent, "tooltip")
     f:SetSize(TRACK_W + 24, 60)
     f:SetFrameStrata("MEDIUM")
     f:SetClampedToScreen(true)
@@ -3000,23 +3172,22 @@ function UpdateTracker(retry)
       local point, _, relPoint, x, y = self:GetPoint()
       GoldFinderDB.trackerPos = { point, relPoint, x, y }
     end)
-    local bg = Flat(f, "BACKGROUND", PAL.bg); bg:SetAllPoints()
-    local bar = Flat(f, "ARTWORK", { 1, 0.82, 0.25, 1 })
-    bar:SetPoint("TOPLEFT"); bar:SetPoint("BOTTOMLEFT"); bar:SetWidth(3)
-    f.title = Text(f, 12, PAL.gold); f.title:SetPoint("TOPLEFT", 12, -8); f.title:SetText("GoldFinder: siguiente paso")
-    local close = Btn(f, "x", 18, 18, nil, function()
+    f.title = Text(f, 12, PAL.gold); f.title:SetPoint("TOPLEFT", 12, -9)
+    f.title:SetText("GoldFinder Forever: siguiente paso")
+    local close = Skin.Close(f, function()
       GoldFinderDB.nextSteps = false
       UpdateTracker()
       for _, u in ipairs(uiInstances) do pcall(u.refresh) end
-    end)
-    close:SetPoint("TOPRIGHT", -6, -6)
-    local fold = Btn(f, GoldFinderDB.trackerCollapsed and "+" or "-", 18, 18, nil, function(self)
+    end, 22)
+    close:SetPoint("TOPRIGHT", -1, -1)
+    local fold = Skin.Icon(f, 14, GoldFinderDB.trackerCollapsed and Skin.PLUS or Skin.MINUS,
+      GoldFinderDB.trackerCollapsed and "+" or "-", "Plegar o desplegar", function(self)
       GoldFinderDB.trackerCollapsed = (not GoldFinderDB.trackerCollapsed) or nil
-      self.label:SetText(GoldFinderDB.trackerCollapsed and "+" or "-")
+      Skin.Fold(self, GoldFinderDB.trackerCollapsed)
       UpdateTracker()
     end)
-    fold:SetPoint("RIGHT", close, "LEFT", -4, 0)
-    local gbtn = Btn(f, "G", 18, 18, nil, function() OpenGuide() end)
+    fold:SetPoint("RIGHT", close, "LEFT", -2, 0)
+    local gbtn = Skin.Icon(f, 16, Skin.BOOK, "G", "Guia de profesion", function() OpenGuide() end)
     gbtn:SetPoint("RIGHT", fold, "LEFT", -4, 0)
     local pos = GoldFinderDB.trackerPos
     if pos then f:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4])
@@ -3345,8 +3516,9 @@ local function ShowTSMExport()
   end
   local f = GoldFinderExport
   if not f then
-    f = CreateFrame("Frame", "GoldFinderExport", UIParent)
-    f:SetSize(540, 130)
+    -- dialogo clasico (como el panel de venta); sin BackdropTemplate, el fondo plano de antes
+    f = Skin.Panel("GoldFinderExport", UIParent, "dialog")
+    f:SetSize(540, 150)
     f:SetPoint("CENTER", 0, 140)
     f:SetFrameStrata("DIALOG")
     f:SetClampedToScreen(true)
@@ -3355,28 +3527,22 @@ local function ShowTSMExport()
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
-    local bg = Flat(f, "BACKGROUND", PAL.bg)
-    bg:SetAllPoints()
-    local bar = Flat(f, "ARTWORK", { 1, 0.82, 0.25, 1 })
-    bar:SetPoint("TOPLEFT"); bar:SetPoint("BOTTOMLEFT"); bar:SetWidth(3)
-    f.title = Text(f, 13, PAL.gold)
-    f.title:SetPoint("TOPLEFT", 14, -10)
-    f.title:SetText("Exportar a TSM")
+    f.title = Skin.Head(f, "GoldFinder Forever: exportar a TSM")
     f.note = Text(f, 12, PAL.text)
-    f.note:SetPoint("TOPLEFT", 14, -34)
+    f.note:SetPoint("TOPLEFT", 20, -40)
     f.note:SetWidth(500)
     f.note:SetWordWrap(true)
     f.note:SetJustifyV("TOP")
     f.note:SetText("Copia el texto con Ctrl+C y pegalo en TSM: Grupos > Importar (crea o rellena un grupo). Luego TSM publica y envia por correo.")
     f.edit = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-    f.edit:SetSize(500, 22)
-    f.edit:SetPoint("TOPLEFT", 18, -76)
+    f.edit:SetSize(496, 22)
+    f.edit:SetPoint("TOPLEFT", 24, -86)
     f.edit:SetAutoFocus(false)
     f.edit:SetScript("OnEscapePressed", function() f:Hide() end)
     f.count = Text(f, 12, PAL.dim)
-    f.count:SetPoint("BOTTOMLEFT", 14, 10)
-    local close = Btn(f, "x", 18, 18, nil, function() f:Hide() end)
-    close:SetPoint("TOPRIGHT", -6, -6)
+    f.count:SetPoint("BOTTOMLEFT", 20, 18)
+    local close = Skin.Close(f, function() f:Hide() end)
+    close:SetPoint("TOPRIGHT", -4, -4)
     tinsert(UISpecialFrames, "GoldFinderExport")
   end
   f.edit:SetText(table.concat(ids, ","))
@@ -4381,22 +4547,20 @@ local function RefreshMail()
     return
   end
   if not f then
-    f = CreateFrame("Frame", "GoldFinderMail", MailFrame or UIParent)
+    -- dialogo clasico (como el panel de venta): titulo "GoldFinder Forever" y debajo el subtitulo
+    f = Skin.Panel("GoldFinderMail", MailFrame or UIParent, "dialog")
     f:SetWidth(310)
     f:SetFrameStrata("HIGH")
-    local bg = Flat(f, "BACKGROUND", PAL.bg)
-    bg:SetAllPoints()
-    local bar = Flat(f, "ARTWORK", { 1, 0.82, 0.25, 1 })
-    bar:SetPoint("TOPLEFT"); bar:SetPoint("BOTTOMLEFT"); bar:SetWidth(3)
-    f.title = Text(f, 13, PAL.gold)
-    f.title:SetPoint("TOPLEFT", 12, -8)
+    f.head = Skin.Head(f, "GoldFinder Forever")
+    f.title = Text(f, 12, PAL.text)
+    f.title:SetPoint("TOPLEFT", 18, -36)
     f.body = Text(f, 12, PAL.text)
-    f.body:SetPoint("TOPLEFT", 12, -30)
-    f.body:SetWidth(288)
+    f.body:SetPoint("TOPLEFT", 18, -56)
+    f.body:SetWidth(274)
     f.body:SetSpacing(4)
     f.body:SetJustifyV("TOP")
     f.foot = Text(f, 12, PAL.dim)
-    f.foot:SetPoint("BOTTOMLEFT", 12, 8)
+    f.foot:SetPoint("BOTTOMLEFT", 18, 16)
     if MailFrame then f:SetPoint("TOPLEFT", MailFrame, "TOPRIGHT", 2, -12)
     else f:SetPoint("LEFT", UIParent, "LEFT", 360, 60) end
   end
@@ -4404,7 +4568,7 @@ local function RefreshMail()
   f.title:SetText("Para enviar a " .. banker)
   f.body:SetText(table.concat(lines, "\n"))
   f.foot:SetText(format("%d objeto(s) - valor aprox. %s", n, ShortMoney(total)))
-  f:SetHeight(30 + (f.body:GetStringHeight() or 0) + 30)
+  f:SetHeight(56 + (f.body:GetStringHeight() or 0) + 36)
   f:Show()
 end
 
@@ -4444,22 +4608,20 @@ local function RefreshBank()
     return
   end
   if not f then
-    f = CreateFrame("Frame", "GoldFinderBank", BankFrame or UIParent)
+    -- dialogo clasico (como el panel de venta): titulo "GoldFinder Forever" y debajo el subtitulo
+    f = Skin.Panel("GoldFinderBank", BankFrame or UIParent, "dialog")
     f:SetWidth(380)
     f:SetFrameStrata("HIGH")
-    local bg = Flat(f, "BACKGROUND", PAL.bg)
-    bg:SetAllPoints()
-    local bar = Flat(f, "ARTWORK", { 1, 0.82, 0.25, 1 })
-    bar:SetPoint("TOPLEFT"); bar:SetPoint("BOTTOMLEFT"); bar:SetWidth(3)
-    f.title = Text(f, 13, PAL.gold)
-    f.title:SetPoint("TOPLEFT", 12, -8)
+    f.head = Skin.Head(f, "GoldFinder Forever")
+    f.title = Text(f, 12, PAL.text)
+    f.title:SetPoint("TOPLEFT", 18, -36)
     f.body = Text(f, 12, PAL.text)
-    f.body:SetPoint("TOPLEFT", 12, -30)
-    f.body:SetWidth(358)
+    f.body:SetPoint("TOPLEFT", 18, -56)
+    f.body:SetWidth(344)
     f.body:SetSpacing(4)
     f.body:SetJustifyV("TOP")
     f.foot = Text(f, 12, PAL.dim)
-    f.foot:SetPoint("BOTTOMLEFT", 12, 8)
+    f.foot:SetPoint("BOTTOMLEFT", 18, 16)
     if BankFrame then f:SetPoint("TOPLEFT", BankFrame, "TOPRIGHT", 2, -12)
     else f:SetPoint("LEFT", UIParent, "LEFT", 360, 60) end
   end
@@ -4467,7 +4629,7 @@ local function RefreshBank()
   f.title:SetText("Conviene depositar en el banco")
   f.body:SetText(table.concat(lines, "\n"))
   f.foot:SetText(carry > 0 and (carry .. " objeto(s) mejor encima: los usas en el paso actual") or (n .. " objeto(s)"))
-  f:SetHeight(30 + (f.body:GetStringHeight() or 0) + 30)
+  f:SetHeight(56 + (f.body:GetStringHeight() or 0) + 36)
   f:Show()
 end
 
@@ -4681,19 +4843,17 @@ local function RefreshVendor()
     return
   end
   if not f then
-    f = CreateFrame("Frame", "GoldFinderVendor", MerchantFrame)
+    -- dialogo clasico (como el panel de venta): titulo "GoldFinder Forever" y debajo el subtitulo
+    f = Skin.Panel("GoldFinderVendor", MerchantFrame, "dialog")
     f:SetWidth(360)
     f:SetFrameStrata("HIGH")
-    local bg = Flat(f, "BACKGROUND", PAL.bg)
-    bg:SetAllPoints()
-    local bar = Flat(f, "ARTWORK", { 1, 0.82, 0.25, 1 })
-    bar:SetPoint("TOPLEFT"); bar:SetPoint("BOTTOMLEFT"); bar:SetWidth(3)
-    f.title = Text(f, 13, PAL.gold)
-    f.title:SetPoint("TOPLEFT", 12, -8)
+    f.head = Skin.Head(f, "GoldFinder Forever")
+    f.title = Text(f, 12, PAL.text)
+    f.title:SetPoint("TOPLEFT", 18, -36)
     f.title:SetText("Recetas que te sirven aqui")
     f.body = Text(f, 12, PAL.text)
-    f.body:SetPoint("TOPLEFT", 12, -30)
-    f.body:SetWidth(338)
+    f.body:SetPoint("TOPLEFT", 18, -56)
+    f.body:SetWidth(324)
     f.body:SetSpacing(3)
     f.body:SetJustifyV("TOP")
   end
@@ -4703,7 +4863,7 @@ local function RefreshVendor()
   if sp and sp:IsShown() then f:SetPoint("TOPLEFT", sp, "BOTTOMLEFT", 0, -4)
   else f:SetPoint("TOPLEFT", MerchantFrame, "TOPRIGHT", 2, -12) end
   f.body:SetText(table.concat(lines, "\n"))
-  f:SetHeight(30 + (f.body:GetStringHeight() or 0) + 12)
+  f:SetHeight(56 + (f.body:GetStringHeight() or 0) + 18)
   f:Show()
 end
 
