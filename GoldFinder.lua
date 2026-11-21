@@ -843,7 +843,9 @@ end
 
 -- Lo que piden tus otros personajes. OtherNeed(id): el que mas pide ({ need, prof, upto, su, who }, para el texto
 -- "para <alt>"). OtherNeed(id, true): la suma de todos para la reserva ({ need = suma, who = "A, B", n, list, first }).
--- Cada personaje cuenta una vez, con la misma regla (SkillUp, ruta o materiales de recetas).
+-- Cada personaje cuenta una vez, con la misma regla que tu reserva: la mayor de SkillUp, ruta y materiales de
+-- recetas (estiman el mismo consumo, no se suman). Las tres fuentes son totales (lo que pide, no lo que falta),
+-- asi que a la mayor se le resta una sola vez lo que ese personaje ya lleva (StockOf, BagBrother; 0 sin datos).
 local function OtherNeed(id, all)
   local mine = Char()
   local list, sum, best = {}, 0, nil
@@ -851,15 +853,14 @@ local function OtherNeed(id, all)
     if c ~= mine and c.prof then
       local who = key:match("^([^-]+)") or key
       local z
-      -- si ese personaje sigue una ruta en SkillUp: lo que le falta de verdad (lo que pide menos lo que ya lleva)
       local sn = Cfg("useSkillUp") and c.suNeed and c.suNeed[id] or nil
-      if sn then
-        local short = sn.n - (StockOf(who, id) or 0)
-        if short > 0 then z = { need = short, prof = sn.p, upto = sn.t, su = true } end
+      if sn then z = { need = sn.n, prof = sn.p, upto = sn.t, su = true } end
+      for _, w in ipairs({ RouteNeedFor(c, id) or false, ReagentInfoFor(c, id) or false }) do
+        if w and (not z or w.need > z.need) then z = w end
       end
-      z = z or RouteNeedFor(c, id) or ReagentInfoFor(c, id)
-      if z then
-        local e = { need = z.need, prof = z.prof, upto = z.upto, su = z.su, who = who }
+      local short = z and (z.need - (StockOf(who, id) or 0)) or 0
+      if short > 0 then
+        local e = { need = short, prof = z.prof, upto = z.upto, su = z.su, who = who }
         list[#list + 1] = e
         sum = sum + e.need
         if not best or e.need > best.need then best = e end
@@ -1230,15 +1231,16 @@ do
   end
 
   -- sin precio de Auctionator: TSM decide si compensa la subasta; sin ningun dato no se manda al vendedor
-  -- (salvo la basura gris). Devuelve veredicto, motivo y valor por unidad.
+  -- (salvo la basura gris). Sin precio de vendedor (vendor 0) y TSM sin valor que compense: NONE "escanea".
+  -- Devuelve veredicto, motivo y valor por unidad.
   local function NoAuctionVerdict(vendor, tsm, quality, qty)
-    if quality == 0 then return "VENDOR", nil, vendor end
+    if quality == 0 and vendor > 0 then return "VENDOR", nil, vendor end
     if tsm and tsm > 0 then
       local net = tsm * (1 - AH_CUT)
       if net > vendor * 1.10 and (net - vendor) * math.max(qty, 1) >= Cfg("minGain") then
         return "AH", "sin precio actual de Auctionator: valor de TSM (escanea antes de publicar)", net
       end
-      return "VENDOR", nil, vendor
+      if vendor > 0 then return "VENDOR", nil, vendor end
     end
     return "NONE", "sin datos de subasta: escanea", 0
   end
@@ -1329,11 +1331,8 @@ do
     -- objetos de uso (bolsa de dormir, juguetes...): nunca al vendedor; si valen en la subasta, se sigue evaluando
     local utility = IsUtilityItem(id)
     if utility then d.reason = "objeto de uso: no se recomienda venderlo" end
-    if vendor > 0 and vendor >= ahNet and not utility then
-      if ah or bound then
-        d.verdict, d.unit = "VENDOR", vendor
-        return d
-      end
+    -- sin precio de Auctionator y sin ligar: TSM decide (con o sin precio de vendedor)
+    if not ah and not bound and (vendor == 0 or not utility) then
       local tsm = TSMValue("DBMarket", id)
       if not (tsm and tsm > 0) then tsm = TSMValue("DBRegionMarketAvg", id) end
       local verdict, why, unit = NoAuctionVerdict(vendor, tsm, Quality(id), qty)
@@ -1342,6 +1341,10 @@ do
         d.ahNet = unit
         d.toBanker = ToBanker() or nil
       end
+      return d
+    end
+    if vendor > 0 and vendor >= ahNet and not utility then
+      d.verdict, d.unit = "VENDOR", vendor
       return d
     end
     if ah then
@@ -1846,7 +1849,8 @@ do
   -- Funcion pura. input: lowest (la subasta mas barata ahora), market (valor de mercado), vendor (lo que paga el
   -- vendedor), available (unidades sin reservar), soldPerDay (ventas al dia en la region, opcional) y los ajustes
   -- minPct, maxPct, undercut, capDays; cut = comision de la subasta; money = formato del dinero para los textos;
-  -- variant = equipo con variantes (no se publica con un clic). Sin market tampoco se publica con un clic.
+  -- variant = equipo con variantes (no se publica con un clic). Sin market tampoco se publica con un clic, ni
+  -- sin lowest: sin precio de Auctionator el veredicto viene solo de TSM y hay que escanear antes (Mayus+clic vale).
   -- Devuelve { post, unit, qty, reason, min, normal, max, cap }.
   local function AuctionPlan(input)
     local money = input.money or tostring
@@ -1871,7 +1875,8 @@ do
       p.reason = "debajo del minimo: espera (la mas barata esta a " .. money(lowest) .. ", minimo " .. money(p.min) .. ")"
       return p
     elseif not lowest then
-      p.unit, why = p.normal, "sin competencia: precio normal"
+      p.reason = "escanea la casa de subastas antes de publicar"
+      return p
     elseif lowest > p.max then
       p.unit, why = p.normal, "la mas barata (" .. money(lowest) .. ") pasa del maximo: precio normal"
     else
@@ -1901,8 +1906,9 @@ do
   local function AHOpen() return AuctionHouseFrame and AuctionHouseFrame:IsShown() and C_AuctionHouse and true or false end
   local function Pos(v) return (type(v) == "number" and v > 0) and v or nil end
   -- estado de la ultima publicacion: on = varias unidades en curso (como multisellInProgress de Auctionator),
-  -- serial = para el tiempo maximo de espera, msg = texto "Publicado" que se imprime cuando la subasta la crea
-  local busy = { on = false, serial = 0, msg = nil }
+  -- serial = para el tiempo maximo de espera, post = publicacion pendiente de "Publicado":
+  -- { what (objeto, precio y duracion), per (unidades por subasta creada), n (subastas creadas), armed, tick }
+  local busy = { on = false, serial = 0, post = nil }
 
   -- primer hueco de las bolsas con ese objeto que la subasta acepta (solo con la subasta abierta)
   local function FindLoc(id)
@@ -1995,6 +2001,22 @@ do
     for _, u in ipairs(uiInstances) do if u:IsVisible() then pcall(u.refresh) end end
   end
 
+  -- "Publicado" una sola vez, con las unidades que la subasta creo de verdad; despues se olvida la publicacion
+  local function PostDone()
+    local q = busy.post
+    busy.post = nil
+    if q and q.n > 0 then Print(format("Publicado: %d x %s", q.n * q.per, q.what)) end
+  end
+  -- ventana corta: solo cuenta AUCTION_HOUSE_AUCTION_CREATED que llegue en 5 s desde la publicacion o la
+  -- confirmacion (cada subasta creada la alarga); si no llega, se olvida y otra subasta posterior no la imprime
+  local function PostArm(q)
+    q.armed, q.tick = true, q.tick + 1
+    local t = q.tick
+    C_Timer.After(5, function()
+      if busy.post == q and q.tick == t then busy.on = false; PostDone(); RefreshShown() end
+    end)
+  end
+
   -- una publicacion por clic; si la subasta esta ocupada (limite de mensajes) no se hace nada
   local function Post(id)
     if not AHOpen() then Print("Abre la casa de subastas primero."); return end
@@ -2016,15 +2038,17 @@ do
     local serial = busy.serial
     -- tiempo maximo: si la subasta no avisa (o no confirmas), se olvida esta publicacion
     C_Timer.After(math.max(30, p.qty * 2), function()
-      if busy.serial == serial and (busy.on or busy.msg) then busy.on, busy.msg = false, nil; RefreshShown() end
+      if busy.serial == serial and (busy.on or busy.post) then busy.on = false; PostDone(); RefreshShown() end
     end)
     local name = C_Item.GetItemInfo(id) or ("objeto " .. id)
-    busy.msg = format("Publicado: %d x %s a %s c/u (%d h)", p.qty, name, Money(p.unit), p.hours)
+    local q = { what = format("%s a %s c/u (%d h)", name, Money(p.unit), p.hours),
+      per = commodity and p.qty or 1, n = 0, tick = 0 }
+    busy.post = q
     local ok, res
     if commodity then ok, res = pcall(fn, loc, dur, p.qty, p.unit)
     else ok, res = pcall(fn, loc, dur, p.qty, nil, p.unit) end
     if not ok then
-      busy.on, busy.msg = false, nil
+      busy.on, busy.post = false, nil
       Print("La casa de subastas rechazo la publicacion: " .. tostring(res))
       RefreshShown()
       return
@@ -2038,6 +2062,8 @@ do
         else sf:CachePendingPost(loc, dur, p.qty, nil, p.unit) end
       end)
       Print("Confirma la publicacion en la ventana de Blizzard")
+    else
+      PostArm(q)
     end
     RefreshShown()
   end
@@ -2047,18 +2073,37 @@ do
   for _, e in ipairs({ "AUCTION_HOUSE_AUCTION_CREATED", "AUCTION_HOUSE_POST_ERROR", "AUCTION_MULTISELL_UPDATE",
     "AUCTION_MULTISELL_FAILURE" }) do pcall(ev.RegisterEvent, ev, e) end
   ev:SetScript("OnEvent", function(_, e, a1, a2)
+    local q = busy.post
     if e == "AUCTION_HOUSE_POST_ERROR" then
-      busy.on, busy.msg = false, nil
+      busy.on = false
+      PostDone()
       Print("La casa de subastas no acepto la publicacion.")
     elseif e == "AUCTION_HOUSE_AUCTION_CREATED" then
-      if busy.msg then Print(busy.msg); busy.msg = nil end
+      -- antes de confirmar (o fuera de la ventana) la subasta creada no es la nuestra
+      if q and q.armed then
+        q.n = q.n + 1
+        if busy.on then PostArm(q) else PostDone() end
+      end
     elseif e == "AUCTION_MULTISELL_UPDATE" then
-      if a1 and a2 and a1 >= a2 then busy.on = false end
+      if q and q.armed and a1 then q.n = math.max(q.n, a1); PostArm(q) end
+      if a1 and a2 and a1 >= a2 then busy.on = false; PostDone() end
     elseif e == "AUCTION_MULTISELL_FAILURE" then
       busy.on = false
+      PostDone()
     end
     RefreshShown()
   end)
+  -- dialogo de confirmacion de Blizzard: aceptar abre la ventana de 5 s; cancelar olvida la publicacion
+  local function OnConfirm() local q = busy.post; if q and not q.armed then PostArm(q) end end
+  local function OnCancel()
+    local q = busy.post
+    if q and not q.armed then busy.on, busy.post = false, nil; RefreshShown() end
+  end
+  for fname, fn in pairs({ ConfirmPostItem = OnConfirm, ConfirmPostCommodity = OnConfirm, CancelSell = OnCancel }) do
+    if C_AuctionHouse and type(C_AuctionHouse[fname]) == "function" then
+      pcall(hooksecurefunc, C_AuctionHouse, fname, fn)
+    end
+  end
 
   Skin.Auction = {
     Plan = function(id) return Plan(id, FindLoc(id)) end,
@@ -4582,6 +4627,13 @@ local function CreateUI(parent, opts)
   local okS, settings = pcall(MakeSettings, area)
   ui.settings = okS and settings or nil
 
+  -- FILTRO DE BOLSAS
+  -- Fila visible en Bolsas: todo menos los objetos sin precio (ligados, de mision...); los que piden escanear la
+  -- subasta se listan con su motivo. Solo filtra la lista: el vendedor y el correo siguen sin verlos (no son AH/VENDOR).
+  local function BagListed(r)
+    return r.verdict ~= "NONE" or r.reason == "sin datos de subasta: escanea"
+  end
+  -- FIN DE FILTRO DE BOLSAS
   local verdictText = {
     AH = GREEN .. "SUBASTA|r", VENDOR = ORANGE .. "VENDEDOR|r",
     KEEP = BLUE .. "GUARDAR|r", NONE = DIM .. "sin datos|r",
@@ -4637,8 +4689,8 @@ local function CreateUI(parent, opts)
       if auction then allRows = AHBagOrder(allRows) end
       local rows, hidden = {}, 0
       for _, r in ipairs(allRows) do
-        -- los objetos sin precio (ligados, de mision, piedra de hogar...) no se listan
-        if r.verdict == "NONE" then hidden = hidden + 1 else rows[#rows + 1] = r end
+        -- los objetos sin precio (ligados, de mision, piedra de hogar...) no se listan; los de "escanea" si
+        if BagListed(r) then rows[#rows + 1] = r else hidden = hidden + 1 end
       end
       local out = {}
       for _, r in ipairs(rows) do

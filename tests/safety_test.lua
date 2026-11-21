@@ -91,6 +91,23 @@ reset(); S.vendor[100] = 100; S.quality[100] = 1; S.tsm["DBMarket:100"] = 108
 check("TSM barely above vendor: VENDOR", Decide(100, 5, 0, false).verdict == "VENDOR")
 reset(); S.vendor[100] = 50; S.ah[100] = 40
 check("previous behaviour: AH below vendor is VENDOR", Decide(100, 3, 0, false).verdict == "VENDOR")
+-- R1b: no vendor price and no Auctionator price also consults TSM
+reset(); S.quality[300] = 1; S.tsm["DBMarket:300"] = 10000
+d = Decide(300, 5, 0, false)
+check("no vendor, no AH, TSM worth it: AH at TSM net", d.verdict == "AH" and d.unit == 9500 and d.ahNet == 9500)
+reset(); S.quality[300] = 1
+d = Decide(300, 5, 0, false)
+check("no vendor, no AH, no TSM: NONE escanea", d.verdict == "NONE" and d.reason == "sin datos de subasta: escanea")
+reset(); S.quality[300] = 1; S.tsm["DBMarket:300"] = 100
+d = Decide(300, 1, 0, false)
+check("no vendor, no AH, TSM below min gain: NONE escanea",
+  d.verdict == "NONE" and d.reason == "sin datos de subasta: escanea")
+reset(); S.quality[300] = 0
+check("no vendor gray without data: not VENDOR", Decide(300, 1, 0, false).verdict == "NONE")
+reset(); S.quality[300] = 1; S.tsm["DBMarket:300"] = 10000
+check("bound, no vendor: no TSM verdict", Decide(300, 5, 0, true).verdict == "NONE")
+reset(); S.quality[300] = 1; S.ah[300] = 10000
+check("previous behaviour: no vendor with AH price is AH", Decide(300, 5, 0, false).verdict == "AH")
 
 -- 2. reservations: own = max(route, reagent, SkillUp); alts = sum of every alt; total = own + alts
 local function reserves()
@@ -147,6 +164,36 @@ check("OtherNeed all: sum of every alt", all.need == 10 and all.n == 2 and all.w
 needs = {}
 check("OtherNeed: nobody needs it", OtherNeed(1) == nil and OtherNeed(1, true) == nil)
 
+-- R1b: each alt's need is the MAX of its sources (SkillUp, route, reagents), minus what that alt already holds
+local stock, su = {}, true
+local altA = { name = "Ashes", prof = {}, suNeed = { [1] = { n = 3, p = "Tailoring", t = 50 } } }
+local rneed, rgneed = { Ashes = 10 }, {}
+local oenv2 = setmetatable({
+  Char = function() return me end,
+  Cfg = function(k) return k == "useSkillUp" and su end,
+  StockOf = function(who) return stock[who] end,
+  RouteNeedFor = function(c) return rneed[c.name] and { need = rneed[c.name], prof = "Tailoring", upto = 100 } end,
+  ReagentInfoFor = function(c) return rgneed[c.name] and { need = rgneed[c.name], prof = "Tailoring", recipe = "X" } end,
+  GoldFinderDB = { chars = { ["Me-Realm"] = me, ["Ashes-Realm"] = altA,
+    ["Bob-Realm"] = { name = "Bob", prof = {} } } },
+}, { __index = _G })
+f = assert(loadstring(src:sub(a, b - 1) .. "\nreturn OtherNeed"))
+setfenv(f, oenv2)
+OtherNeed = f()
+local o = OtherNeed(1)
+check("alt need: route 10 beats SkillUp 3 (max, not first)", o and o.need == 10 and o.upto == 100)
+rgneed.Ashes = 20
+check("alt need: reagent reserve 20 is the max", OtherNeed(1).need == 20)
+rgneed.Ashes = nil; stock.Ashes = 4
+check("alt need: minus what the alt holds (10 - 4)", OtherNeed(1).need == 6)
+stock.Ashes = 12
+check("alt need: alt holds enough, nothing asked", OtherNeed(1) == nil)
+stock.Ashes = nil; rneed.Ashes = nil
+o = OtherNeed(1)
+check("alt need: SkillUp only still counts (3)", o and o.need == 3 and o.su == true)
+rneed.Ashes, rneed.Bob = 10, 5
+check("alt need: still summed over alts (10 + 5)", OtherNeed(1, true).need == 15)
+
 ---------------------------------------------------------------------------
 -- BuyPrice: cheaper of AH and known vendor price
 ---------------------------------------------------------------------------
@@ -190,6 +237,31 @@ check("no market reference: no one-click",
   not p.post and p.reason == "sin precio de referencia: usa Auctionator (Mayus+clic)")
 p = AuctionPlan({ lowest = 900, market = 1000, vendor = 0, available = 20, soldPerDay = 3.2 })
 check("cap wording: per post", p.reason:find("tope de 7 por publicacion", 1, true) ~= nil)
+-- R1b: no Auctionator price (TSM-only verdict): no one-click until the auction house is scanned
+p = AuctionPlan({ market = 1000, vendor = 0, available = 5 })
+check("TSM only: no one-click, scan first",
+  not p.post and p.reason == "escanea la casa de subastas antes de publicar")
+check("TSM only: range still shown", p.min == 600 and p.normal == 1000)
+
+---------------------------------------------------------------------------
+-- R1b: "sin datos de subasta: escanea" rows stay listed in Bolsas, never reach the merchant or the mail plan
+---------------------------------------------------------------------------
+a = assert(src:find("-- FILTRO DE BOLSAS", 1, true), "bag filter start marker")
+b = assert(src:find("-- FIN DE FILTRO DE BOLSAS", 1, true), "bag filter end marker")
+f = assert(loadstring(src:sub(a, b - 1) .. "\nreturn BagListed"))
+setfenv(f, setmetatable({}, { __index = _G }))
+local BagListed = f()
+local scan = { id = 9, verdict = "NONE", reason = "sin datos de subasta: escanea", vendor = 0, count = 2 }
+check("escanea row is listed in Bolsas", BagListed(scan) == true)
+check("plain NONE row stays hidden", BagListed({ verdict = "NONE" }) == false)
+check("AH/VENDOR/KEEP rows listed", BagListed({ verdict = "AH" }) and BagListed({ verdict = "VENDOR" })
+  and BagListed({ verdict = "KEEP" }))
+a = assert(src:find("-- VENTA AL VENDEDOR: filas del panel", 1, true), "sell start marker")
+b = assert(src:find("-- FIN DE VENTA AL VENDEDOR", 1, true), "sell end marker")
+f = assert(loadstring(src:sub(a, b - 1) .. "\nreturn VendorSellRows"))
+setfenv(f, setmetatable({}, { __index = _G }))
+local scanV = { id = 9, verdict = "NONE", reason = "sin datos de subasta: escanea", vendor = 50, count = 2 }
+check("escanea row not in the merchant panel", #f()({ scanV }) == 0)
 
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")

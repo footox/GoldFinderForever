@@ -211,3 +211,11 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   remaining; attaches via PickupContainerItem + ClickSendMailItemButton only with MailFrame and SendMailFrame shown,
   refuses if attachments/money/COD present, sends after re-checking; MAIL_SEND_SUCCESS/FAILED/CLOSED handled.
   tests/mail_plan_test.lua 16 PASS (RED first). Risk: item 1 (a sent mail cannot be undone); verifier requested.
+- L32: R1b (correction batch for L30) done: NoAuctionVerdict asks TSM also with vendor price 0 (never VENDOR at 0);
+  each alt's need = max(SkillUp, route, reagents) minus the alt's stock, summed over alts; Subastar needs an
+  Auctionator price ("escanea la casa de subastas antes de publicar"); "Publicado" counted from
+  AUCTION_HOUSE_AUCTION_CREATED within a 5 s window, CancelSell hook drops it; BagListed keeps "escanea" rows
+  visible in Bolsas. safety_test 57 PASS; two auction_plan expectations changed (no Auctionator price → no one-click).
+- L33: Independent Fable verification of U11 (7c8b61d): no path sends reserved units, wrong item, money/COD or two
+  mails per click. Findings: first-name-only banker would be mailed as-is; pending can stick if SendMail is refused
+  silently; false "Enviado" on an unrelated MAIL_SEND_SUCCESS in the window; existing body text is sent.

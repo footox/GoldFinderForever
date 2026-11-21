@@ -28,7 +28,9 @@ p = plan({ lowest = 3000, market = 1000, vendor = 0, available = 5 })
 check("lowest above max: normal price", p.post and p.unit == 1000 and p.qty == 5)
 
 p = plan({ market = 1000, vendor = 0, available = 5 })
-check("no competition: normal price", p.post and p.unit == 1000)
+-- changed (R1b): no Auctionator price means the verdict is TSM-only: scan before one-click posting
+check("no Auctionator price: no one-click, scan first", not p.post and p.normal == 1000
+  and p.reason == "escanea la casa de subastas antes de publicar")
 
 p = plan({ lowest = 500, market = 1000, vendor = 0, available = 5 })
 check("below the minimum: wait", not p.post and p.reason:find("debajo del minimo: espera", 1, true) ~= nil)
@@ -45,7 +47,8 @@ p = plan({ lowest = 1050, market = 1000, vendor = 1000, available = 3 })
 check("vendor floor raises the minimum (1106)", p.min == 1106)
 check("lowest under the vendor floor: wait", not p.post and p.reason:find("debajo del minimo", 1, true) ~= nil)
 p = plan({ market = 1000, vendor = 1000, available = 3 })
-check("normal price bounded by the vendor floor", p.post and p.unit == 1106)
+-- changed (R1b): without a lowest it is not posted; the normal price is still bounded by the vendor floor
+check("normal price bounded by the vendor floor", not p.post and p.normal == 1106)
 
 p = plan({ lowest = 900, market = 1000, vendor = 0, available = 20, soldPerDay = 3.2 })
 check("cap by sold per day: ceil(3.2 * 2) = 7", p.post and p.qty == 7 and p.reason:find("tope", 1, true) ~= nil)
