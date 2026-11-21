@@ -6,3 +6,4 @@ ignore:
   - odd
   - .gitignore
   - README.md
+  - media
