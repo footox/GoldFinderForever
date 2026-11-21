@@ -286,3 +286,6 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   units. Reserve: own = max(route, reagents, SkillUp) + quest need; KEEP "para la mision X" / "para la cadena: X";
   tooltip "N reservados para mision(es)". Setting questItems (default on). tests/quest_items_test.lua 35 PASS.
   Known trade-off: next-chain items with unknown counts are fully reserved (safe side).
+- L45: In game at Thunder Bluff trainers: "GoldFinder.lua:6695: Missing on/off parameter in SetTrainerServiceTypeFilter"
+  (locals "used", 1): the Forever client wants a boolean. Fix: SetFilter tries true/false, then 1/0; the initial
+  filter read/set is protected too. Nothing was recorded on that visit; a new trainer visit is needed.

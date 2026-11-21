@@ -6895,17 +6895,23 @@ do
     if not (GoldFinderDB and GetNumTrainerServices and IsTradeskillTrainer and IsTradeskillTrainer()) then return end
     local filters, shown = { "available", "unavailable", "used" }, {}
     local canFilter = GetTrainerServiceTypeFilter and SetTrainerServiceTypeFilter
+    -- en Forever el filtro pide true/false (con 1/0 da "Missing on/off parameter"); se prueba con booleano y,
+    -- si el cliente lo rechaza, con numero. Protegido: un fallo aqui no deja los filtros a medias sin restaurar.
+    local function SetFilter(k, on)
+      if not pcall(SetTrainerServiceTypeFilter, k, on) then pcall(SetTrainerServiceTypeFilter, k, on and 1 or 0) end
+    end
     if canFilter then
       for _, k in ipairs(filters) do
-        shown[k] = GetTrainerServiceTypeFilter(k)
-        if not shown[k] then SetTrainerServiceTypeFilter(k, 1) end
+        local okGet, cur = pcall(GetTrainerServiceTypeFilter, k)
+        shown[k] = okGet and cur and true or false
+        if not shown[k] then SetFilter(k, true) end
       end
     end
     -- seccion protegida: los filtros del instructor se restauran siempre, aunque la lectura falle
     local ok, res = pcall(Scan)
     if canFilter then
       for _, k in ipairs(filters) do
-        if not shown[k] then pcall(SetTrainerServiceTypeFilter, k, 0) end
+        if not shown[k] then SetFilter(k, false) end
       end
     end
     if not ok then error(res, 0) end
