@@ -44,6 +44,11 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   price and quantity (TSM-like operation: market reference, min/normal/max, undercut, post cap), with a tooltip
   showing price, quantity, deposit and the reason; nothing is posted without a click.
 
+- S12. Send to banker (user verbatim): "Tambien falta la ventaja que sale o integración la opción de enviar los
+  objetos de subasta al Banquero." The mail panel gets a "Enviar al banquero" button: one click fills recipient
+  and subject, attaches whole stacks of the auction items (never reserved units) and sends one mail (max 12
+  attachments; further clicks send the next mail); only while the mailbox is open.
+
 ## Tasks
 
 | ID | Specs | Route | Status | Commit |
@@ -57,6 +62,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U7 | S9 | inline | done, verified in game | 0ca4681, 40f7164 |
 | U8 | S10a | delegated (context backstop) | done, verified in game | c3eab1d, 60be0a1 |
 | U9 | S10b | delegated (context backstop) | done, verified in game | c3eab1d |
+| U11 | S12 | pending (after R1) | pending | |
 | U10 | S11 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L25 |
 
 - U1: main window and shared helpers (`Flat`, `Text`, `Btn`, `PAL`, list rows, tabs) in the classic style.
@@ -186,3 +192,6 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   sells or posts without a click. Alts' recipe hint works (RecipeForOthers in tooltip and vendor box); gaps: alt that
   never opened its profession window, own-recipe check stricter than alts'. Fix batches: R1 item/money safety
   (in progress), R2 planner consistency, R3 data/integration.
+- L28 (2026-11-20, user, verbatim): "Tambien falta la ventaja que sale o integración la opción de enviar los objetos
+  de subasta al Banquero." Verified: RefreshMail only lists items ("Solo informa"). Task U11, queued after R1
+  (same file; R1 changes the reserves the button must respect).
