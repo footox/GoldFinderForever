@@ -2559,7 +2559,8 @@ local function RouteSummary(prof, key, pd)
 
   local options = {}
   local zrows, zc, zu = RoutePlan(OwnRouteNeed(prof, cap))
-  options[1] = { name = "Tu ruta", rows = zrows, cost = zc, unknown = zu }
+  local own = RouteFor(Char(), prof, cap)
+  options[1] = { name = "Tu ruta", rows = zrows, cost = zc, unknown = zu, sell = own and own.sell or 0 }
   for _, r in ipairs(routes) do
     if r.steps and #r.steps > 0 then
       local rows, c, u = RoutePlan(OtherRouteNeed(r, pd.rank, cap))
@@ -2569,19 +2570,38 @@ local function RouteSummary(prof, key, pd)
 
   if #options > 1 then
     if #zrows > 0 or zc > 0 then
-      -- las dos rutas piden materiales: se comparan
-      local best = options[1]
-      for _, o in ipairs(options) do
-        if o.cost < best.cost then best = o end
-      end
+      -- las rutas piden materiales: se comparan por lo que hay que comprar. Tu ruta elige recetas que recuperan
+      -- oro vendiendo lo fabricado; de las otras guias no se sabe que se vende, asi que solo se declara ganadora
+      -- una ruta cuando lo es pase lo que pase: la tuya si compra menos, la otra si cuesta menos que lo que a
+      -- ti te queda despues de vender. Si no, se muestran los numeros y decides tu.
+      local mine = options[1]
+      local mineNet = mine.cost - mine.sell
       local head = {}
       for _, o in ipairs(options) do
         head[#head + 1] = format("%s %s%s", o.name, Money(o.cost), o.unknown > 0 and (" (+" .. o.unknown .. " sin precio)") or "")
       end
-      out[#out + 1] = format("|cff6bb5ffRutas hasta %d con tus precios:|r %s", cap, table.concat(head, "  |  "))
-      local other = (best == options[1]) and options[2] or options[1]
-      out[#out + 1] = format("Conviene la de |cffffd100%s|r (diferencia ~%s).",
-        best.name, Money(math.abs(other.cost - best.cost)))
+      out[#out + 1] = format("|cff6bb5ffRutas hasta %d con tus precios (compras):|r %s", cap, table.concat(head, "  |  "))
+      if mine.sell > 0 then
+        out[#out + 1] = format("Tu ruta recupera ~%s vendiendo lo fabricado: al final %s ~%s.", Money(mine.sell),
+          mineNet < 0 and "ganas" or "te cuesta", Money(math.abs(mineNet)))
+      end
+      local cheapest = options[2]
+      for i = 3, #options do
+        if options[i].cost < cheapest.cost then cheapest = options[i] end
+      end
+      local best
+      if mine.cost <= cheapest.cost then
+        best = mine
+        out[#out + 1] = format("Conviene |cffffd100tu ruta|r: compras ~%s menos.", Money(cheapest.cost - mine.cost))
+      elseif cheapest.cost < mineNet then
+        best = cheapest
+        out[#out + 1] = format("Conviene la de |cffffd100%s|r: cuesta ~%s menos aun contando lo que tu recuperas vendiendo.",
+          cheapest.name, Money(mineNet - cheapest.cost))
+      else
+        best = cheapest
+        out[#out + 1] = format("|cffffd100%s|r pide menos compra; tu ruta pide mas pero recupera vendiendo. Materiales de %s:",
+          cheapest.name, cheapest.name)
+      end
       for _, l in ipairs(PlanText(best.rows)) do out[#out + 1] = l end
       if #best.rows == 0 then out[#out + 1] = "   Ya tienes todos los materiales de esa ruta." end
     else
