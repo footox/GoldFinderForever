@@ -3058,7 +3058,15 @@ do
     local b, grey, miss = it.band, it.done, false
     -- icono del objeto que se fabrica: en Forever el icono del hechizo de profesion es el generico de la profesion
     local rec = b.spell and GoldFinderRecipes and GoldFinderRecipes.spells and GoldFinderRecipes.spells[b.spell]
-    local icon = rec and rec.o and C_Item.GetItemIconByID and C_Item.GetItemIconByID(rec.o) or nil
+    local icon
+    if rec and rec.o then
+      -- sin el objeto en memoria el juego devuelve un icono provisional (cuadrado azul): se pide y se redibuja
+      if C_Item.IsItemDataCachedByID and not C_Item.IsItemDataCachedByID(rec.o) then
+        if C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(rec.o) end
+        miss = true
+      end
+      icon = C_Item.GetItemIconByID and C_Item.GetItemIconByID(rec.o) or nil
+    end
     icon = icon or (b.spell and ((C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(b.spell))
       or (GetSpellTexture and GetSpellTexture(b.spell)))) or nil
     local head = (icon and format("|T%s:16:16:0:-2|t ", tostring(icon)) or "")
