@@ -240,3 +240,8 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   optional cheaper item recipe, "Con tus precios conviene", missing materials; window 614 px, scrolls, collapsible
   "Comparar rutas", tabs sized to text, 8 px row spacing. tests/guide_test.lua 20 PASS (RED first). Known limits:
   estimated trainer skill; some quest/rep recipes may pass as trainer; Cooking recipes mostly vendor-sold.
+- L37 (2026-11-20, user, verbatim): "corrgije" (guide data). Generator fixes: loose recipe-item name match
+  ("Mithril Head Trout" = "Mithril Headed Trout", plurals); after MAX_SPAN (30) points a green recipe yields to an
+  orange/yellow one including item-taught recipes; the current recipe stays a candidate so the switch is not undone.
+  Result: First Aid Silk 145-180, Heavy Silk 180-210 (manual), Mageweave 210-240 (manual); Cooking Goldthorn Tea
+  197-227, Spotted Yellowtail 227-289. Guide icons now load uncached items before drawing (a415ab1).

@@ -39,6 +39,7 @@ GATHER = {"186": ("Mining", "mining"), "182": ("Herbalism", "herbalism"), "393":
           "356": ("Fishing", "fishing")}
 PREFIX = ("Pattern: ", "Recipe: ", "Plans: ", "Schematic: ", "Formula: ", "Manual: ")
 STICK = 1.30       # se mantiene la receta actual si no cuesta mas de esto sobre la mejor
+MAX_SPAN = 30      # tras tantos puntos con la misma receta, si ya es verde se prefiere otra naranja o amarilla
 OPT_RATIO = 0.5    # una receta de objeto que cueste menos de esto frente a la elegida se anota como opcional
 LATE_SPELL = 21000 # recetas de parches tardios (reputacion, misiones, botin) sin objeto conocido: origen desconocido
 NO_PRICE = 5000
@@ -87,6 +88,23 @@ for r in rows("ItemSparse"):
         recipe_items.setdefault(n.split(": ", 1)[1].strip(), []).append((int(r["ID"]), num(r["RequiredSkillRank"])))
 
 
+def name_key(n):
+    # nombre flexible: "Mithril Head Trout" (libro) = "Mithril Headed Trout" (receta); plurales iguales
+    out = []
+    for w in re.findall(r"[a-z]+", n.lower()):
+        if len(w) > 4 and w.endswith("ed"):
+            w = w[:-2]
+        if len(w) > 3 and w.endswith("s"):
+            w = w[:-1]
+        out.append(w)
+    return " ".join(out)
+
+
+recipe_items_loose = {}
+for k, v in recipe_items.items():
+    recipe_items_loose.setdefault(name_key(k), []).extend(v)
+
+
 def unit_cost(item):
     s = sparse.get(str(item))
     if not s:
@@ -116,7 +134,7 @@ for r in rows("SkillLineAbility"):
         continue
     x = {"sp": int(sp), "n": n, "y": low, "g": high, "k": max(1, num(r["NumSkillUps"], 1)),
          "r": reagents[sp], "acq": r["AcquireMethod"], "o": output.get(sp)}
-    it = recipe_items.get(n)
+    it = recipe_items.get(n) or recipe_items_loose.get(name_key(n))
     if it:
         x["learn"], x["item"], x["req"] = "item", min(it, key=lambda t: t[1])[0], min(t[1] for t in it)
     x["cost"] = sum(unit_cost(i) * c for i, c in x["r"])
@@ -162,7 +180,7 @@ def usable(x, s):
 
 def greedy(line, start, top, bands):
     lst = list(recipes[line].values())
-    cur = None
+    cur, cur_from = None, start
     s = start
     while s < top:
         pool = [x for x in lst if x["learn"] == "trainer" and usable(x, s)]
@@ -170,13 +188,26 @@ def greedy(line, start, top, bands):
             pool = [x for x in lst if x["learn"] == "item" and usable(x, s)]
         if not pool:
             pool = [x for x in lst if usable(x, s)]
+        # la receta actual sigue siendo candidata aunque sea de libro (si no, se volveria a la del instructor
+        # al punto siguiente y el cambio desapareceria al unir tramos)
+        if cur and cur not in pool and usable(cur, s):
+            pool.append(cur)
         if not pool:
             add_point(bands, None, s)
             s += 1
             continue
+        # una receta ya verde tras MAX_SPAN puntos cede si hay otra que aun da puntos seguros (naranja o amarilla)
+        # (tambien recetas de libro: en Cocina casi todas se compran al vendedor)
+        if cur and s - cur_from >= MAX_SPAN and chance(cur, s) < 0.75:
+            fresh = [x for x in lst if x is not cur and x["learn"] in ("trainer", "item")
+                     and usable(x, s) and chance(x, s) >= 0.75]
+            if fresh:
+                pool = fresh
         best = min(pool, key=lambda x: (per_point(x, s), -x["g"], x["sp"]))
         if cur and cur in pool and s < (cur["y"] + cur["g"]) / 2 and per_point(cur, s) <= per_point(best, s) * STICK:
             best = cur
+        if best is not cur:
+            cur_from = s
         cur = best
         add_point(bands, best, s)
         s += 1
