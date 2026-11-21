@@ -49,8 +49,8 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U5 | S6 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L16 |
 | U6 | S8, S5 | delegated (context backstop) | done, verified in game | a0f11da |
 | U7 | S9 | inline | done, verified in game | 0ca4681, 40f7164 |
-| U8 | S10a | delegated (context backstop) | done (offline tests), in-game check pending | see Log L20 |
-| U9 | S10b | delegated (context backstop) | done (offline tests), in-game check pending | see Log L20 |
+| U8 | S10a | delegated (context backstop) | done, verified in game | c3eab1d, 60be0a1 |
+| U9 | S10b | delegated (context backstop) | done, verified in game | c3eab1d |
 
 - U1: main window and shared helpers (`Flat`, `Text`, `Btn`, `PAL`, list rows, tabs) in the classic style.
 - U2: guide, tracker, mail, bank, vendor and export frames in the classic style.
@@ -144,3 +144,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   ScrollUtil.AddInitializedFrameCallback; cost/gain per point from PlanRoute (new plan.eff field, formula
   unchanged); with SkillUp row text on, GoldFinder adds tooltip lines instead; setting recipeNotes.
   tests/objective_notes_test.lua 27 PASS (RED first); all suites pass.
+- L21: In game 22:15-22:17 (SkillUp disabled): recipe notes visible ("100% · +6s47c" green, "90% · -1s6c" red).
+  Fallback objective block first drawn under the tracker and went off screen with a long quest list; fix 60be0a1
+  anchors it left of ObjectiveTrackerFrame, top aligned (like SkillUp). Verified: block "GoldFinder Forever" with
+  Cooking 179 > 204 and Leatherworking lines and missing materials. No GoldFinder errors.
