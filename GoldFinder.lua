@@ -4084,6 +4084,60 @@ vendorEvents:SetScript("OnEvent", function(_, event)
   if event == "MERCHANT_SHOW" then C_Timer.After(1.5, function() pcall(RefreshVendor) end) end
 end)
 
+-- RECETAS DEL INSTRUCTOR: las tablas del juego no dicen que habilidad pide cada receta ni quien la ensena, asi que
+-- se anotan al abrir la ventana de un instructor de profesion: receta, habilidad requerida, precio, instructor y
+-- donde esta. Se guardan por faccion y profesion en GoldFinderDB.trainerRecipes[faccion][profesion][receta].
+-- Se muestran un momento todas las categorias (disponibles, no disponibles y aprendidas) y se restaura el filtro.
+local function RecordTrainer()
+  if not (GoldFinderDB and GetNumTrainerServices and IsTradeskillTrainer and IsTradeskillTrainer()) then return end
+  local filters, shown = { "available", "unavailable", "used" }, {}
+  if GetTrainerServiceTypeFilter and SetTrainerServiceTypeFilter then
+    for _, k in ipairs(filters) do
+      shown[k] = GetTrainerServiceTypeFilter(k)
+      if not shown[k] then SetTrainerServiceTypeFilter(k, 1) end
+    end
+  end
+  local npc = UnitName("npc")
+  local zone = GetRealZoneText and GetRealZoneText() or nil
+  local x, y
+  local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+  local pos = map and C_Map.GetPlayerMapPosition(map, "player")
+  if pos then
+    local px, py = pos:GetXY()
+    x, y = format("%.1f", px * 100), format("%.1f", py * 100)
+  end
+  local faction = UnitFactionGroup("player") or "?"
+  GoldFinderDB.trainerRecipes = GoldFinderDB.trainerRecipes or {}
+  local byFaction = GoldFinderDB.trainerRecipes[faction] or {}
+  GoldFinderDB.trainerRecipes[faction] = byFaction
+  local count = 0
+  for i = 1, (GetNumTrainerServices() or 0) do
+    local name, _, category = GetTrainerServiceInfo(i)
+    local skill, req = GetTrainerServiceSkillReq(i)
+    if name and category ~= "header" and skill and req and name ~= skill then
+      local t = byFaction[skill] or {}
+      byFaction[skill] = t
+      t[name:lower()] = {
+        n = name, req = req, cost = GetTrainerServiceCost and GetTrainerServiceCost(i) or nil,
+        npc = npc, zone = zone, x = x, y = y, seen = time(),
+      }
+      count = count + 1
+    end
+  end
+  if GetTrainerServiceTypeFilter and SetTrainerServiceTypeFilter then
+    for _, k in ipairs(filters) do
+      if not shown[k] then SetTrainerServiceTypeFilter(k, 0) end
+    end
+  end
+  return count
+end
+
+local trainerEvents = CreateFrame("Frame")
+pcall(trainerEvents.RegisterEvent, trainerEvents, "TRAINER_SHOW")
+trainerEvents:SetScript("OnEvent", function()
+  C_Timer.After(0.2, function() xpcall(RecordTrainer, geterrorhandler()) end)
+end)
+
 local f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
 f:RegisterEvent("PLAYER_LOGIN")
