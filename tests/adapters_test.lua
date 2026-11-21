@@ -45,6 +45,19 @@ local a, b = W.Safe(function(x, y) return x + 1, y end, 1, "z")
 check("safe: returns the results", a == 2 and b == "z")
 check("safe: swallows errors", W.Safe(function() error("boom") end) == nil)
 
+-- item class / quality
+local IC = load("adapters/wow.lua", { C_Item = {
+  GetItemInfoInstant = function(id) return id, "t", "s", "e", "i", 2, 20 end,
+  GetItemQualityByID = function(id) return id == 1 and 3 or nil end,
+  GetItemInfo = function() return "n", "l", 4 end,
+} })
+local _, _, _, _, _, cls, sub = IC.ItemInfoInstant(9)
+check("item: instant info passes classID and subClassID", cls == 2 and sub == 20)
+check("item: quality from the direct API", IC.ItemQuality(1) == 3)
+check("item: quality falls back to the full item info", IC.ItemQuality(2) == 4)
+local noItem = load("adapters/wow.lua", {})
+check("item: no C_Item gives nil", noItem.ItemInfoInstant(1) == nil and noItem.ItemQuality(1) == nil)
+
 -- bags
 local bagsData = {
   [0] = { { itemID = 10, stackCount = 5, isBound = true }, nil, { itemID = 11, isLocked = true } },

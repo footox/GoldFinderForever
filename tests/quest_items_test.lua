@@ -14,17 +14,21 @@ local function has(list, s) for _, v in ipairs(list or {}) do if v == s then ret
 ---------------------------------------------------------------------------
 -- 1. need table (pure builder) and quest log reader
 ---------------------------------------------------------------------------
-local a = assert(src:find("-- NECESIDAD DE MISIONES", 1, true), "start marker")
-local b = assert(src:find("-- FIN DE NECESIDAD DE MISIONES", a, true), "end marker")
-local qchunk = src:sub(a, b - 1) .. "\nreturn BuildQuestNeed, ReadQuestLog, QUEST_ALL"
+local function loadCore(path, GF, env)
+  local fn = assert(loadfile(path))
+  setfenv(fn, setmetatable(env or {}, { __index = _G }))
+  fn("GoldFinder", GF)
+end
+local GF = {}
+loadCore("core/quest_need.lua", GF)
 local L = {}   -- stubbed quest log state
-local qenv = setmetatable({
-  format = string.format,
+local qenv = {
   C_QuestLog = L,
-}, { __index = _G })
-local qf = assert(loadstring(qchunk))
-setfenv(qf, qenv)
-local BuildQuestNeed, ReadQuestLog, ALL = qf()
+  CreateFrame = function() return { RegisterEvent = function() end, SetScript = function() end } end,
+  C_Timer = { After = function() end },
+}
+loadCore("adapters/quests.lua", GF, qenv)
+local BuildQuestNeed, ReadQuestLog, ALL = GF.BuildQuestNeed, GF.ReadQuestLog, GF.QUEST_ALL
 
 local names = { [2589] = "Linen Cloth", [769] = "Chunk of Boar Meat", [5000] = "Coarse Gorilla Hair",
   [5001] = "Sealed Letter", [5002] = "Strange Rune", [5003] = "Pristine Hide" }
@@ -128,17 +132,15 @@ check("no quest API: empty log", #ReadQuestLog() == 0)
 ---------------------------------------------------------------------------
 -- 2. reserve integration (Decide / SellQty)
 ---------------------------------------------------------------------------
-local da = assert(src:find("-- REGLAS DE VENTA", 1, true), "rules marker")
-local db = assert(src:find("-- FIN DE DECISION", da, true), "decision end marker")
-local dchunk = "do\n" .. src:sub(da, db - 1) .. "\nreturn Decide, SellQty"
+loadCore("core/config.lua", GF)
+loadCore("core/decision.lua", GF, { GoldFinderDB = {} })
 local S
 local function reset()
   S = { ah = {}, vendor = {}, bags = {}, bank = {}, su = {}, route = {}, reagent = {}, quest = {},
         cfg = { minGain = 2000, crossChars = false, questItems = true }, keep = {} }
 end
 reset()
-local denv = setmetatable({
-  CALLER = "GoldFinder", AH_CUT = 0.05, GoldFinderDB = {}, format = string.format, QUEST_ALL = ALL,
+local deps = {
   AHApi = function() return { GetAuctionPriceByItemID = function(_, id) return S.ah[id] end } end,
   VendorPrice = function(id) return S.vendor[id] end,
   TSMValue = function() return nil end,
@@ -155,15 +157,10 @@ local denv = setmetatable({
   IsUtilityItem = function() return false end,
   RefPrice = function() return nil end,
   ToBanker = function() return nil end,
-  C_Item = {
-    GetItemInfoInstant = function(id) return id end,
-    GetItemQualityByID = function() return 1 end,
-    GetItemInfo = function() return nil end,
-  },
-}, { __index = _G })
-local df = assert(loadstring(dchunk))
-setfenv(df, denv)
-local Decide, SellQty = df()
+  ItemInfoInstant = function(id) return id end,
+  ItemQuality = function() return 1 end,
+}
+local Decide, SellQty = GF.NewDecision(deps)
 
 local function cloth()
   reset()

@@ -13,10 +13,15 @@ end
 ---------------------------------------------------------------------------
 -- Decide / SellQty with stubbed WoW APIs
 ---------------------------------------------------------------------------
-local a = assert(src:find("-- REGLAS DE VENTA", 1, true), "start marker")
-local b = assert(src:find("-- FIN DE DECISION", 1, true), "end marker")
--- the block sits inside "do ... end" (its closing end is before the end marker)
-local chunk = "do\n" .. src:sub(a, b - 1) .. "\nreturn Decide, SellQty"
+local function loadCore(path, GF, env)
+  local fn = assert(loadfile(path))
+  setfenv(fn, setmetatable(env or {}, { __index = _G }))
+  fn("GoldFinder", GF)
+end
+local GF = {}
+loadCore("core/config.lua", GF)
+loadCore("core/quest_need.lua", GF)
+loadCore("core/decision.lua", GF, { GoldFinderDB = {} })
 
 local S   -- per-test state
 local function reset()
@@ -24,8 +29,7 @@ local function reset()
         su = {}, route = {}, reagent = {}, alts = {}, cfg = { minGain = 2000, crossChars = true }, keep = {} }
 end
 reset()
-local env = setmetatable({
-  CALLER = "GoldFinder", AH_CUT = 0.05, GoldFinderDB = {}, format = string.format,
+local deps = {
   AHApi = function() return { GetAuctionPriceByItemID = function(_, id) return S.ah[id] end } end,
   VendorPrice = function(id) return S.vendor[id] end,
   TSMValue = function(source, id) return S.tsm[source .. ":" .. id] end,
@@ -52,15 +56,11 @@ local env = setmetatable({
   IsUtilityItem = function() return false end,
   RefPrice = function() return nil end,
   ToBanker = function() return nil end,
-  C_Item = {
-    GetItemInfoInstant = function(id) local c = S.class[id] or {}; return id, nil, nil, nil, nil, c[1], c[2] end,
-    GetItemQualityByID = function(id) return S.quality[id] end,
-    GetItemInfo = function() return nil end,
-  },
-}, { __index = _G })
-local f = assert(loadstring(chunk))
-setfenv(f, env)
-local Decide, SellQty = f()
+  ItemInfoInstant = function(id) local c = S.class[id] or {}; return id, nil, nil, nil, nil, c[1], c[2] end,
+  ItemQuality = function(id) return S.quality[id] end,
+}
+local Decide, SellQty = GF.NewDecision(deps)
+local f
 
 -- 1a. profession tools: never to the vendor
 for _, id in ipairs({ 2901, 7005, 5956, 6219, 6218, 6339, 11130, 11145, 16207 }) do

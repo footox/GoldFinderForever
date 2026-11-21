@@ -12,8 +12,11 @@
 
 core/config.lua
 core/money.lua
+core/quest_need.lua
+core/decision.lua
 adapters/wow.lua
 adapters/bags.lua
+adapters/quests.lua
 GoldFinderRoutes.lua
 GoldFinderTrainers.lua
 GoldFinderRecipes.lua

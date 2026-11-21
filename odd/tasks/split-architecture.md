@@ -15,8 +15,8 @@ Branch: refactor/split-architecture | Delivery: ask-on-risk | Test runner: `lua.
 ## Tasks
 
 - [x] T1 (S1,S2) Namespace + `core/` utilities (Print, Money, ShortMoney, Cfg, Char) | route: inline | commit: GF-15 (in-game /reload OK)
-- [x] T2 (S2) `adapters/wow.lua`: merchant, bags, quests, spells, addons with fallbacks and pcall helper | route: inline | commit: GF-16 (in-game /reload pending; write actions PickupContainerItem/UseContainerItem and quest/auction adapters move with their features)
-- [ ] T3 (S1,S3) Decision logic to `core/decision.lua` | route: inline | commit: -
+- [x] T2 (S2) `adapters/wow.lua`: merchant, bags, quests, spells, addons with fallbacks and pcall helper | route: inline | commit: GF-16 (in-game /reload OK; write actions PickupContainerItem/UseContainerItem and quest/auction adapters move with their features)
+- [x] T3 (S1,S3) Decision logic to `core/decision.lua` | route: inline + quest need (core/quest_need.lua, adapters/quests.lua) | commit: GF-17 (in-game /reload pending)
 - [ ] T4 (S1,S3) Route planner to `core/routeplanner.lua` | route: inline | commit: -
 - [ ] T5 (S1) Features one by one: vendor, mail, auction, professions, guide (each its own commit) | route: inline | commit: -
 - [ ] T6 (S1) `ui/` presentational components | route: inline | commit: -

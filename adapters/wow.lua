@@ -46,3 +46,18 @@ function GF.MerchantItemInfo(i)
     end
   end
 end
+
+-- itemID, type, subType, equipLoc, icon, classID, subClassID without needing the item cached; nothing if unavailable.
+function GF.ItemInfoInstant(id)
+  local fn = C_Item and C_Item.GetItemInfoInstant
+  if not fn then return nil end
+  return fn(id)
+end
+
+-- Item quality: the direct API when it exists, else from the full item info (nil while not cached).
+function GF.ItemQuality(id)
+  if not C_Item then return nil end
+  local q = C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(id)
+  if q == nil and C_Item.GetItemInfo then q = select(3, C_Item.GetItemInfo(id)) end
+  return q
+end
