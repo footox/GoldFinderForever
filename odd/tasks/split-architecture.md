@@ -16,8 +16,8 @@ Branch: refactor/split-architecture | Delivery: ask-on-risk | Test runner: `lua.
 
 - [x] T1 (S1,S2) Namespace + `core/` utilities (Print, Money, ShortMoney, Cfg, Char) | route: inline | commit: GF-15 (in-game /reload OK)
 - [x] T2 (S2) `adapters/wow.lua`: merchant, bags, quests, spells, addons with fallbacks and pcall helper | route: inline | commit: GF-16 (in-game /reload OK; write actions PickupContainerItem/UseContainerItem and quest/auction adapters move with their features)
-- [x] T3 (S1,S3) Decision logic to `core/decision.lua` | route: inline + quest need (core/quest_need.lua, adapters/quests.lua) | commit: GF-17 (in-game /reload pending)
-- [ ] T4 (S1,S3) Route planner to `core/routeplanner.lua` | route: inline | commit: -
+- [x] T3 (S1,S3) Decision logic to `core/decision.lua` | route: inline + quest need (core/quest_need.lua, adapters/quests.lua) | commit: GF-17 (in-game /reload OK)
+- [x] T4 (S1,S3) Route planner to `core/routeplanner.lua` | route: inline | commit: GF-18 (in-game /reload pending)
 - [ ] T5 (S1) Features one by one: vendor, mail, auction, professions, guide (each its own commit) | route: inline | commit: -
 - [ ] T6 (S1) `ui/` presentational components | route: inline | commit: -
 - [ ] T7 (S6) Localization: `locales/` + `GF.L`, extract all Spanish strings, enUS base, command aliases, language option | route: inline | commit: -

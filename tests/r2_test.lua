@@ -10,6 +10,14 @@ local function block(from, to, tail)
   return src:sub(a, b - 1) .. tail
 end
 
+-- the planner lives in core/routeplanner.lua and gets its dependencies from the stubbed env below
+local GF = {}
+for _, path in ipairs({ "core/config.lua", "core/routeplanner.lua" }) do
+  local fn = assert(loadfile(path))
+  setfenv(fn, setmetatable({}, { __index = _G }))
+  fn("GoldFinder", GF)
+end
+
 local prices, vendor, vendorBuy, stock, faction, cfg, surplus, bound = {}, {}, {}, {}, "Horde", { sellCap = 5 }, {}, {}
 local env = setmetatable({
   CALLER = "GoldFinder", AH_CUT = 0.05, format = string.format,
@@ -39,9 +47,7 @@ local function load(chunk)
   return f()
 end
 local function loadPlanner()
-  return load(block("local recipeIdx", "-- FIN DEL PLANIFICADOR DE RUTA",
-    "\nreturn { PlanRoute = PlanRoute, RouteFor = RouteFor, RouteNeedFor = RouteNeedFor, RecipeLookup = RecipeLookup,"
-    .. " BuyPrice = BuyPrice, SellValue = SellValue, InvalidateRoutes = InvalidateRoutes }"))
+  return GF.NewRoutePlanner(env)
 end
 local function loadHelpers()
   local P = loadPlanner()

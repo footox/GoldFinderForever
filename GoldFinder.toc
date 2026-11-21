@@ -14,6 +14,7 @@ core/config.lua
 core/money.lua
 core/quest_need.lua
 core/decision.lua
+core/routeplanner.lua
 adapters/wow.lua
 adapters/bags.lua
 adapters/quests.lua

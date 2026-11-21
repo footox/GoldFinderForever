@@ -201,9 +201,8 @@ check("alt need: still summed over alts (10 + 5)", OtherNeed(1, true).need == 15
 ---------------------------------------------------------------------------
 -- BuyPrice: cheaper of AH and known vendor price
 ---------------------------------------------------------------------------
-a = assert(src:find("local recipeIdx", 1, true), "planner start marker")
-b = assert(src:find("-- FIN DEL PLANIFICADOR DE RUTA", 1, true), "planner end marker")
 local prices, vsell = {}, {}
+loadCore("core/routeplanner.lua", GF)
 local penv = setmetatable({
   CALLER = "GoldFinder", AH_CUT = 0.05, GoldFinderDB = { vendorBuy = {} },
   AHApi = function() return { GetAuctionPriceByItemID = function(_, id) return prices[id] end } end,
@@ -211,9 +210,7 @@ local penv = setmetatable({
   Counts = function() return 0, 0 end,
   Cfg = function() return nil end,
 }, { __index = _G })
-f = assert(loadstring(src:sub(a, b - 1) .. "\nreturn BuyPrice"))
-setfenv(f, penv)
-local BuyPrice = f()
+local BuyPrice = GF.NewRoutePlanner(penv).BuyPrice
 prices[1], penv.GoldFinderDB.vendorBuy[1] = 100, 60
 check("vendor cheaper than AH: vendor price", BuyPrice(1) == 60)
 prices[2], penv.GoldFinderDB.vendorBuy[2] = 50, 60

@@ -1,11 +1,15 @@
 -- Offline tests for PlanRoute (Lua 5.1). Run from the addon folder:
 --   "C:\Program Files (x86)\Lua\5.1\lua.exe" tests\plan_route_test.lua
--- Extracts the planner from GoldFinder.lua (RecipeLookup .. "FIN DEL PLANIFICADOR DE RUTA") and runs it with stubbed WoW APIs.
+-- Loads the planner from core/routeplanner.lua and runs it with stubbed WoW APIs.
 
 local src = assert(io.open("GoldFinder.lua")):read("*a")
-local a = assert(src:find("local recipeIdx", 1, true), "start marker")
-local b = assert(src:find("-- FIN DEL PLANIFICADOR DE RUTA", 1, true), "end marker")
-local chunk = src:sub(a, b - 1) .. "\nreturn PlanRoute"
+-- the planner lives in core/routeplanner.lua and gets its dependencies from the stubbed env below
+local GF = {}
+for _, path in ipairs({ "core/config.lua", "core/routeplanner.lua" }) do
+  local fn = assert(loadfile(path))
+  setfenv(fn, setmetatable({}, { __index = _G }))
+  fn("GoldFinder", GF)
+end
 
 local prices, vendor, stock, faction = {}, {}, {}, "Horde"
 local env = setmetatable({
@@ -19,9 +23,7 @@ local env = setmetatable({
 }, { __index = _G })
 
 local function load()
-  local f = assert(loadstring(chunk))
-  setfenv(f, env)
-  return f()
+  return GF.NewRoutePlanner(env).PlanRoute
 end
 
 -- Two recipes: "Known" (yellow 100, grey 130) is known; "Cheap" (orange until 110) is only at the trainer.

@@ -97,8 +97,13 @@ check("tooltip lines (cost)", lines[2] == "Coste por punto: 300c" and #lines == 
 check("tooltip lines (no price)", #RecipeNoteLines(0.5, nil, money) == 1)
 
 -- 8. PlanRoute records each recipe's cost per point at the current skill (plan.eff), from its own model.
-local pa = assert(src:find("local recipeIdx", 1, true))
-local pb = assert(src:find("-- FIN DEL PLANIFICADOR DE RUTA", 1, true))
+-- the planner lives in core/routeplanner.lua and gets its dependencies from the stubbed env below
+local GF = {}
+for _, path in ipairs({ "core/config.lua", "core/routeplanner.lua" }) do
+  local fn = assert(loadfile(path))
+  setfenv(fn, setmetatable({}, { __index = _G }))
+  fn("GoldFinder", GF)
+end
 local prices = { [10] = 100 }
 local env = setmetatable({
   CALLER = "GoldFinder", AH_CUT = 0.05,
@@ -111,9 +116,7 @@ local env = setmetatable({
   GoldFinderDB = {},
   GoldFinderRecipes = { spells = { [1] = { n = "Known", s = 165, y = 100, g = 130, k = 1, r = { { 10, 10 } } } } },
 }, { __index = _G })
-local pf = assert(loadstring(src:sub(pa, pb - 1) .. "\nreturn PlanRoute"))
-setfenv(pf, env)
-local PlanRoute = pf()
+local PlanRoute = GF.NewRoutePlanner(env).PlanRoute
 local plan = PlanRoute("Leatherworking", { rank = 110, maxRank = 150, skillLine = 165,
   crafts = { Known = { r = { { 10, 10 } } } }, learned = { Known = true } }, 120)
 -- at 110: chance (130-110)/(130-100) = 2/3; cost 10*100 = 1000 per craft, nothing to sell: 1000 / (2/3) = 1500

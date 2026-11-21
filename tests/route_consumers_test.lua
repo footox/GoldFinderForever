@@ -1,14 +1,16 @@
 -- Offline tests for the route planner consumers (Lua 5.1): next-step entry, keep-for-profession need, plan cache
 -- and gathering zones. Run from the addon folder:
 --   "C:\Program Files (x86)\Lua\5.1\lua.exe" tests\route_consumers_test.lua
--- Extracts the planner block from GoldFinder.lua ("local recipeIdx" .. "FIN DEL PLANIFICADOR DE RUTA") and runs it
--- with stubbed WoW APIs.
+-- Loads the planner from core/routeplanner.lua and runs it with stubbed WoW APIs.
 
 local src = assert(io.open("GoldFinder.lua")):read("*a")
-local a = assert(src:find("local recipeIdx", 1, true), "start marker")
-local b = assert(src:find("-- FIN DEL PLANIFICADOR DE RUTA", 1, true), "end marker")
-local chunk = src:sub(a, b - 1) .. "\nreturn { RouteFor = RouteFor, RouteNeedFor = RouteNeedFor, "
-  .. "RouteStepEntry = RouteStepEntry, InvalidateRoutes = InvalidateRoutes, GatherStepEntry = GatherStepEntry }"
+-- the planner lives in core/routeplanner.lua and gets its dependencies from the stubbed env below
+local GF = {}
+for _, path in ipairs({ "core/config.lua", "core/routeplanner.lua" }) do
+  local fn = assert(loadfile(path))
+  setfenv(fn, setmetatable({}, { __index = _G }))
+  fn("GoldFinder", GF)
+end
 
 local prices, stock, suOwned, here = {}, {}, {}, nil
 local countsCalls = 0
@@ -37,9 +39,7 @@ local env = setmetatable({
 }, { __index = _G })
 
 local function load()
-  local f = assert(loadstring(chunk))
-  setfenv(f, env)
-  return f()
+  return GF.NewRoutePlanner(env)
 end
 
 prices[10], prices[11] = 100, 50
