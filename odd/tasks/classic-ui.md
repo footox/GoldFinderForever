@@ -179,3 +179,10 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   profesiones de tus alts, si llegas a un vendedor incluso en el tooltip de indica que debes comprar esa receta
   para la profesion de ese personaje si aun no la tiene aprendida." Existing code: RecipeForOthers (tooltip and
   vendor box). Next: Fable review by feature area.
+- L27: Fable review (5 read-only reviewers: planner, selling/auction, window integration, data/alts, item
+  decisions/crafting). Parent spot-checked: BuyPrice prefers AH over cheaper vendor (confirmed), c.off unguarded at
+  ReagentInfoFor (confirmed), SellQty uses max and OtherNeed returns the first alt (confirmed; correct rule is own
+  max + sum of alts, not a plain sum), tools/unseen items fall through to VENDOR (confirmed). No taint found; nothing
+  sells or posts without a click. Alts' recipe hint works (RecipeForOthers in tooltip and vendor box); gaps: alt that
+  never opened its profession window, own-recipe check stricter than alts'. Fix batches: R1 item/money safety
+  (in progress), R2 planner consistency, R3 data/integration.
