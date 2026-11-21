@@ -898,20 +898,41 @@ local function TrainReq(prof, max)
   return TRAIN_REQ[max]
 end
 
--- Instructores de cada rango de una profesion para tu faccion (GoldFinderData.train)
+local RANK_NAMES = { [75] = "Apprentice", [150] = "Journeyman", [225] = "Expert", [300] = "Artisan" }
+local RANK_MAX = { Apprentice = 75, Journeyman = 150, Expert = 225, Artisan = 300 }
+
+-- Instructores de cada rango de una profesion para tu faccion: primero el que anotaste al visitarlo
+-- (GoldFinderDB.trainers, ver RecordTrainer) y, si no, el primero de GoldFinderTrainers (guias de Icy Veins).
+-- Cada uno: { max, name, npc, zone, x, y, seen = true si viene de tu visita }. nil si no hay ninguno.
 local function TrainList(prof)
-  local T = GoldFinderData and GoldFinderData.train
-  if not T then return nil end
+  local faction = UnitFactionGroup("player") or "?"
+  local fac = (faction == "Horde") and "H" or "A"
+  local rec = GoldFinderDB and GoldFinderDB.trainers and GoldFinderDB.trainers[faction]
+  local mine = rec and rec[prof]
   local p = (prof or ""):lower()
-  local tl = T[p]
-  if not tl then
-    for k, v in pairs(T) do
-      if p:find(k, 1, true) then tl = v; break end
+  local static
+  for k, v in pairs(GoldFinderTrainers or {}) do
+    if p:find(k, 1, true) then static = v; break end
+  end
+  local out = {}
+  for _, max in ipairs({ 75, 150, 225, 300 }) do
+    local d, entry = mine and mine[max], nil
+    if d then
+      entry = { npc = d.npc, zone = d.zone, x = d.x, y = d.y, seen = true }
+    else
+      local str = static and static[max] and static[max][fac]
+      local n, z, x, y
+      if str then n, z, x, y = str:match("^([^|;]+)|([^|;]+)|([^|;]+)|([^|;]+)") end
+      if n then entry = { npc = n, zone = z, x = x, y = y } end
+    end
+    if entry then
+      entry.max, entry.name = max, RANK_NAMES[max] .. " " .. prof
+      out[#out + 1] = entry
     end
   end
-  local fac = (UnitFactionGroup("player") == "Horde") and "H" or "A"
-  return tl and tl[fac] or nil
+  return #out > 0 and out or nil
 end
+-- FIN DE INSTRUCTORES
 
 -- Siguiente paso de cada profesion activa del personaje (para la ventana flotante opcional): el primer paso de
 -- su ruta (o la zona de recoleccion del tramo), con los materiales de ese paso y cuantos tienes (bolsas + banco).
@@ -4167,11 +4188,26 @@ local function RecordTrainer()
   GoldFinderDB.trainerRecipes = GoldFinderDB.trainerRecipes or {}
   local byFaction = GoldFinderDB.trainerRecipes[faction] or {}
   GoldFinderDB.trainerRecipes[faction] = byFaction
+  GoldFinderDB.trainers = GoldFinderDB.trainers or {}
+  local ranksOf = GoldFinderDB.trainers[faction] or {}
+  GoldFinderDB.trainers[faction] = ranksOf
   local count = 0
   for i = 1, (GetNumTrainerServices() or 0) do
-    local name, _, category = GetTrainerServiceInfo(i)
+    local name, sub, category = GetTrainerServiceInfo(i)
     local skill, req = GetTrainerServiceSkillReq(i)
-    if name and category ~= "header" and skill and req and name ~= skill then
+    -- Rango de la profesion ("Leatherworking" + "Journeyman", o "Journeyman Leatherworking"): este instructor lo ensena.
+    local rprof, rmax = nil, name and sub and RANK_MAX[sub]
+    if rmax then
+      rprof = name
+    elseif name then
+      local r, pn = name:match("^(%a+) (.+)$")
+      if r and RANK_MAX[r] then rprof, rmax = pn, RANK_MAX[r] end
+    end
+    if rprof and category ~= "header" then
+      local t = ranksOf[rprof] or {}
+      ranksOf[rprof] = t
+      t[rmax] = { npc = npc, zone = zone, x = x, y = y, seen = time() }
+    elseif name and category ~= "header" and skill and req and name ~= skill then
       local t = byFaction[skill] or {}
       byFaction[skill] = t
       t[name:lower()] = {

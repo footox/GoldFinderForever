@@ -30,7 +30,7 @@ Branch: `feat/drop-zygor`. Delivery: ask-on-risk. Test runner: none (no Lua test
 | T1 | S5, S7 | inline | done, in-game check pending | 981becc |
 | T2 | S2 | inline | done (offline tests), in-game check pending | see Log L6 |
 | T3 | S2, S3 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L8 |
-| T4 | S4, S5 | inline | pending | |
+| T4 | S4, S5 | inline | done (offline tests), in-game check pending | see Log L9 |
 | T5 | S6 | inline | pending | |
 | T6 | S1 | inline | pending | |
 
@@ -72,5 +72,13 @@ parallel-writer reason exists; all inline.
   route_consumers_test 23 PASS, grep for steps/levelmats/learn empty. Known gaps: no route until the profession
   window is opened once; Skinning/Fishing have no next step until T5; guide shows only upcoming steps.
   Risk: item 6 (UI paths only verifiable in game).
+- L9: T4: `TrainList(prof)` now returns, per rank 75/150/225/300, the trainer recorded in game
+  (`GoldFinderDB.trainers[faction][prof][max]`, filled by `RecordTrainer` from the rank services of the trainer
+  window) or else the first `GoldFinderTrainers` entry for the faction. GoldFinderTrainers only covers
+  leatherworking, tailoring, skinning, mining, herbalism, fishing; other professions show trainers only after a
+  visit (accepted, same as S5). `GoldFinderData.train` and `.learn` are no longer read. tests/trainers_test.lua:
+  10 PASS; RED observed first (old TrainList returned the Zygor trainer). Deferred: QuestieDB vendor recipes have
+  no consumer now, because route steps only use known and trainer recipes; using vendor patterns in the planner
+  is a later enhancement.
 - L3: Engram mirror pending: the Engram server only resolves project `repository` (its cwd is J:\Repository),
   so `goldfinder` cannot be written yet.
