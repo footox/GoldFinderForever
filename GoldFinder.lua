@@ -1411,13 +1411,9 @@ do
     api.idByName = function(name)
       if not byName then
         byName = {}
-        local CC = C_Container
-        for bag = 0, (NUM_BAG_SLOTS or 4) do
-          for slot = 1, (CC and CC.GetContainerNumSlots(bag) or 0) do
-            local id = CC.GetContainerItemID and CC.GetContainerItemID(bag, slot)
-            local n = id and C_Item.GetItemInfo(id)
-            if n then byName[n:lower()] = id end
-          end
+        for _, s in ipairs(GF.BagSlots()) do
+          local n = C_Item.GetItemInfo(s.id)
+          if n then byName[n:lower()] = s.id end
         end
       end
       return type(name) == "string" and byName[name:lower()] or nil
@@ -1858,18 +1854,13 @@ end
 
 -- Prepara el objeto en la pestana Selling de Auctionator; publicas tu
 local function SellItem(id)
-  local CC = C_Container
   if not (AuctionHouseFrame and AuctionHouseFrame:IsShown()) then Print("Abre la casa de subastas primero."); return end
   local loc
-  for bag = 0, (NUM_BAG_SLOTS or 4) do
-    for slot = 1, (CC.GetContainerNumSlots(bag) or 0) do
-      local info = CC.GetContainerItemInfo(bag, slot)
-      if info and info.itemID == id then
-        loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
-        break
-      end
+  for _, s in ipairs(GF.BagSlots()) do
+    if s.id == id then
+      loc = ItemLocation:CreateFromBagAndSlot(s.bag, s.slot)
+      break
     end
-    if loc then break end
   end
   if not loc or not loc:IsValid() or not C_AuctionHouse.IsSellItemValid(loc) then
     Print("No puedo preparar ese objeto (esta ligado o ya no esta en la bolsa).")
@@ -1915,19 +1906,13 @@ end
 -- DATOS PARA LA VENTANA
 ---------------------------------------------------------------------------
 local function BagRows()
-  local CC = C_Container
   local sum = { sell = 0, nAH = 0, nVendor = 0, nKeep = 0 }
-  if not (CC and CC.GetContainerNumSlots and CC.GetContainerItemInfo) then return {}, sum end
+  if not GF.BagApiReady() then return {}, sum end
   local items = {}
-  for bag = 0, (NUM_BAG_SLOTS or 4) do
-    for slot = 1, (CC.GetContainerNumSlots(bag) or 0) do
-      local info = CC.GetContainerItemInfo(bag, slot)
-      if info and info.itemID then
-        local e = items[info.itemID]
-        if not e then e = { bags = 0, bound = info.isBound }; items[info.itemID] = e end
-        e.bags = e.bags + (info.stackCount or 1)
-      end
-    end
+  for _, s in ipairs(GF.BagSlots()) do
+    local e = items[s.id]
+    if not e then e = { bags = 0, bound = s.bound }; items[s.id] = e end
+    e.bags = e.bags + s.count
   end
   local rows = {}
   for id, e in pairs(items) do
@@ -2190,16 +2175,12 @@ do
 
   -- primer hueco de las bolsas con ese objeto que la subasta acepta (solo con la subasta abierta)
   local function FindLoc(id)
-    local CC = C_Container
-    if not (AHOpen() and CC and ItemLocation and C_AuctionHouse.IsSellItemValid) then return nil end
-    for bag = 0, (NUM_BAG_SLOTS or 4) do
-      for slot = 1, (CC.GetContainerNumSlots(bag) or 0) do
-        local info = CC.GetContainerItemInfo(bag, slot)
-        if info and info.itemID == id and not info.isLocked then
-          local loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
-          local ok, valid = pcall(C_AuctionHouse.IsSellItemValid, loc, false)
-          if ok and valid and loc:IsValid() then return loc end
-        end
+    if not (AHOpen() and GF.BagApiReady() and ItemLocation and C_AuctionHouse.IsSellItemValid) then return nil end
+    for _, s in ipairs(GF.BagSlots()) do
+      if s.id == id and not s.locked then
+        local loc = ItemLocation:CreateFromBagAndSlot(s.bag, s.slot)
+        local ok, valid = pcall(C_AuctionHouse.IsSellItemValid, loc, false)
+        if ok and valid and loc:IsValid() then return loc end
       end
     end
     return nil
@@ -3485,8 +3466,7 @@ do
       end
       icon = C_Item.GetItemIconByID and C_Item.GetItemIconByID(rec.o) or nil
     end
-    icon = icon or (b.spell and ((C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(b.spell))
-      or (GetSpellTexture and GetSpellTexture(b.spell)))) or nil
+    icon = icon or (b.spell and GF.SpellTexture(b.spell)) or nil
     local head = (icon and format("|T%s:16:16:0:-2|t ", tostring(icon)) or "")
       .. (grey and "" or "|cffffd100") .. format("%d-%d", b.from, b.to) .. (grey and "  " or "|r  ")
       .. (b.name or "sin receta conocida en las tablas del juego")
@@ -4461,10 +4441,7 @@ do
   Skin.RecipeNotes = RN
   -- SkillUp Forever cargado y con su texto en las filas (su opcion showRowText, por defecto activa)
   local function SkillUpRowText()
-    local loaded
-    if C_AddOns and C_AddOns.IsAddOnLoaded then loaded = C_AddOns.IsAddOnLoaded("SkillUpForever")
-    elseif IsAddOnLoaded then loaded = IsAddOnLoaded("SkillUpForever") end
-    if not loaded then return false end
+    if not GF.IsAddOnLoaded("SkillUpForever") then return false end
     local db = rawget(_G, "SkillUpForeverDB")
     return not (type(db) == "table" and db.showRowText == false)
   end
@@ -5084,19 +5061,6 @@ local function ShowTSMExport()
   f.edit:HighlightText()
 end
 
--- MERCADER: lectura de un objeto del vendedor con fallback entre APIs
--- Devuelve name, texture, price, qty, numAvailable, isUsable, extended como GetMerchantItemInfo.
-local function MerchantItemInfo(i)
-  if GetMerchantItemInfo then return GetMerchantItemInfo(i) end
-  local CM = C_MerchantFrame
-  if CM and CM.GetItemInfo then
-    local t = CM.GetItemInfo(i)
-    if type(t) == "table" then
-      return t.name, t.texture, t.price, t.stackCount, t.numAvailable, t.isUsable, t.hasExtendedCost
-    end
-  end
-end
--- FIN DE MERCADER
 
 -- Precios a los que el vendedor te vende cada objeto (se anotan al abrir un vendedor): sirven para costear materiales.
 local function RecordVendorPrices()
@@ -5106,7 +5070,7 @@ local function RecordVendorPrices()
     local link = GetMerchantItemLink(i)
     local id = link and tonumber(link:match("item:(%d+)"))
     if id then
-      local _, _, price, qty, _, _, _, extended = MerchantItemInfo(i)
+      local _, _, price, qty, _, _, _, extended = GF.MerchantItemInfo(i)
       if price and price > 0 and not extended then
         GoldFinderDB.vendorBuy[id] = price / math.max(1, qty or 1)
       end
@@ -6235,24 +6199,9 @@ do
     return surplus, rows
   end
 
-  local function BagSlots()
-    local CC, slots = C_Container, {}
-    if not (CC and CC.GetContainerNumSlots and CC.GetContainerItemInfo) then return slots end
-    for bag = 0, (NUM_BAG_SLOTS or 4) do
-      for slot = 1, (CC.GetContainerNumSlots(bag) or 0) do
-        local info = CC.GetContainerItemInfo(bag, slot)
-        if info and info.itemID then
-          slots[#slots + 1] = { bag = bag, slot = slot, id = info.itemID, count = info.stackCount or 1,
-            locked = info.isLocked, bound = info.isBound }
-        end
-      end
-    end
-    return slots
-  end
-
   local function Plan()
     local surplus, rows = Surplus()
-    return MailPlan(BagSlots(), surplus, tonumber(ATTACHMENTS_MAX_SEND) or 12), rows
+    return MailPlan(GF.BagSlots(), surplus, tonumber(ATTACHMENTS_MAX_SEND) or 12), rows
   end
 
   local function MailOpen() return MailFrame and MailFrame:IsShown() end
@@ -6699,7 +6648,7 @@ local function RefreshVendor()
     local id = link and tonumber(link:match("item:(%d+)"))
     local list = id and RecipeForOthers(id, true, true) or nil
     if list and #list > 0 then
-      local price = select(3, MerchantItemInfo(i))
+      local price = select(3, GF.MerchantItemInfo(i))
       n = n + 1
       lines[#lines + 1] = format("%s  |cffb3b3b3%s|r", link, price and price > 0 and ShortMoney(price) or "")
       for _, ro in ipairs(list) do
