@@ -3123,22 +3123,32 @@ local function PlanRoute(prof, pd, target)
     return c
   end
   local cands = {}
-  for name, cr in pairs(pd.crafts) do
-    local x = RecipeLookup(pd.skillLine, name)
-    if x then
-      local outVal, outVend = 0, 0
-      if cr.o then
-        local bound = select(14, C_Item.GetItemInfo(cr.o)) == 1
-        outVal = SellValue(cr.o, bound) * (cr.q or 1)
-        outVend = SellValue(cr.o, true) * (cr.q or 1)
-      end
-      local unitBuy = 0
-      for _, m in ipairs(cr.r) do
-        local pr = buyP(m[1])
-        unitBuy = unitBuy + m[2] * (pr or 0)
-      end
-      cands[#cands + 1] = { name = name, x = x, cr = cr, o = cr.o, outVal = outVal, outVend = outVend, unitBuy = unitBuy, made = 0 }
+  -- learn = receta del instructor que aun no sabes ({ n, req, cost, npc, zone, x, y }), nil si ya la sabes.
+  local function addCand(name, x, cr, learn)
+    local outVal, outVend = 0, 0
+    if cr.o then
+      local bound = select(14, C_Item.GetItemInfo(cr.o)) == 1
+      outVal = SellValue(cr.o, bound) * (cr.q or 1)
+      outVend = SellValue(cr.o, true) * (cr.q or 1)
     end
+    local unitBuy = 0
+    for _, m in ipairs(cr.r) do unitBuy = unitBuy + m[2] * (buyP(m[1]) or 0) end
+    cands[#cands + 1] = { name = name, x = x, cr = cr, o = cr.o, outVal = outVal, outVend = outVend, unitBuy = unitBuy,
+      made = 0, learn = learn }
+  end
+  local known = {}
+  for name, cr in pairs(pd.crafts) do
+    known[name:lower()] = true
+    local x = RecipeLookup(pd.skillLine, name)
+    if x then addCand(name, x, cr) end
+  end
+  for name in pairs(pd.learned or {}) do known[name:lower()] = true end
+  -- Recetas que aun no sabes pero ensena tu instructor (anotadas al abrir su ventana): entran en la ruta desde la
+  -- habilidad que piden, con sus materiales y objeto de GoldFinderRecipes y el precio de aprenderlas.
+  local TR = GoldFinderDB.trainerRecipes and GoldFinderDB.trainerRecipes[UnitFactionGroup("player") or "?"]
+  for key, t in pairs(TR and TR[prof] or {}) do
+    local x = not known[key] and RecipeLookup(pd.skillLine, t.n)
+    if x then addCand(t.n, x, { r = x.r, o = x.o, q = x.q }, t) end
   end
   if #cands == 0 then return nil end
 
@@ -3160,12 +3170,13 @@ local function PlanRoute(prof, pd, target)
     return (ah * c.outVal + (n - ah) * c.outVend) / n
   end
 
-  local steps, need = {}, {}
+  local steps, need, learns = {}, {}, {}
   local sk = pd.rank
   while sk < top do
     local best, bestEff, bestP
     for _, c in ipairs(cands) do
       local pch = SkillUpChance(c.x, sk)
+      if pch > 0 and c.learn and not c.learned and sk < (c.learn.req or 0) then pch = 0 end
       if pch > 0 then
         local cost = 0
         for _, m in ipairs(c.cr.r) do
@@ -3175,10 +3186,18 @@ local function PlanRoute(prof, pd, target)
           cost = cost + use * sellV(m[1]) + buy * (buy > 0 and (buyP(m[1]) or 1e7) or 0)
         end
         local eff = (cost - nextValue(c, 1 / (pch * c.x.k))) / (pch * c.x.k)
+        -- Aprenderla se paga una vez: se reparte entre los puntos que aun puede dar antes de ponerse gris.
+        if c.learn and not c.learned then
+          eff = eff + (c.learn.cost or 0) / math.max(1, math.min(top, c.x.g) - sk)
+        end
         if not best or eff < bestEff - 1e-9 then best, bestEff, bestP = c, eff, pch end
       end
     end
     if not best then break end
+    if best.learn and not best.learned then
+      best.learned = true
+      learns[#learns + 1] = { t = best.learn, at = sk }
+    end
     local frac = 1 / (bestP * best.x.k)
     best.made = best.made + frac
     for _, m in ipairs(best.cr.r) do
@@ -3213,6 +3232,9 @@ local function PlanRoute(prof, pd, target)
     mats[#mats + 1] = { id = id, need = qn, have = have, missing = missing, price = pr, cost = mc, est = est }
   end
   table.sort(mats, function(a, b) return (a.cost or 0) > (b.cost or 0) end)
+  local learnCost = 0
+  for _, l in ipairs(learns) do learnCost = learnCost + (l.t.cost or 0) end
+  cost = cost + learnCost
   local sold = {}
   for _, st in ipairs(steps) do
     st.n = math.ceil(st.crafts - 1e-9)
@@ -3223,7 +3245,8 @@ local function PlanRoute(prof, pd, target)
     sold[st.c] = used + st.n
     sell = sell + st.value
   end
-  return { prof = prof, pd = pd, from = pd.rank, to = sk, steps = steps, mats = mats, cost = cost, sell = sell, unknown = unknown, cap = cap }
+  return { prof = prof, pd = pd, from = pd.rank, to = sk, steps = steps, mats = mats, cost = cost, sell = sell, unknown = unknown, cap = cap,
+    learns = learns, learnCost = learnCost }
 end
 
 -- Precios a los que el vendedor te vende cada objeto (se anotan al abrir un vendedor): sirven para costear materiales.
@@ -3578,6 +3601,15 @@ local function CreateUI(parent)
               .. format("\nLo fabricado vale precio de subasta solo en sus primeras %d unidades; el resto, lo que paga el vendedor (/gf tope).", plan.cap),
             c1 = "", c2 = Money(plan.cost), c3 = Money(plan.sell),
           }
+          for _, l in ipairs(plan.learns) do
+            local t = l.t
+            local where = t.zone and (" en " .. t.zone .. (t.x and (" (" .. t.x .. ", " .. t.y .. ")") or "")) or ""
+            out[#out + 1] = {
+              name = format("Aprender %s  |cffb3b3b3(desde %d)|r", t.n, l.at),
+              reason = format("La ensena %s%s. Pide habilidad %d.", t.npc or "tu instructor", where, t.req or 0),
+              c1 = "", c2 = t.cost and Money(t.cost) or (DIM .. "sin precio|r"), c3 = "",
+            }
+          end
           for _, st in ipairs(plan.steps) do
             local chance = SkillUpChance(st.c.x, st.from)
             local nm = (st.c.o and C_Item.GetItemInfo(st.c.o)) or st.c.name

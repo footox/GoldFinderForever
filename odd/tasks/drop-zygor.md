@@ -27,8 +27,8 @@ Branch: `feat/drop-zygor`. Delivery: ask-on-risk. Test runner: none (no Lua test
 
 | ID | Specs | Route | Status | Commit |
 |----|-------|-------|--------|--------|
-| T1 | S5, S7 | inline | in progress | |
-| T2 | S2 | inline | pending | |
+| T1 | S5, S7 | inline | done, in-game check pending | 981becc |
+| T2 | S2 | inline | done (offline tests), in-game check pending | see Log L6 |
 | T3 | S2, S3 | inline | pending | |
 | T4 | S4, S5 | inline | pending | |
 | T5 | S6 | inline | pending | |
@@ -58,5 +58,11 @@ parallel-writer reason exists; all inline.
 - L5: T1 implemented: `RecordTrainer` on TRAINER_SHOW stores `GoldFinderDB.trainerRecipes[faction][skill][recipe]`
   = { n, req, cost, npc, zone, x, y, seen }; temporarily enables all trainer filters and restores them.
   `luac -p` OK. Pending in-game check.
+- L6: T2 implemented: PlanRoute adds recorded trainer recipes the character does not know as candidates,
+  usable from their required skill; the learn cost is paid once (amortized per remaining point in the greedy
+  choice, added once to the total) and shown as "Aprender X" rows. Offline tests `tests/plan_route_test.lua`
+  (7 cases) pass; against the previous commit they fail (`learns` is nil), which is the RED evidence.
+- L7 (2026-11-20, user, verbatim, new request, separate from this feature): "Incluso el diseño se que lo hizo
+  moderno Cowrok pero me gustaria que se integrase mas natural al diseño clasico de wow".
 - L3: Engram mirror pending: the Engram server only resolves project `repository` (its cwd is J:\Repository),
   so `goldfinder` cannot be written yet.
