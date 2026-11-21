@@ -1,9 +1,12 @@
 ## Interface: 16001
 ## Title: GoldFinder Forever
-## Notes: Decide si vender, subastar o guardar lo que llevas, y mide el oro por hora de tu desuello. Solo informa; no compra ni publica solo.
-## Version: 2.0
+## Notes: Decide si vender, subastar o guardar lo que llevas, con paneles en el vendedor, la subasta, el correo y las profesiones. Nada se vende ni se publica sin tu clic.
+## Notes-enUS: Decides whether to vendor, auction or keep what you carry, with panels at the merchant, auction house, mailbox and professions. Nothing is sold or posted without your click.
+## Author: footox
+## Version: 2.1
+## X-License: MIT
 ## Dependencies: Auctionator
-## OptionalDeps: TradeSkillMaster
+## OptionalDeps: TradeSkillMaster, QuestieDB, SkillUpForever
 ## SavedVariables: GoldFinderDB
 
 GoldFinderRoutes.lua

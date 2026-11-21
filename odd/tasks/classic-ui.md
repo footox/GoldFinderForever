@@ -289,3 +289,8 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 - L45: In game at Thunder Bluff trainers: "GoldFinder.lua:6695: Missing on/off parameter in SetTrainerServiceTypeFilter"
   (locals "used", 1): the Forever client wants a boolean. Fix: SetFilter tries true/false, then 1/0; the initial
   filter read/set is protected too. Nothing was recorded on that visit; a new trainer visit is needed.
+- L46 (2026-11-21, user, verbatim): "Y en el caso para tenerlo en curse forge", "Ya tengo mi cuenta." and "la MIT".
+  Packaging: MIT LICENSE (copyright footox), .pkgmeta (ignores tests/tools/odd/README), tools/build_zip.py builds
+  dist/GoldFinder-<version>.zip from the .toc file list + LICENSE + CHANGELOG; README (es + en summary), CHANGELOG
+  2.1; toc 2.1 with Notes-enUS, Author, X-License, OptionalDeps QuestieDB/SkillUpForever. dist/ ignored. Nothing
+  uploaded; the user creates the CurseForge project.

@@ -1,0 +1,8 @@
+package-as: GoldFinder
+
+ignore:
+  - tests
+  - tools
+  - odd
+  - .gitignore
+  - README.md
