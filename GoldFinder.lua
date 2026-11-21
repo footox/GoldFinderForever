@@ -27,7 +27,7 @@ local DEFAULTS = {
 }
 
 local function Print(msg)
-  DEFAULT_CHAT_FRAME:AddMessage("|cffffd100GoldFinder:|r " .. tostring(msg))
+  DEFAULT_CHAT_FRAME:AddMessage("|cffffd100GoldFinder Forever:|r " .. tostring(msg))
 end
 
 local function Money(c)
@@ -3399,7 +3399,7 @@ local function CreateUI(parent)
   elseif parent.gfPadRight then
     -- ventana propia sin plantilla: titulo dibujado aqui
     header:SetPoint("TOPLEFT"); header:SetPoint("TOPRIGHT"); header:SetHeight(42)
-    local title = Text(header, 18, PAL.gold); title:SetPoint("TOPLEFT", 6, -4); title:SetText("GoldFinder")
+    local title = Text(header, 18, PAL.gold); title:SetPoint("TOPLEFT", 6, -4); title:SetText("GoldFinder Forever")
   else
     -- dentro de la subasta el titulo ya lo pone el marco de la casa de subastas
     header:SetPoint("TOPLEFT"); header:SetPoint("TOPRIGHT"); header:SetHeight(30)
@@ -3920,10 +3920,10 @@ local function ToggleWindow()
         end
       end
       if w.SetTitle then
-        pcall(w.SetTitle, w, "GoldFinder")
+        pcall(w.SetTitle, w, "GoldFinder Forever")
       else
         local t = (w.TitleContainer and w.TitleContainer.TitleText) or w.TitleText or _G["GoldFinderWindowTitleText"]
-        if t then t:SetText("GoldFinder") end
+        if t then t:SetText("GoldFinder Forever") end
       end
     else
       local edge = Flat(w, "BACKGROUND", { 1, 0.82, 0.25, 0.40 })
@@ -4013,7 +4013,7 @@ local function SetupMinimap()
   local ICON = "Interface\\Icons\\INV_Misc_Coin_01"
 
   local function tip(tt)
-    tt:AddLine("GoldFinder", 1, 0.82, 0.25)
+    tt:AddLine("GoldFinder Forever", 1, 0.82, 0.25)
     local _, sum = BagRows()
     tt:AddLine("Para vender: " .. Money(sum.sell), 1, 1, 1)
     tt:AddLine(sum.nKeep .. " objeto(s) para guardar", 0.4, 0.7, 1)
@@ -4025,7 +4025,7 @@ local function SetupMinimap()
   local DBI = LibStub and LibStub("LibDBIcon-1.0", true)
   if LDB and DBI then
     local obj = LDB:GetDataObjectByName("GoldFinder") or LDB:NewDataObject("GoldFinder", {
-      type = "launcher", text = "GoldFinder", icon = ICON,
+      type = "launcher", text = "GoldFinder Forever", icon = ICON,
       OnClick = function() ToggleWindow() end,
       OnTooltipShow = function(tt) pcall(tip, tt) end,
     })
@@ -4380,7 +4380,7 @@ local function RegisterOptions()
     if type(S[fn]) ~= "function" then return end
   end
   local BOOL, NUM = S.VarType.Boolean, S.VarType.Number
-  local cat = S.RegisterVerticalLayoutCategory("GoldFinder")
+  local cat = S.RegisterVerticalLayoutCategory("GoldFinder Forever")
 
   local function refreshAll() for _, u in ipairs(uiInstances) do pcall(u.refresh) end end
   local function refreshShown() for _, u in ipairs(uiInstances) do if u:IsVisible() then pcall(u.refresh) end end end

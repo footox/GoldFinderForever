@@ -42,8 +42,8 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U3 | S6 | pending | pending | |
 | U4 | S6, S7 | pending | pending | |
 | U5 | S6 | pending | pending | |
-| U6 | S8, S5 | delegated (context backstop) | in progress | |
-| U7 | S9 | inline | in progress (toc done) | |
+| U6 | S8, S5 | delegated (context backstop) | done, in-game check pending | a0f11da |
+| U7 | S9 | inline | done, in-game check pending | 0ca4681 + next |
 
 - U1: main window and shared helpers (`Flat`, `Text`, `Btn`, `PAL`, list rows, tabs) in the classic style.
 - U2: guide, tracker, mail, bank, vendor and export frames in the classic style.
@@ -76,3 +76,11 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   Then "1". Reference implementation on this client: SkillUpForever/UI/Settings.lua (RegisterVerticalLayoutCategory,
   RegisterAddOnSetting, RegisterInitializer + CreateCheckboxInitializer, RegisterProxySetting, sliders).
 - L7: U1 follow-up b225f3e: bottom tabs resized with padding 12, min width 70, overlap -8 (were cramped in game).
+- L8: U6 done by a bounded writer: RegisterOptions() (category, 4 section headers, checkboxes, sliders for
+  minGain/reserve/routeSpan/sellCap, banker as stepped proxy slider because the native dropdown asserts on Forever per
+  SkillUp's notes, per-profession proxy checkboxes), opened with securecallfunction(C_SettingsUtil.OpenSettingsPanel)
+  then Settings.OpenToCategory; old in-window page kept as fallback; /gf ajustes|config|opciones; /gf ruta|tope go
+  through Settings.SetValue. Suites pass.
+- L9: U7: visible strings renamed (chat prefix, window title, minimap tooltip and LDB text, Options category).
+  Kept as "GoldFinder": folder, SavedVariables, ADDON_LOADED check, Auctionator CALLER id, LDB/LibDBIcon object
+  name (minimap position), auction house tab label (narrow).
