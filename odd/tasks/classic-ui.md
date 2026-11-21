@@ -46,7 +46,7 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 | U2 | S4, S5 | delegated (context backstop) | done, tracker verified in game; guide, mail, bank pending | 7460f3a |
 | U3 | S6 | delegated (context backstop) | done, verified in game (Ruta) | 8ee8024, 385f293 |
 | U4 | S6, S7 | delegated (context backstop) | done, verified in game | bbd009a, 454b833 |
-| U5 | S6 | delegated (context backstop) | done (offline tests), in-game check pending | see Log L16 |
+| U5 | S6 | delegated (context backstop) | done, verified in game | 204ab24 |
 | U6 | S8, S5 | delegated (context backstop) | done, verified in game | a0f11da |
 | U7 | S9 | inline | done, verified in game | 0ca4681, 40f7164 |
 | U8 | S10a | delegated (context backstop) | done, verified in game | c3eab1d, 60be0a1 |
@@ -148,3 +148,9 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   Fallback objective block first drawn under the tracker and went off screen with a long quest list; fix 60be0a1
   anchors it left of ObjectiveTrackerFrame, top aligned (like SkillUp). Verified: block "GoldFinder Forever" with
   Cooking 179 > 204 and Leatherworking lines and missing materials. No GoldFinder errors.
+- L22: In game 22:19 with Ashes Soulbinder at the Undercity AH: GoldFinder AH tab shows Bolsas (Spider's Silk, Runed
+  Copper Rod, VENDEDOR, Fijar) and Cuero tabs, header buttons Exportar a TSM / Ajustes / Escanear; objective block
+  shows Ashes' Tailoring 75 train line. Follow-ups: AH window title now "GoldFinder Forever" (LibAHTab tabHeader);
+  static trainer fallback prefers the trainer in the current zone (was Orgrimmar for a character in Undercity),
+  tests/trainers_test.lua +2 cases (RED first). Ashes' ficha rename not yet observable (saved data predates the
+  Ashes session).

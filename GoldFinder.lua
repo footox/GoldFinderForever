@@ -929,9 +929,15 @@ local function TrainList(prof)
       entry = { npc = d.npc, zone = d.zone, x = d.x, y = d.y, seen = true }
     else
       local str = static and static[max] and static[max][fac]
-      local n, z, x, y
-      if str then n, z, x, y = str:match("^([^|;]+)|([^|;]+)|([^|;]+)|([^|;]+)") end
-      if n then entry = { npc = n, zone = z, x = x, y = y } end
+      -- el de la zona donde estas si hay uno; si no, el primero de la lista
+      local here = GetRealZoneText and GetRealZoneText()
+      for part in (str or ""):gmatch("[^;]+") do
+        local n, z, x, y = part:match("^([^|]+)|([^|]+)|([^|]+)|([^|]+)$")
+        if n and (not entry or z == here) then
+          entry = { npc = n, zone = z, x = x, y = y }
+          if z == here then break end
+        end
+      end
     end
     if entry then
       entry.max, entry.name = max, RANK_NAMES[max] .. " " .. prof
@@ -4916,7 +4922,7 @@ local function BuildTab()
   panel:SetPoint("BOTTOMRIGHT", AuctionHouseFrame, "BOTTOMRIGHT", -14, 36)
   -- solo lo que se usa en la subasta: Bolsas (subasta primero), Compras y Cuero; Ajustes en la cabecera
   CreateUI(panel, { auction = true })
-  LibAHTab:CreateTab(TAB_ID, panel, "GoldFinder", "GoldFinder")
+  LibAHTab:CreateTab(TAB_ID, panel, "GoldFinder", "GoldFinder Forever")   -- texto de la pestana (corto) y titulo
   panelBuilt = true
 
   -- el boton de la pestana puede salir estirado: se limita a un ancho normal

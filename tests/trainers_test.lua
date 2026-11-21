@@ -7,9 +7,10 @@ local a = assert(src:find("-- Requisitos para entrenar cada rango", 1, true), "s
 local b = assert(src:find("-- FIN DE INSTRUCTORES", 1, true), "end marker")
 local chunk = src:sub(a, b - 1) .. "\nreturn TrainList"
 
-local faction = "Horde"
+local faction, zone = "Horde", "Durotar"
 local env = setmetatable({
   UnitFactionGroup = function() return faction end,
+  GetRealZoneText = function() return zone end,
   GoldFinderData = { train = { leatherworking = { H = { { max = 75, name = "Zygor", npc = "Zygor NPC" } } } } },
   GoldFinderTrainers = { leatherworking = {
     [75] = { A = "Alli One|Stormwind City|1.0|2.0", H = "Horde One|Orgrimmar|3.0|4.0;Horde Two|Undercity|5.0|6.0" },
@@ -52,6 +53,15 @@ env.GoldFinderDB.trainers.Horde.Cooking = { [225] = { npc = "Cook", zone = "Orgr
 l = TrainList("Cooking")
 check("recorded only: cooking expert", l and #l == 1 and l[1].npc == "Cook" and l[1].name == "Expert Cooking")
 check("no data: nil", TrainList("Alchemy") == nil)
+
+-- 3b. Without a visit, the static trainer in the player's current zone is preferred over the first one.
+env.GoldFinderDB = {}
+zone = "Undercity"
+l = TrainList("Leatherworking")
+check("static: trainer in current zone preferred", l[1].npc == "Horde Two" and l[1].zone == "Undercity")
+zone = "Durotar"
+l = TrainList("Leatherworking")
+check("static: first entry when none in zone", l[1].npc == "Horde One")
 
 -- 4. The other faction's data is ignored.
 faction = "Alliance"
