@@ -219,3 +219,5 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
 - L33: Independent Fable verification of U11 (7c8b61d): no path sends reserved units, wrong item, money/COD or two
   mails per click. Findings: first-name-only banker would be mailed as-is; pending can stick if SendMail is refused
   silently; false "Enviado" on an unrelated MAIL_SEND_SUCCESS in the window; existing body text is sent.
+- L34: U11 correction (parent, inline): refuse a banker without surname; GoldFinder's own body text (a typed draft
+  is not sent); 10 s timeout clears a stuck pending send; MAIL_SEND_SUCCESS only counts after SendMail was called.

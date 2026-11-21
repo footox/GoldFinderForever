@@ -5614,6 +5614,10 @@ do
   local function SendToBanker()
     local banker = BankerName()
     if not banker or not ToBanker() then return Print("No hay banquero (o eres tu): mira Ajustes.") end
+    -- en Forever el correo necesita "Nombre Apellido": con solo el nombre de pila podria llegar a otro personaje
+    if not banker:find(" ", 1, true) then
+      return Print("El banquero (" .. banker .. ") no tiene apellido: eligelo de nuevo en Ajustes.")
+    end
     if pending then return Print("Espera: el correo anterior aun se esta enviando.") end
     if not MailOpen() then return Print("Abre el buzon (el correo normal, no el de TSM) para enviar.") end
     if not (C_Container and C_Container.PickupContainerItem and C_Container.GetContainerItemInfo
@@ -5644,13 +5648,23 @@ do
         pending = nil
         return Fail("faltan adjuntos o se cerro el correo. Revisa el correo: lo dejo relleno sin enviar.")
       end
-      local body = SendMailBodyEditBox and SendMailBodyEditBox:GetText() or ""
-      pending.sending = true
-      local ok, err = pcall(SendMail, banker, SUBJECT, body or "")
+      -- cuerpo propio: un borrador que tuviera escrito el jugador no se envia
+      local mine = pending
+      mine.sending = true
+      local ok, err = pcall(SendMail, banker, SUBJECT, "Enviado por GoldFinder Forever para subastar.")
       if not ok then
         pending = nil
         Fail(tostring(err))
+        return
       end
+      -- si el servidor no responde (sin MAIL_SEND_SUCCESS ni MAIL_FAILED), el boton no se queda bloqueado
+      C_Timer.After(10, function()
+        if pending == mine then
+          pending = nil
+          Print("El correo no respondio: revisa en el buzon si se envio.")
+          pcall(RefreshMail)
+        end
+      end)
     end)
   end
 
@@ -5677,7 +5691,8 @@ do
   local ev = CreateFrame("Frame")
   for _, e in ipairs({ "MAIL_SEND_SUCCESS", "MAIL_FAILED", "MAIL_CLOSED" }) do pcall(ev.RegisterEvent, ev, e) end
   ev:SetScript("OnEvent", function(_, event, arg1)
-    if event == "MAIL_SEND_SUCCESS" and pending then
+    -- solo el envio que hizo GoldFinder (ya llamo a SendMail): otro correo enviado a mano no cuenta
+    if event == "MAIL_SEND_SUCCESS" and pending and pending.sending then
       Print(format("Enviado a %s: %d objetos (%d correos restantes)", pending.banker, pending.n, pending.remaining))
       pending = nil
       C_Timer.After(0.5, function() pcall(RefreshMail) end)
