@@ -3445,7 +3445,8 @@ local function CreateUI(parent)
       b.gfTab = true
       b:SetID(i)
       b:SetText(def[2])
-      if PanelTemplates_TabResize then pcall(PanelTemplates_TabResize, b, 0) end
+      -- margen de 12 y ancho minimo de 70: sin margen el texto queda pegado al borde de la pestana
+      if PanelTemplates_TabResize then pcall(PanelTemplates_TabResize, b, 12, nil, 70) end
       b:SetScript("OnEnter", nil); b:SetScript("OnLeave", nil)
     else
       b = Btn(ui, def[2], 90, 22)
@@ -3468,7 +3469,7 @@ local function CreateUI(parent)
       else
         b:ClearAllPoints()
         if prev then
-          b:SetPoint("LEFT", prev, "RIGHT", b.gfTab and -16 or 4, 0)
+          b:SetPoint("LEFT", prev, "RIGHT", b.gfTab and -8 or 4, 0)
         elseif native then
           b:SetPoint("TOPLEFT", parent, "BOTTOMLEFT", 11, 2)
         else
