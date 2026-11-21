@@ -154,3 +154,6 @@ and in-game screenshots + BugGrabber (UI can only be verified in game).
   static trainer fallback prefers the trainer in the current zone (was Orgrimmar for a character in Undercity),
   tests/trainers_test.lua +2 cases (RED first). Ashes' ficha rename not yet observable (saved data predates the
   Ashes session).
+- L23: After /reload with Ashes (22:21): saved fichas are "Ashes Soulbinder" and "Twistice Penguin" (old realm key
+  renamed on first login). No GoldFinder errors. Still not seen in game: Fabricar page in the professions window,
+  /gf guia restyle, mail and bank panels.
