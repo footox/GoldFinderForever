@@ -14,6 +14,7 @@ core/config.lua
 core/locale.lua
 locales/enUS.lua
 locales/esES.lua
+locales/notes_enUS.lua
 core/money.lua
 core/quest_need.lua
 core/decision.lua

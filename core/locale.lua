@@ -40,5 +40,19 @@ end
 
 function GF.ActiveLocale() return active end
 
+-- The data files (GoldFinderRoutes, GoldFinderGuides) keep their zone notes in Spanish. In an English UI the note goes
+-- through GF.NotesEN (locales/notes_enUS.lua); a note without an entry is shown as written, never hidden.
+function GF.NoteText(note)
+  if not note then return nil end
+  if active == "enUS" and GF.NotesEN and GF.NotesEN[note] then return GF.NotesEN[note] end
+  return note
+end
+
+-- A list of zones in the data reads "Durotar, Mulgore o Tirisfal Glades": in English the Spanish " o " becomes " or ".
+function GF.ZoneText(text)
+  if type(text) ~= "string" or active ~= "enUS" then return text end
+  return (text:gsub(" o ", " or "))
+end
+
 -- Until the saved setting is read (ADDON_LOADED), follow the client.
 if type(GetLocale) == "function" then GF.SetLocale(GF.ResolveLocale("auto", GetLocale())) end

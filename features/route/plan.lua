@@ -168,8 +168,8 @@ function GF.InitRoutePlan(d)
     for _, r in ipairs(routes) do
       for _, z in ipairs(r.zones or {}) do
         if pd.rank < z.to then
-          out[#out + 1] = format(L["plan.zones"], r.name, z.from, z.to, AnnotateZones(z.zone),
-            z.note and (" (" .. z.note .. ")") or "")
+          out[#out + 1] = format(L["plan.zones"], r.name, z.from, z.to, GF.ZoneText(AnnotateZones(z.zone)),
+            z.note and (" (" .. GF.NoteText(z.note) .. ")") or "")
           break
         end
       end

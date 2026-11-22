@@ -2,6 +2,8 @@
 --   "C:\Program Files (x86)\Lua\5.1\lua.exe" tests\route_plan_feature_test.lua
 
 local GF = { L = setmetatable({}, { __index = function(_, k) return k end }) }
+GF.NoteText = function(n) return n end   -- the module reads the note and zone text through the locale helpers
+GF.ZoneText = function(t) return t end
 local fn = assert(loadfile("features/route/plan.lua"))
 setfenv(fn, setmetatable({}, { __index = _G }))
 fn("GoldFinder", GF)

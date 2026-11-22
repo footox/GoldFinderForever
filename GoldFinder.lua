@@ -1646,7 +1646,7 @@ local function StepText(e)
     local mob = (e.mob and isSkin) and (" (" .. e.mob .. ")") or ""
     local x, y = tonumber(e.x), tonumber(e.y)
     local where = (x and y) and format("%s (%.1f, %.1f)", e.zone, x, y) or tostring(e.zone)
-    return verb .. " " .. where .. mob .. ZoneTag(e.zone) .. (e.note and (" (" .. e.note .. ")") or "")
+    return verb .. " " .. where .. mob .. ZoneTag(e.zone) .. (e.note and (" (" .. GF.NoteText(e.note) .. ")") or "")
   end
   return format(L["step.make"], e.qty, e.what)
 end

@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Shopping tab: each profession row also has its own List button, with a list named GoldFinder - <profession>, for when you only care about one.
+- Zone notes of the guides (for example "copper", "tin and silver" or the Fishing tips) are now shown in English with an English interface instead of in Spanish.
 - Scan button: shows the scan percentage and a thin progress bar while Auctionator scans.
 - Shopping tab: a List button sends what is missing (exact names and quantities) to an Auctionator shopping list named GoldFinder, kept after you close the auction house.
 - Auction tab: a collapsible side panel on the right with the navigation between views and the posting options; the bottom tabs are replaced by it.
