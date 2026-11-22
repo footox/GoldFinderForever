@@ -1287,7 +1287,7 @@ local function SkinRank()
   return nil
 end
 
-local function LeatherRows()
+local function MaterialRows(cat)
   local v1 = AHApi()
   if not (v1 and Auctionator.Database and Auctionator.Database.db) then return {} end
   local rows = {}
@@ -1295,7 +1295,7 @@ local function LeatherRows()
     if type(key) == "string" and key:match("^%d+$") and entry.m and entry.m > 0 then
       local id = tonumber(key)
       local _, _, _, _, _, classID, subClassID = C_Item.GetItemInfoInstant(id)
-      if classID == 7 and subClassID == 6 then
+      if GF.MaterialMatches(cat, classID, subClassID) then
         local vendor = VendorPrice(id)
         local region = TSMValue("DBRegionSaleAvg", id)
         local ref = RefPrice(id)
@@ -1316,13 +1316,14 @@ local function LeatherRows()
         else advice = "-" end
         rows[#rows + 1] = {
           id = id, price = entry.m, region = region, advice = advice,
-          stack = math.max(netAH, vendor or 0) * 20, owned = bags + bank, farm = FarmText(id),
+          stack = math.max(netAH, vendor or 0) * 20, owned = bags + bank,
+          farm = (cat.id == "leather") and FarmText(id) or nil,   -- where to skin it: only leather has that data
         }
       end
     end
   end
   -- primero lo que tienes, luego lo que tu Desuello alcanza, y despues el resto; en cada grupo por valor de pila
-  local rank = SkinRank()
+  local rank = (cat.id == "leather") and SkinRank() or nil
   local function group(r)
     if r.owned > 0 then return 1 end
     if r.farm and r.farm.req and rank and r.farm.req <= rank then return 2 end
@@ -3208,7 +3209,7 @@ local function CreateUI(parent, opts)
   -- pestanas abajo, como en la ventana de personaje (PanelTabButtonTemplate). Sin la plantilla, botones.
   local navDefs = {
     { "resumen", L["tab.summary"] }, { "bolsas", L["tab.bags"] }, { "compras", L["tab.shopping"] },
-    { "fabricar", L["tab.craft"] }, { "ruta", L["tab.route"] }, { "cuero", L["tab.leather"] },
+    { "fabricar", L["tab.craft"] }, { "ruta", L["tab.route"] }, { "cuero", L["tab.materials"] },
     { "sesion", L["tab.session"] }, { "ajustes", L["tab.settings"] },
   }
   if embedded then navDefs = {} end
@@ -3651,13 +3652,24 @@ local function CreateUI(parent, opts)
     end,
 
     cuero = function()
-      ui.list.setHeaders(L["win.hLeather"], L["win.hAuction"], L["win.hStack"], L["win.hAdvice"])
-      local out = {}
-      for _, r in ipairs(LeatherRows()) do
+      -- the Materials tab (its key stays "cuero"): one category at a time, opening on the one of your professions
+      local char = Char()
+      local cat = GF.CurrentMaterialCategory(char)
+      ui.list.setHeaders(L["mat." .. cat.id .. ".h"], L["win.hAuction"], L["win.hStack"], L["win.hAdvice"])
+      local function pick(step)
+        Char().matCat = GF.NextMaterialCategory(cat.id, step)
+        ui.refresh()
+      end
+      local out = {
+        { name = L["mat.category"] .. " |cffffd24d" .. L["mat." .. cat.id] .. "|r",
+          actions = { { "<", function() pick(-1) end }, { ">", function() pick(1) end } } },
+      }
+      local rows = MaterialRows(cat)
+      for _, r in ipairs(rows) do
         local name = ItemLink(r.id)
         if r.owned > 0 then name = name .. "  " .. DIM .. format(L["win.owned"], r.owned) .. "|r" end
         local lines = {}
-        lines[#lines + 1] = r.farm or L["win.notSkinned"]
+        if cat.id == "leather" then lines[#lines + 1] = r.farm or L["win.notSkinned"] end
         if r.region then lines[#lines + 1] = format(L["win.regionPrice"], Money(r.region)) end
         out[#out + 1] = {
           id = r.id, name = name,
@@ -3665,7 +3677,8 @@ local function CreateUI(parent, opts)
           c1 = ShortMoney(r.price), c2 = ShortMoney(r.stack), c3 = r.advice,
         }
       end
-      ui.list.setRows(out, L["win.leatherEmpty"])
+      if #rows == 0 then out[#out + 1] = { name = DIM .. format(L["win.matEmpty"], L["mat." .. cat.id .. ".l"]) .. "|r" } end
+      ui.list.setRows(out, "")
     end,
 
     sesion = function()

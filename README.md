@@ -21,6 +21,7 @@ GoldFinder Forever reads your bags and the auction prices and tells you, item by
 - **Auction house**: a GoldFinder tab with one-click posting (price and quantity worked out like a TSM operation). If your last scan is old, the first click checks the live price and the second one posts. A collapsible side panel holds the navigation and the posting options, and the Scan button shows its progress.
 - **Mailbox** (off by default): send what should be auctioned to your banker character, with a checkbox per item.
 - **Bags**: an X button hides an item from the list (per character) and a Show button brings it back.
+- **Materials**: leather, cloth, ore and herbs with their auction price, the value of a stack and the advice; it opens on the category of your professions.
 - **Shopping**: what you are missing for each profession, with a List button that sends it (exact names and quantities) to an Auctionator shopping list, plus one list per profession.
 - **Professions**: Route and Craft tabs in the professions window, skill-up chance and cost per point on each recipe, and a 1-300 guide with your own prices. It includes Fishing and, with QuestieDB or the data addon, where to get the recipes that are taught by an item.
 - **Tracking**: your next profession step in the objective tracker, with the icon of each material, the cost of what you are missing and the skill-up chance per craft.
@@ -75,6 +76,7 @@ Everything the addon knows stays in the saved variables on your PC: your own cha
 - Options that you never changed are no longer saved as if you had chosen them, so a default that changes in a later version reaches everyone. Only the values that differ from the default stay in your saved data. Nothing you chose is lost.
 
 **Features**
+- The Leather tab is now the Materials tab: leather, cloth, ore and herbs, with their auction price, the value of a stack and the advice. A selector at the top (< and >) changes the category, and it opens on the one of your professions (the one with the highest skill; leather if none).
 - Optional data addon support: if GoldFinderForeverData is installed, the guide also says where to get a recipe item from the vendors and drops its players recorded, next to what QuestieDB knows (it fills the gaps, for example recipes QuestieDB does not list).
 - /gff data <command> runs a command of the data addon (for example /gff data help or /gff data near vendor).
 
