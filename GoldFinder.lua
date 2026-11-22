@@ -7,6 +7,7 @@ local _, GF = ...
 
 local CALLER, AH_CUT, DEFAULTS = GF.CALLER, GF.AH_CUT, GF.DEFAULTS
 local Print, Money, ShortMoney, Cfg = GF.Print, GF.Money, GF.ShortMoney, GF.Cfg
+local L = GF.L
 
 -- Datos por personaje (profesiones, recetas, objetos fijados, sesion): cada uno tiene lo suyo.
 local LEGACY_OWNER = "Twistice"   -- personaje al que pertenecen los datos guardados antes de las fichas
@@ -961,8 +962,9 @@ local function RecipeLines(tooltip, id)
     if ro.unknown then
       tooltip:AddLine("  " .. ro.note, 1, 0.82, 0)
     else
-      tooltip:AddLine(format("  %s (%s %d%s) no la sabe: %s", ro.who, ro.prof, ro.rank,
-        ro.req and (", pide " .. ro.req) or "", ro.ready and "puede aprenderla" or "aun le falta habilidad"),
+      tooltip:AddLine(format(L["tip.recipeUnknownBy"], ro.who, ro.prof, ro.rank,
+        ro.req and format(L["vendor.recipes.req"], ro.req) or "",
+        ro.ready and L["vendor.recipes.canLearn"] or L["vendor.recipes.lacksSkill"]),
         ro.ready and 0.35 or 1, ro.ready and 0.92 or 0.65, ro.ready and 0.55 or 0.25)
     end
   end
@@ -1010,13 +1012,13 @@ local function TipAdvice(tooltip, data)
   end
 
   if d.verdict == "KEEP" then
-    tooltip:AddLine("|cff6cb4ffGoldFinder: GUARDAR|r  " .. d.reason, 1, 1, 1)
+    tooltip:AddLine(format("|cff6cb4ffGoldFinder: %s|r  %s", L["verdict.KEEP"], d.reason), 1, 1, 1)
     if bags + bank > 0 then
-      tooltip:AddLine(format("  Tienes %d en bolsas y %d en el banco.", bags, bank), 0.7, 0.7, 0.7)
+      tooltip:AddLine(format(L["tip.have"], bags, bank), 0.7, 0.7, 0.7)
     end
     local qheld = d.quest and math.min(d.quest.n or 0, bags + bank) or 0
     if qheld > 0 then
-      tooltip:AddLine(format("  %d reservados para mision(es): %s", qheld, table.concat(d.quest.quests or {}, ", ")),
+      tooltip:AddLine(format(L["tip.questHeld"], qheld, table.concat(d.quest.quests or {}, ", ")),
         1, 0.82, 0, true)
     end
     if d.need and bags + bank < d.need then
@@ -1026,8 +1028,7 @@ local function TipAdvice(tooltip, data)
         for i, o in ipairs(others) do
           if i <= 3 then parts[#parts + 1] = format("%s %d", o.who, o.n) end
         end
-        tooltip:AddLine(format("  Te faltan %d: otros personajes tienen %s. Pidelos por correo antes de comprar.",
-          d.need - bags - bank, table.concat(parts, ", ")), 0.42, 0.71, 1, true)
+        tooltip:AddLine(format(L["tip.missing"], d.need - bags - bank, table.concat(parts, ", ")), 0.42, 0.71, 1, true)
       end
     end
     RecipeLines(tooltip, id)
@@ -1035,43 +1036,43 @@ local function TipAdvice(tooltip, data)
   end
 
   local color = d.verdict == "AH" and "|cff33ff99" or "|cffffa040"
-  tooltip:AddLine(format("%sGoldFinder: %s|r  subasta %s (neto) | vendedor %s",
-    color, d.verdict == "AH" and "SUBASTA" or "VENDEDOR",
-    d.ahNet > 0 and Money(d.ahNet) or "sin datos", d.vendor > 0 and Money(d.vendor) or "-"), 1, 1, 1)
+  tooltip:AddLine(format(L["tip.head"],
+    color, d.verdict == "AH" and L["verdict.AH"] or L["verdict.VENDOR"],
+    d.ahNet > 0 and Money(d.ahNet) or L["tip.nodata"], d.vendor > 0 and Money(d.vendor) or "-"), 1, 1, 1)
   -- solo se valora y se vende lo que sobra de la reserva (tus profesiones y las de tus otros personajes)
   local n = d.sellQty or bags
   local held = math.min(d.reserve or 0, bags + bank)
   -- objetos de mision: su propia linea; el resto de la reserva, con sus profesiones y otros personajes
   local qheld = d.quest and math.min(d.quest.n or 0, held) or 0
   if qheld > 0 then
-    tooltip:AddLine(format("  %d reservados para mision(es): %s", qheld, table.concat(d.quest.quests or {}, ", ")),
+    tooltip:AddLine(format(L["tip.questHeld"], qheld, table.concat(d.quest.quests or {}, ", ")),
       1, 0.82, 0, true)
   end
   if held - qheld > 0 then
-    tooltip:AddLine(format("  %d reservados para %s: %s %d de tus %d en bolsas.", held - qheld,
-      (d.quest and d.reserveOther or d.reserveFor) or "tus profesiones",
-      d.verdict == "AH" and "se subastan" or "se venden", n, bags), 0.42, 0.71, 1, true)
+    tooltip:AddLine(format(L["tip.reservedFor"], held - qheld,
+      (d.quest and d.reserveOther or d.reserveFor) or L["tip.yourProfessions"],
+      d.verdict == "AH" and L["tip.willAuction"] or L["tip.willSell"], n, bags), 0.42, 0.71, 1, true)
   elseif qheld > 0 then
-    tooltip:AddLine(format("  %s %d de tus %d en bolsas.", d.verdict == "AH" and "Se subastan" or "Se venden", n, bags),
+    tooltip:AddLine(format(L["tip.sellOnly"], d.verdict == "AH" and L["tip.auctioning"] or L["tip.selling"], n, bags),
       0.42, 0.71, 1, true)
   end
   if d.reason and d.verdict == "AH" then tooltip:AddLine("  " .. d.reason, 0.7, 0.7, 0.7, true) end
   if n > 0 and d.ahNet > 0 and d.vendor > 0 then
     local gain = (d.ahNet - d.vendor) * n
-    tooltip:AddLine(format("  Tus %d u.: subasta %s | vendedor %s | diferencia %s%s",
+    tooltip:AddLine(format(L["tip.compare"],
       n, Money(d.ahNet * n), Money(d.vendor * n), gain >= 0 and "+" or "-", Money(math.abs(gain))),
       0.8, 0.8, 0.8)
     if d.verdict == "VENDOR" and d.ahNet > d.vendor then
-      tooltip:AddLine("  La subasta gana poco: no compensa publicarlo.", 1, 0.8, 0.4)
+      tooltip:AddLine(L["tip.littleGain"], 1, 0.8, 0.4)
     end
   end
   if d.verdict == "AH" then
-    if d.toBanker then tooltip:AddLine("  Enviar a " .. BankerName() .. " para subastar.", 0.42, 0.71, 1) end
-    tooltip:AddLine("  (si el objeto esta ligado no se puede subastar)", 0.6, 0.6, 0.6)
+    if d.toBanker then tooltip:AddLine(format(L["tip.sendBanker"], BankerName()), 0.42, 0.71, 1) end
+    tooltip:AddLine(L["tip.bound"], 0.6, 0.6, 0.6)
   end
   local o = Cfg("crossChars") and OtherNeed(id) or nil
   if o and o.su and bags + bank > 0 then
-    tooltip:AddLine(format("  %s necesita %d mas para su ruta de %s: enviale hasta %d por correo.",
+    tooltip:AddLine(format(L["tip.otherNeeds"],
       o.who, o.need, o.prof, math.min(bags + bank, o.need)), 0.42, 0.71, 1, true)
   end
 end
