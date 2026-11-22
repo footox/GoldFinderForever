@@ -10,11 +10,11 @@ function GF.InitMail(d)
   local Cfg, BagRows, BankerName, ToBanker, ShortMoney, Money, Print, ItemLink =
     d.Cfg, d.BagRows, d.BankerName, d.ToBanker, d.ShortMoney, d.Money, d.Print, d.ItemLink
   local format = string.format
+  local L = GF.L
   local MAIL_LINES = 14
   local RefreshMail
 
 
-  local SUBJECT = "GoldFinder: para subastar"
   local pending      -- correo enviado que espera MAIL_SEND_SUCCESS / MAIL_FAILED
 
   -- sobrante por objeto: las mismas filas que lista el panel (veredicto AH, para el banquero, sin ligar)
@@ -50,7 +50,7 @@ function GF.InitMail(d)
 
   local function Fail(msg)
     if ClearCursor then pcall(ClearCursor) end
-    Print("Correo no enviado: " .. msg)
+    Print(format(L["mail.fail"], msg))
   end
 
   -- coge la pila con el cursor y la suelta en la casilla i del correo (como los addons de correo)
@@ -58,44 +58,44 @@ function GF.InitMail(d)
     local CC = C_Container
     local info = CC.GetContainerItemInfo(s.bag, s.slot)
     if not info or info.itemID ~= s.id or (info.stackCount or 1) ~= s.count or info.isLocked then
-      return false, "la bolsa cambio (" .. ItemLink(s.id) .. "); vuelve a pulsar"
+      return false, format(L["mail.err.bagChanged"], ItemLink(s.id))
     end
-    if CursorHasItem and CursorHasItem() then return false, "tienes algo en el cursor" end
-    if not pcall(CC.PickupContainerItem, s.bag, s.slot) then return false, "no pude coger " .. ItemLink(s.id) end
-    if not (CursorHasItem and CursorHasItem()) then return false, "no pude coger " .. ItemLink(s.id) end
-    if not pcall(ClickSendMailItemButton, i) then return false, "no pude adjuntar " .. ItemLink(s.id) end
-    if CursorHasItem() then return false, "no pude adjuntar " .. ItemLink(s.id) end
+    if CursorHasItem and CursorHasItem() then return false, L["mail.err.cursor"] end
+    if not pcall(CC.PickupContainerItem, s.bag, s.slot) then return false, format(L["mail.err.pickup"], ItemLink(s.id)) end
+    if not (CursorHasItem and CursorHasItem()) then return false, format(L["mail.err.pickup"], ItemLink(s.id)) end
+    if not pcall(ClickSendMailItemButton, i) then return false, format(L["mail.err.attach"], ItemLink(s.id)) end
+    if CursorHasItem() then return false, format(L["mail.err.attach"], ItemLink(s.id)) end
     return true
   end
 
   local function SendToBanker()
     local banker = BankerName()
-    if not banker or not ToBanker() then return Print("No hay banquero (o eres tu): mira Ajustes.") end
+    if not banker or not ToBanker() then return Print(L["mail.nobanker"]) end
     -- en Forever el correo necesita "Nombre Apellido": con solo el nombre de pila podria llegar a otro personaje
     if not banker:find(" ", 1, true) then
-      return Print("El banquero (" .. banker .. ") no tiene apellido: eligelo de nuevo en Ajustes.")
+      return Print(format(L["mail.nosurname"], banker))
     end
-    if pending then return Print("Espera: el correo anterior aun se esta enviando.") end
-    if not MailOpen() then return Print("Abre el buzon (el correo normal, no el de TSM) para enviar.") end
+    if pending then return Print(L["mail.wait"]) end
+    if not MailOpen() then return Print(L["mail.openbox"]) end
     if not (C_Container and C_Container.PickupContainerItem and C_Container.GetContainerItemInfo
       and ClickSendMailItemButton and GetSendMailItem and SendMail and CursorHasItem) then
-      return Print("Este cliente no permite adjuntar desde GoldFinder.")
+      return Print(L["mail.unsupported"])
     end
     -- pestana Enviar: el mismo clic que hace el jugador en la interfaz por defecto
     if not SendOpen() and MailFrameTab2 and MailFrameTab2.Click then pcall(MailFrameTab2.Click, MailFrameTab2) end
-    if not SendOpen() then return Print("No pude abrir la pestana Enviar del correo.") end
-    if Attached() > 0 then return Print("El correo ya tiene adjuntos: envialo o quitalos antes.") end
+    if not SendOpen() then return Print(L["mail.nosendtab"]) end
+    if Attached() > 0 then return Print(L["mail.hasattach"]) end
     if (GetSendMailMoney and (GetSendMailMoney() or 0) > 0) or (GetSendMailCOD and (GetSendMailCOD() or 0) > 0) then
-      return Print("El correo tiene dinero o contra reembolso puestos: quitalos antes.")
+      return Print(L["mail.hasmoney"])
     end
     local p = Plan()
-    if #p.attach == 0 then return Print("Nada que enviar a " .. banker .. ".") end
+    if #p.attach == 0 then return Print(format(L["mail.nothing"], banker)) end
     if SendMailNameEditBox then SendMailNameEditBox:SetText(banker) end
-    if SendMailSubjectEditBox then SendMailSubjectEditBox:SetText(SUBJECT) end
+    if SendMailSubjectEditBox then SendMailSubjectEditBox:SetText(L["mail.subject"]) end
     for i, s in ipairs(p.attach) do
-      if not SendOpen() then return Fail("se cerro el correo; revisa los adjuntos") end
+      if not SendOpen() then return Fail(L["mail.err.closed"]) end
       local ok, why = AttachOne(s, i)
-      if not ok then return Fail(why .. ". Revisa el correo: lo dejo relleno sin enviar.") end
+      if not ok then return Fail(format(L["mail.err.review"], why)) end
     end
     -- el cliente puede tardar un instante en mostrar los adjuntos: se comprueba otra vez antes de enviar
     pending = { banker = banker, n = p.stacks, remaining = p.remaining, sending = false }
@@ -103,12 +103,12 @@ function GF.InitMail(d)
       if not pending or pending.sending then return end
       if not SendOpen() or Attached() ~= #p.attach then
         pending = nil
-        return Fail("faltan adjuntos o se cerro el correo. Revisa el correo: lo dejo relleno sin enviar.")
+        return Fail(L["mail.err.missing"])
       end
       -- cuerpo propio: un borrador que tuviera escrito el jugador no se envia
       local mine = pending
       mine.sending = true
-      local ok, err = pcall(SendMail, banker, SUBJECT, "Enviado por GoldFinder Forever para subastar.")
+      local ok, err = pcall(SendMail, banker, L["mail.subject"], L["mail.body"])
       if not ok then
         pending = nil
         Fail(tostring(err))
@@ -118,7 +118,7 @@ function GF.InitMail(d)
       C_Timer.After(10, function()
         if pending == mine then
           pending = nil
-          Print("El correo no respondio: revisa en el buzon si se envio.")
+          Print(L["mail.noresponse"])
           pcall(RefreshMail)
         end
       end)
@@ -128,20 +128,20 @@ function GF.InitMail(d)
   local function Tip(btn)
     local p = btn.plan
     GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-    GameTooltip:AddLine("Enviar al banquero", 1, 0.82, 0)
-    GameTooltip:AddLine("Para: " .. (BankerName() or "?"), 1, 1, 1)
+    GameTooltip:AddLine(L["mail.button"], 1, 0.82, 0)
+    GameTooltip:AddLine(format(L["mail.tip.to"], BankerName() or "?"), 1, 1, 1)
     if p then
-      GameTooltip:AddLine(format("Este correo: %d pila(s), %d unidad(es)", p.stacks, p.units), 1, 1, 1)
+      GameTooltip:AddLine(format(L["mail.tip.this"], p.stacks, p.units), 1, 1, 1)
       local postage = SendOpen() and Attached() > 0 and GetSendMailPrice and GetSendMailPrice()
-      if postage then GameTooltip:AddLine("Franqueo: " .. Money(postage), 1, 1, 1)
-      else GameTooltip:AddLine("Franqueo aprox.: " .. Money(30 * math.max(p.stacks, 1)), 1, 1, 1) end
-      if p.remaining > 0 then GameTooltip:AddLine(format("Despues quedan %d correo(s)", p.remaining), 0.7, 0.7, 0.7) end
+      if postage then GameTooltip:AddLine(format(L["mail.tip.postage"], Money(postage)), 1, 1, 1)
+      else GameTooltip:AddLine(format(L["mail.tip.postageApprox"], Money(30 * math.max(p.stacks, 1))), 1, 1, 1) end
+      if p.remaining > 0 then GameTooltip:AddLine(format(L["mail.tip.after"], p.remaining), 0.7, 0.7, 0.7) end
       for i, s in ipairs(p.skipped) do
-        if i > 8 then GameTooltip:AddLine(format("... y %d mas", #p.skipped - 8), 0.7, 0.7, 0.7); break end
-        GameTooltip:AddLine(format("%s x%d: %s", ItemLink(s.id), s.count, s.why), 1, 0.5, 0.3, true)
+        if i > 8 then GameTooltip:AddLine(format(L["mail.more"], #p.skipped - 8), 0.7, 0.7, 0.7); break end
+        GameTooltip:AddLine(format("%s x%d: %s", ItemLink(s.id), s.count, L["mail.skip." .. tostring(s.why)]), 1, 0.5, 0.3, true)
       end
     end
-    GameTooltip:AddLine("Solo pilas enteras de lo que sobra de la reserva. Nada se envia sin clic.", 0.7, 0.7, 0.7, true)
+    GameTooltip:AddLine(L["mail.tip.rule"], 0.7, 0.7, 0.7, true)
     GameTooltip:Show()
   end
 
@@ -150,14 +150,13 @@ function GF.InitMail(d)
   ev:SetScript("OnEvent", function(_, event, arg1)
     -- solo el envio que hizo GoldFinder (ya llamo a SendMail): otro correo enviado a mano no cuenta
     if event == "MAIL_SEND_SUCCESS" and pending and pending.sending then
-      Print(format("Enviado a %s: %d objetos (%d correos restantes)", pending.banker, pending.n, pending.remaining))
+      Print(format(L["mail.sent"], pending.banker, pending.n, pending.remaining))
       pending = nil
       C_Timer.After(0.5, function() pcall(RefreshMail) end)
     elseif event == "MAIL_FAILED" and pending then
       local who = pending.banker
       pending = nil
-      Print("El correo a " .. who .. " fallo" .. (type(arg1) == "string" and (": " .. arg1) or
-        " (mira el mensaje de error en pantalla)") .. ".")
+      Print(type(arg1) == "string" and format(L["mail.failedWith"], who, arg1) or format(L["mail.failedGeneric"], who))
       pcall(RefreshMail)
     elseif event == "MAIL_CLOSED" then
       pending = nil
@@ -199,7 +198,7 @@ function GF.InitMail(d)
       f.body:SetJustifyV("TOP")
       f.foot = Text(f, 12, PAL.dim)
       f.foot:SetPoint("BOTTOMLEFT", 18, 44)
-      f.send = Btn(f, "Enviar al banquero", 150, 22, nil, function() SendToBanker() end)
+      f.send = Btn(f, L["mail.button"], 150, 22, nil, function() SendToBanker() end)
       f.send:SetPoint("BOTTOMLEFT", 16, 14)
       if f.send.SetMotionScriptsWhileDisabled then f.send:SetMotionScriptsWhileDisabled(true) end
       f.send:SetScript("OnEnter", Tip)
@@ -209,14 +208,14 @@ function GF.InitMail(d)
       if MailFrame then f:SetPoint("TOPLEFT", MailFrame, "TOPRIGHT", 2, -12)
       else f:SetPoint("LEFT", UIParent, "LEFT", 360, 60) end
     end
-    if n > MAIL_LINES then lines[#lines + 1] = "|cffb3b3b3... y " .. (n - MAIL_LINES) .. " mas|r" end
-    f.title:SetText("Para enviar a " .. banker)
+    if n > MAIL_LINES then lines[#lines + 1] = "|cffb3b3b3" .. format(L["mail.more"], n - MAIL_LINES) .. "|r" end
+    f.title:SetText(format(L["mail.panel.title"], banker))
     f.body:SetText(table.concat(lines, "\n"))
-    f.foot:SetText(format("%d objeto(s) - valor aprox. %s", n, ShortMoney(total)))
+    f.foot:SetText(format(L["mail.panel.foot"], n, ShortMoney(total)))
     f.send.plan = plan
     local mails = #plan.attach > 0 and (1 + plan.remaining) or 0
     if mails > 0 and MailOpen() then f.send:Enable() else f.send:Disable() end
-    f.mails:SetText(mails > 0 and format("%d correo(s)", mails) or "nada enviable")
+    f.mails:SetText(mails > 0 and format(L["mail.panel.mails"], mails) or L["mail.panel.none"])
     f:SetHeight(56 + (f.body:GetStringHeight() or 0) + 66)
     f:Show()
   end

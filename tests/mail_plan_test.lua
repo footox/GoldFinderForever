@@ -25,7 +25,7 @@ end
 local p = MailPlan({ S(0, 1, 100, 20), S(0, 2, 100, 20), S(0, 3, 100, 5) }, { [100] = 25 }, 12)
 check("whole stacks up to the surplus (25)", units(p, 100) == 25 and #p.attach == 2)
 check("stack over the surplus is skipped", #p.skipped == 1 and p.skipped[1].count == 20
-  and p.skipped[1].why == "no se envia: quedaria por debajo de la reserva")
+  and p.skipped[1].why == "reserve")
 check("totals: stacks and units", p.stacks == 2 and p.units == 25)
 check("one mail: no mails remain", p.remaining == 0)
 
@@ -51,9 +51,9 @@ check("24 of 30 within surplus: 1 more mail, 6 skipped", #p.attach == 12 and p.r
 -- locked and bound slots are skipped with their reason and do not count toward the surplus
 p = MailPlan({ S(0, 1, 100, 5, true), S(0, 2, 100, 5) }, { [100] = 5 }, 12)
 check("locked slot skipped", #p.attach == 1 and p.attach[1].slot == 2 and #p.skipped == 1
-  and p.skipped[1].why:find("bloqueado", 1, true) ~= nil)
+  and p.skipped[1].why == "locked")
 p = MailPlan({ S(0, 1, 100, 5, false, true) }, { [100] = 5 }, 12)
-check("bound slot skipped", #p.attach == 0 and p.skipped[1].why:find("ligado", 1, true) ~= nil)
+check("bound slot skipped", #p.attach == 0 and p.skipped[1].why == "bound")
 
 -- bigger stacks first, so the surplus is filled with fewer attachments; plan keeps bag and slot
 p = MailPlan({ S(0, 1, 100, 1), S(2, 7, 100, 10) }, { [100] = 10 }, 12)

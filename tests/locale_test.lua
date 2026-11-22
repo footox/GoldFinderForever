@@ -87,5 +87,12 @@ end
 check("every key used in the source exists in English" .. (#unknown > 0 and ("\n  " .. table.concat(unknown, "\n  ")) or ""),
   #unknown == 0)
 
+-- keys built at run time (prefix .. code) must exist for every code the core can return
+local dynamic = { "mail.skip.reserve", "mail.skip.bound", "mail.skip.locked" }
+local missingDyn = {}
+for _, k in ipairs(dynamic) do if en[k] == nil or es[k] == nil then missingDyn[#missingDyn + 1] = k end end
+check("run-time keys exist in both languages" .. (#missingDyn > 0 and (": " .. table.concat(missingDyn, ", ")) or ""),
+  #missingDyn == 0)
+
 if failures > 0 then os.exit(1) end
 print("locale tests ok")

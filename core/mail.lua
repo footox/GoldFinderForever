@@ -6,8 +6,7 @@ local _, GF = ...
 -- Funcion pura. slots = { { bag, slot, id, count, locked, bound } } de las bolsas; surplus = { [id] = unidades
 -- que sobran de la reserva }; maxAttach = adjuntos por correo (12). Solo pilas enteras: una pila entra si el total
 -- enviado de ese objeto sigue <= su sobrante (las pilas grandes primero). Devuelve { attach (este correo),
--- skipped (con why), stacks, units, remaining (correos que quedan despues de este) }.
-local OVER = "no se envia: quedaria por debajo de la reserva"
+-- skipped (with why: "bound", "locked" or "reserve"), stacks, units, remaining (correos que quedan despues de este) }.
 local function MailPlan(slots, surplus, maxAttach)
   maxAttach = maxAttach or 12
   local list = {}
@@ -24,9 +23,9 @@ local function MailPlan(slots, surplus, maxAttach)
   local used, ok = {}, 0
   for _, s in ipairs(list) do
     local why
-    if s.bound then why = "no se envia: ligado"
-    elseif s.locked then why = "no se envia: bloqueado (espera un momento)"
-    elseif (used[s.id] or 0) + s.count > surplus[s.id] then why = OVER end
+    if s.bound then why = "bound"
+    elseif s.locked then why = "locked"
+    elseif (used[s.id] or 0) + s.count > surplus[s.id] then why = "reserve" end
     if why then
       p.skipped[#p.skipped + 1] = { bag = s.bag, slot = s.slot, id = s.id, count = s.count, why = why }
     else
