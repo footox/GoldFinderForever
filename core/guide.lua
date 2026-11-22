@@ -61,4 +61,20 @@ local function GuideMerge(bands, st)
   return rows
 end
 
+-- guides = GoldFinderGuides; devuelve el nombre de la receta que la guia pone a tu habilidad actual (tramo
+-- f <= rank < t) de esa profesion, o nil si no hay guia o tramo. Se busca por linea de habilidad o por nombre.
+local function GuideBandName(guides, prof, skillLine, rank)
+  if not (guides and prof and rank) then return nil end
+  for _, g in pairs(guides) do
+    if (skillLine and g.line == skillLine) or (g.name and g.name:lower() == prof:lower()) then
+      for _, b in ipairs(g.bands or {}) do
+        if b.f <= rank and rank < b.t then return b.n end
+      end
+      return nil
+    end
+  end
+  return nil
+end
+
 GF.GuideMerge = GuideMerge
+GF.GuideBandName = GuideBandName

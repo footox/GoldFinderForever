@@ -710,6 +710,21 @@ local function NextStepList()
             else
               stepFrom[prof] = { what = e.what, from = e.from }
             end
+            -- la guia pone otra receta a este nivel: el seguimiento lo dice (el paso sigue siendo el mas barato)
+            local gname = GF.GuideBandName(GoldFinderGuides, prof, pd.skillLine, pd.rank)
+            if gname and e.what and gname:lower() ~= tostring(e.what):lower() then e.guide = gname end
+            -- datos del paso: probabilidad de subir por fabricacion y coste de los materiales que faltan
+            local okC, rec = pcall(RecipeLookup, pd.skillLine, e.what)
+            if okC and rec then e.chance = SkillUpChance(rec, pd.rank) end
+            local cost, priced = 0, true
+            for _, m in ipairs(e.mats or {}) do
+              local miss = (m.need or 0) - (m.have or 0)
+              if miss > 0 then
+                local p = BuyPrice(m.id)
+                if p then cost = cost + p * miss else priced = false end
+              end
+            end
+            if priced then e.missingCost = cost end
           end
         end
         local train, trainState
@@ -1407,6 +1422,10 @@ local function MakeList(parent)
       b:Hide()
       row.act[k] = b
     end
+    -- boton compacto de la derecha (Ocultar / Mostrar): desplaza a los otros dos 26 px a la izquierda
+    row.hideBtn = Btn(row, "", 22, 20)
+    row.hideBtn:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+    row.hideBtn:Hide()
     row:SetScript("OnEnter", function(self)
       if self.data and self.data.id then
         GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
@@ -1443,6 +1462,24 @@ local function MakeList(parent)
       end
       row.name:SetText(d.name or (d.id and ItemLink(d.id)) or "")
       row.c1:SetText(d.c1 or ""); row.c2:SetText(d.c2 or ""); row.c3:SetText(d.c3 or "")
+      local hb = row.hideBtn
+      if d.hide then
+        hb.label:SetText(d.hide.label)
+        hb:SetScript("OnClick", function() d.hide.fn() end)
+        hb:SetScript("OnEnter", function(self)
+          GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+          GameTooltip:AddLine(d.hide.tip, 1, 1, 1, true)
+          GameTooltip:Show()
+        end)
+        hb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        hb:Show()
+      else
+        hb:Hide()
+      end
+      for k = 1, 2 do
+        row.act[k]:ClearAllPoints()
+        row.act[k]:SetPoint("RIGHT", row, "RIGHT", -(d.hide and 32 or 6) - (2 - k) * 54, 0)
+      end
       for k = 1, 2 do
         local a, b = d.actions and d.actions[k], row.act[k]
         if a then
@@ -1472,11 +1509,12 @@ local function MakeList(parent)
     end
     for i = n + 1, #rowFrames do rowFrames[i]:Hide() end
     -- sin botones en la lista: ese espacio se devuelve a las columnas
-    local anyAct = false
+    local anyAct, anyHide = false, false
     for i = 1, n do
-      if data[i].actions and #data[i].actions > 0 then anyAct = true; break end
+      if data[i].actions and #data[i].actions > 0 then anyAct = true end
+      if data[i].hide then anyHide = true end
     end
-    curAct = anyAct and ACT_W or 8
+    curAct = anyAct and (ACT_W + (anyHide and 26 or 0)) or 8
     relayout()
     content:SetHeight(math.max(n * ROW_H, 1))
     if n == 0 then empty:SetText(emptyMsg or ""); empty:Show() else empty:Hide() end
@@ -3270,6 +3308,9 @@ local function CreateUI(parent, opts)
         -- los objetos sin precio (ligados, de mision, piedra de hogar...) no se listan; los de "escanea" si
         if BagListed(r) then rows[#rows + 1] = r else hidden = hidden + 1 end
       end
+      -- Ocultar: lo que el jugador quito de la lista (solo la lista; no cambia las decisiones)
+      local userHidden
+      rows, userHidden = GF.FilterHidden(rows, Char().hide, ui.showHidden)
       local out = {}
       for _, r in ipairs(rows) do
         local c2 = verdictText[r.verdict]
@@ -3307,8 +3348,15 @@ local function CreateUI(parent, opts)
             r.count - r.sellQty, r.reserveFor or L["win.yourProfessions"], r.sellQty)
           if r.reason then reserved = reserved .. " " .. r.reason end
         end
+        local hideBtn
+        if r.userHidden then
+          name = DIM .. name .. "|r"
+          hideBtn = { label = "+", tip = L["win.tipShow"], fn = function() local h = Char().hide; if h then h[r.id] = nil end; ui.refresh() end }
+        else
+          hideBtn = { label = "X", tip = L["win.tipHide"], fn = function() local c = Char(); c.hide = c.hide or {}; c.hide[r.id] = true; ui.refresh() end }
+        end
         out[#out + 1] = {
-          id = r.id, name = name, shift = shift,
+          id = r.id, name = name, shift = shift, hide = hideBtn,
           reason = reserved or r.reason,
           c1 = "x" .. r.count .. (r.bank > 0 and (" +" .. r.bank .. "b") or ""),
           c2 = c2, c3 = r.verdict == "KEEP" and (DIM .. Money(r.value) .. "|r") or Money(r.value), actions = acts,
@@ -3316,6 +3364,13 @@ local function CreateUI(parent, opts)
       end
       if hidden > 0 then
         out[#out + 1] = { name = DIM .. format(L["win.hidden"], hidden) .. "|r" }
+      end
+      if userHidden > 0 then
+        out[#out + 1] = {
+          name = DIM .. format(L["win.hiddenByYou"], userHidden) .. "|r",
+          actions = { { ui.showHidden and L["win.btnHideList"] or L["win.btnShowList"],
+            function() ui.showHidden = not ui.showHidden; ui.refresh() end } },
+        }
       end
       ui.list.setRows(out, L["win.bagsEmpty"])
     end,

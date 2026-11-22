@@ -12,10 +12,12 @@ function GF.InitMail(d)
   local format = string.format
   local L = GF.L
   local MAIL_LINES = 14
+  local ROW_H = 22
   local RefreshMail
 
 
   local pending      -- correo enviado que espera MAIL_SEND_SUCCESS / MAIL_FAILED
+  local excluded = {}   -- objetos que el jugador desmarco: no van en este correo (se olvida al cerrar el buzon)
 
   -- sobrante por objeto: las mismas filas que lista el panel (veredicto AH, para el banquero, sin ligar)
   local function Surplus()
@@ -29,9 +31,11 @@ function GF.InitMail(d)
     return surplus, rows
   end
 
+  -- plan del correo con solo lo marcado; rows son todas las filas (marcadas o no) y sel el resumen de lo marcado
   local function Plan()
-    local surplus, rows = Surplus()
-    return GF.MailPlan(GF.BagSlots(), surplus, tonumber(ATTACHMENTS_MAX_SEND) or 12), rows
+    local _, rows = Surplus()
+    local sel = GF.MailSelect(rows, excluded)
+    return GF.MailPlan(GF.BagSlots(), sel.surplus, tonumber(ATTACHMENTS_MAX_SEND) or 12), rows, sel
   end
 
   local function MailOpen() return MailFrame and MailFrame:IsShown() end
@@ -160,8 +164,53 @@ function GF.InitMail(d)
       pcall(RefreshMail)
     elseif event == "MAIL_CLOSED" then
       pending = nil
+      excluded = {}
     end
   end)
+
+  -- una fila: casilla (marcada = va en el correo) + objeto, cantidad y valor
+  local function NewRow(f, i)
+    local row = {}
+    row.cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    row.cb:SetSize(22, 22)
+    row.cb:SetPoint("TOPLEFT", 12, -(52 + i * ROW_H))
+    row.cb:SetScript("OnClick", function(self)
+      if self:GetChecked() then excluded[row.id] = nil else excluded[row.id] = true end
+      pcall(RefreshMail)
+    end)
+    row.cb:SetScript("OnEnter", function(self)
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:AddLine(L["mail.check.tip"], 1, 1, 1, true)
+      GameTooltip:Show()
+    end)
+    row.cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    row.icon = f:CreateTexture(nil, "ARTWORK")
+    row.icon:SetSize(18, 18)
+    row.icon:SetPoint("LEFT", row.cb, "RIGHT", 2, 0)
+    row.text = Text(f, 12, PAL.text)
+    row.text:SetPoint("LEFT", row.icon, "RIGHT", 5, 0)
+    row.text:SetWidth(278)
+    row.text:SetJustifyH("LEFT")
+    return row
+  end
+
+  -- casilla "seleccionar todo": si todo esta marcado la accion es desmarcar todo, si no, marcar todo
+  local function NewSelectAll(f)
+    local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    cb:SetSize(22, 22)
+    cb:SetPoint("TOPLEFT", 12, -52)
+    cb:SetScript("OnClick", function(self)
+      local on = self:GetChecked() and true or false
+      for _, r in ipairs(f.allRows or {}) do
+        if on then excluded[r.id] = nil else excluded[r.id] = true end
+      end
+      pcall(RefreshMail)
+    end)
+    cb.text = Text(f, 12, PAL.dim)
+    cb.text:SetPoint("LEFT", cb, "RIGHT", 2, 0)
+    cb.text:SetText(L["mail.selectAll"])
+    return cb
+  end
 
   function RefreshMail()
     local banker = BankerName()
@@ -170,15 +219,8 @@ function GF.InitMail(d)
       if f then f:Hide() end
       return
     end
-    local plan, rows = Plan()
-    local lines, total, n = {}, 0, #rows
-    for i, r in ipairs(rows) do
-      local val = r.unit * r.sellQty
-      total = total + val
-      if i <= MAIL_LINES then
-        lines[#lines + 1] = format("%s  |cffffffffx%d|r  |cffb3b3b3%s|r", ItemLink(r.id), r.sellQty, ShortMoney(val))
-      end
-    end
+    local plan, rows, sel = Plan()
+    local n = #rows
     if n == 0 then
       if f then f:Hide() end
       return
@@ -186,16 +228,14 @@ function GF.InitMail(d)
     if not f then
       -- dialogo clasico (como el panel de venta): titulo "GoldFinder Forever" y debajo el subtitulo
       f = Skin.Panel("GoldFinderMail", MailFrame or UIParent, "dialog")
-      f:SetWidth(310)
+      f:SetWidth(360)
       f:SetFrameStrata("HIGH")
       f.head = Skin.Head(f, "GoldFinder Forever")
       f.title = Text(f, 12, PAL.text)
       f.title:SetPoint("TOPLEFT", 18, -36)
-      f.body = Text(f, 12, PAL.text)
-      f.body:SetPoint("TOPLEFT", 18, -56)
-      f.body:SetWidth(274)
-      f.body:SetSpacing(4)
-      f.body:SetJustifyV("TOP")
+      f.rows = {}
+      f.all = NewSelectAll(f)
+      f.more = Text(f, 12, PAL.dim)
       f.foot = Text(f, 12, PAL.dim)
       f.foot:SetPoint("BOTTOMLEFT", 18, 44)
       f.send = Btn(f, L["mail.button"], 150, 22, nil, function() SendToBanker() end)
@@ -208,15 +248,41 @@ function GF.InitMail(d)
       if MailFrame then f:SetPoint("TOPLEFT", MailFrame, "TOPRIGHT", 2, -12)
       else f:SetPoint("LEFT", UIParent, "LEFT", 360, 60) end
     end
-    if n > MAIL_LINES then lines[#lines + 1] = "|cffb3b3b3" .. format(L["mail.more"], n - MAIL_LINES) .. "|r" end
     f.title:SetText(format(L["mail.panel.title"], banker))
-    f.body:SetText(table.concat(lines, "\n"))
-    f.foot:SetText(format(L["mail.panel.foot"], n, ShortMoney(total)))
+    local shown = math.min(n, MAIL_LINES)
+    f.allRows = rows
+    local allOn = true
+    for _, r in ipairs(rows) do if excluded[r.id] then allOn = false; break end end
+    f.all:SetChecked(allOn)
+    for i = 1, shown do
+      local r = rows[i]
+      local row = f.rows[i]
+      if not row then row = NewRow(f, i); f.rows[i] = row end
+      row.id = r.id
+      row.cb:SetChecked(not excluded[r.id])
+      row.icon:SetTexture((C_Item.GetItemIconByID and C_Item.GetItemIconByID(r.id)) or 134400)
+      row.icon:SetDesaturated(excluded[r.id] and true or false)
+      row.text:SetText(format("%s  |cffffffffx%d|r  |cffb3b3b3%s|r", ItemLink(r.id), r.sellQty, ShortMoney(r.unit * r.sellQty)))
+      row.text:SetAlpha(excluded[r.id] and 0.4 or 1)
+      row.cb:Show()
+      row.icon:Show()
+      row.text:Show()
+    end
+    for i = shown + 1, #f.rows do f.rows[i].cb:Hide(); f.rows[i].icon:Hide(); f.rows[i].text:Hide() end
+    if n > MAIL_LINES then
+      f.more:SetText(format(L["mail.more"], n - MAIL_LINES))
+      f.more:ClearAllPoints()
+      f.more:SetPoint("TOPLEFT", 18, -(58 + (shown + 1) * ROW_H))
+      f.more:Show()
+    else
+      f.more:Hide()
+    end
+    f.foot:SetText(format(L["mail.panel.foot"], sel.n, ShortMoney(sel.total)))
     f.send.plan = plan
     local mails = #plan.attach > 0 and (1 + plan.remaining) or 0
     if mails > 0 and MailOpen() then f.send:Enable() else f.send:Disable() end
     f.mails:SetText(mails > 0 and format(L["mail.panel.mails"], mails) or L["mail.panel.none"])
-    f:SetHeight(56 + (f.body:GetStringHeight() or 0) + 66)
+    f:SetHeight(56 + (shown + 1) * ROW_H + (n > MAIL_LINES and 16 or 0) + 66)
     f:Show()
   end
 

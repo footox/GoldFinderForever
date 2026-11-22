@@ -19,6 +19,7 @@ core/quest_need.lua
 core/decision.lua
 core/vendor.lua
 core/mail.lua
+core/hidden.lua
 core/auction.lua
 core/proftabs.lua
 core/guide.lua

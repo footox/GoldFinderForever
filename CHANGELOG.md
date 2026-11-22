@@ -4,6 +4,9 @@
 
 - English (enUS) and Spanish (esES) interface; it follows the game language, with a language selector in the options.
 - The "Fijar" button is now "Guardar" (Keep) and its reasons say "lo guardaste tú".
+- Mailbox panel: a checkbox per item to leave it out of this mail (count, mails and value update; resets when the mailbox closes).
+- Bags list: an X button per item hides it from the list (per character; a footer row shows or hides them again). Decisions do not change.
+- Objective tracker: material icons, the cost of the missing materials, the skill-up chance per craft, and a note when the guide proposes another recipe than the cheapest one.
 - Internal refactor: code split into core, adapters, features and ui folders; no behavior change.
 
 ## 2.1.2
