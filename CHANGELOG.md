@@ -2,28 +2,26 @@
 
 ## 2.2.1
 
-Auction house
-- When the last scan is older than a set time (10 minutes by default, 0 = never), the first click on Post checks the live lowest price of that item and recalculates; the second click posts. Two clicks because posting needs a direct click.
-- The Post button shows "Checking" while the live price is read and "Posting" while the auction is created, and cannot be clicked twice meanwhile.
-- A collapsible side panel on the right holds the navigation between views and the posting options; the bottom tabs are replaced by it.
-- The Scan button shows the scan percentage and a thin progress bar while Auctionator scans.
+### Features
+- Auction: when the last scan is older than a set time (10 minutes by default, 0 = never), the first click on Post checks the live lowest price of that item and recalculates; the second click posts. Two clicks because posting needs a direct click.
+- Auction: the Post button shows "Checking" while the live price is read and "Posting" while the auction is created, and cannot be clicked twice meanwhile.
+- Auction: a collapsible side panel on the right holds the navigation between views and the posting options; the bottom tabs are replaced by it.
+- Auction: the Scan button shows the scan percentage and a thin progress bar while Auctionator scans.
+- Shopping: a List button sends what is missing (exact names and quantities) to an Auctionator shopping list named GoldFinder, kept after you close the auction house.
+- Shopping: each profession row has its own List button, with a list named GoldFinder - <profession>, for when you only care about one.
+- Guide: Fishing guide by skill range with zones (from the WoW Forever fishing guides of wow-professions.com and warcrafttavern.com).
+- Guide: recipes taught by an item (patterns, plans, formulas), and the optional cheaper recipe of a band, say where to get them, with the vendor or the creature that drops it, its zone and coordinates. Read from QuestieDB when it is installed; nothing changes without it.
+- Tracker: new option, off by default, to show the Fishing and Skinning zone for your next skill range, like Mining and Herbalism.
 
-Shopping
-- A List button sends what is missing (exact names and quantities) to an Auctionator shopping list named GoldFinder, kept after you close the auction house.
-- Each profession row has its own List button, with a list named GoldFinder - <profession>, for when you only care about one.
-
-Guides and tracker
-- Fishing: a guide by skill range with zones (from the WoW Forever fishing guides of wow-professions.com and warcrafttavern.com).
-- Recipes taught by an item (patterns, plans, formulas), and the optional cheaper recipe of a band, now say where to get them, with the vendor or the creature that drops it, its zone and coordinates, read from QuestieDB when it is installed. Nothing changes without QuestieDB.
-- New option, off by default: show the Fishing and Skinning zone for your next skill range in the objective tracker, like Mining and Herbalism.
-
-Language
+### Changes
 - Zone notes of the guides (for example "copper", "tin and silver" or the Fishing tips) are shown in English with an English interface instead of in Spanish.
 
-Fixes found by a full code review before release
+### Fixes
 - The live price check no longer loops when an item has no competing auction: the saved price is used.
 - Live results are read in price order.
-- Wide state buttons no longer overlap the price column; the scan indicator no longer reports a failed scan just because it was quiet for a while; a recipe source that could not be read at login is looked up again later.
+- Wide state buttons no longer overlap the price column.
+- The scan indicator no longer reports a failed scan just because it was quiet for a while.
+- A recipe source that could not be read at login is looked up again later.
 
 ## 2.2.0
 
