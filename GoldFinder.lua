@@ -3205,9 +3205,29 @@ local function CreateUI(parent, opts)
       if not (OpenOptions and OpenOptions(nope)) then nope() end
     end)
     bOpts:SetPoint("RIGHT", bScan, "LEFT", -8, 0)
+    ui.bOpts = bOpts
     bExport:ClearAllPoints(); bExport:SetPoint("RIGHT", bOpts, "LEFT", -8, 0)
     ui.status:SetPoint("RIGHT", header, "RIGHT", -330, 0)
   end
+
+  -- Materials: the category selector lives in the header. As a list row with buttons it made every row reserve the
+  -- action column and squeezed the names of the materials.
+  function ui.catStep(step)
+    local cat = GF.CurrentMaterialCategory(Char())
+    Char().matCat = GF.NextMaterialCategory(cat.id, step)
+    ui.refresh()
+  end
+  local catAnchor = ui.bOpts or bScan
+  local catNext = Btn(header, ">", 22, 22, nil, function() ui.catStep(1) end)
+  catNext:SetPoint("RIGHT", catAnchor, "LEFT", -6, 0)
+  local catPrev = Btn(header, "<", 22, 22, nil, function() ui.catStep(-1) end)
+  catPrev:SetPoint("RIGHT", catNext, "LEFT", -2, 0)
+  local catLabel = Text(header, 11, PAL.gold, "RIGHT")
+  catLabel:SetPoint("RIGHT", catPrev, "LEFT", -6, 0)
+  catLabel:SetWidth(84)
+  catLabel:Hide(); catPrev:Hide(); catNext:Hide()
+  ui.catControls = { catLabel, catPrev, catNext }
+  ui.catLabel = catLabel
 
   -- pestanas abajo, como en la ventana de personaje (PanelTabButtonTemplate). Sin la plantilla, botones.
   local navDefs = {
@@ -3656,17 +3676,11 @@ local function CreateUI(parent, opts)
 
     cuero = function()
       -- the Materials tab (its key stays "cuero"): one category at a time, opening on the one of your professions
-      local char = Char()
-      local cat = GF.CurrentMaterialCategory(char)
+      local cat = GF.CurrentMaterialCategory(Char())
       ui.list.setHeaders(L["mat." .. cat.id .. ".h"], L["win.hAuction"], L["win.hStack"], L["win.hAdvice"])
-      local function pick(step)
-        Char().matCat = GF.NextMaterialCategory(cat.id, step)
-        ui.refresh()
-      end
-      local out = {
-        { name = L["mat.category"] .. " |cffffd24d" .. L["mat." .. cat.id] .. "|r",
-          actions = { { "<", function() pick(-1) end }, { ">", function() pick(1) end } } },
-      }
+      ui.catLabel:SetText(L["mat." .. cat.id])
+      for _, c in ipairs(ui.catControls) do c:Show() end
+      local out = {}
       local rows = MaterialRows(cat)
       for _, r in ipairs(rows) do
         local name = ItemLink(r.id)
@@ -3680,8 +3694,7 @@ local function CreateUI(parent, opts)
           c1 = ShortMoney(r.price), c2 = ShortMoney(r.stack), c3 = r.advice,
         }
       end
-      if #rows == 0 then out[#out + 1] = { name = DIM .. format(L["win.matEmpty"], L["mat." .. cat.id .. ".l"]) .. "|r" } end
-      ui.list.setRows(out, "")
+      ui.list.setRows(out, format(L["win.matEmpty"], L["mat." .. cat.id .. ".l"]))
     end,
 
     sesion = function()
@@ -3746,6 +3759,7 @@ local function CreateUI(parent, opts)
     elseif key == "ajustes" then if ui.settings then ui.settings:Show() end
     else ui.list:Show() end
     if key == "sesion" then bReset:Show() else bReset:Hide() end
+    for _, c in ipairs(ui.catControls) do c:Hide() end
     if key == "bolsas" then bExport:Show() else bExport:Hide() end
     nameMissing = false
     local ok, err = pcall(ui.loaders[key])

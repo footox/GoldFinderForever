@@ -19,11 +19,23 @@ local function newFrame(kind, name)
   function known.SetSize(self, w, h) self.size = { w, h } end
   function known.GetFrameLevel() return 1 end
   function known.GetHeight(self) return self.height end
+  function known.GetLeft(self) if self.boom then error('boom') end return self.rect and self.rect[1] end
+  function known.GetRight(self) return self.rect and self.rect[2] end
+  function known.GetTop(self) return self.rect and self.rect[3] end
+  function known.GetBottom(self) return self.rect and self.rect[4] end
+  function known.GetEffectiveScale(self) return self.scale or 1 end
+  function known.GetWidth(self) return self.screenW or self.width end
+  function known.GetChildren(self) return unpack(self.children or {}) end
   function known.RegisterEvent(self, e) self.events[e] = true end
   function known.SetScript(self, n, fn) self.scripts[n] = fn end
   function known.HookScript(self, n, fn) self.hooks[n] = fn end
   function known.GetPoint(self) return self.dragPoint, nil, self.dragRel, self.dragX, self.dragY end
-  return setmetatable(f, { __index = function(_, k) return known[k] or function() end end })
+  -- only methods (capitalised, like WoW's) are no-ops; a missing plain field is nil, not a function
+  return setmetatable(f, { __index = function(_, k)
+    if known[k] then return known[k] end
+    if type(k) == "string" and k:find("^%u") then return function() end end
+    return nil
+  end })
 end
 
 -- one fake game session; returns what the test needs to drive it
@@ -40,12 +52,15 @@ local function session(opts)
       S.frames[#S.frames + 1] = f
       return f
     end,
-    pcall = pcall, type = type, tostring = tostring, string = string, rawget = rawget, ipairs = ipairs, pairs = pairs,
+    pcall = pcall, type = type, tostring = tostring, string = string, rawget = rawget, ipairs = ipairs, pairs = pairs, math = math, unpack = unpack,
   }
   env._G = env
+  env.UIParent.screenW = 2000
+  env.UIParent.children = opts.children
   if opts.ah ~= false then
     env.AuctionHouseFrame = newFrame("Frame", "AuctionHouseFrame")
     env.AuctionHouseFrame.height = opts.ahHeight or 600
+    env.AuctionHouseFrame.rect = opts.ahRect
   end
   local GF = { L = setmetatable({ ["auction.tab.fail"] = "FAIL: %s" }, { __index = function(_, k) return k end }),
     UI = { Flat = function() return newFrame("Texture") end, PAL = { bg = { 0, 0, 0, 1 } } } }
@@ -84,7 +99,7 @@ check("it hosts the Materials view alone, embedded", #S.createCalls == 1 and S.c
 check("the window exists, is called GoldFinderMaterials and is shown", S.win() and S.win().name == "GoldFinderMaterials" and S.win().shown)
 check("it is placed to the right of the auction house, as tall as it is",
   S.win().points[1][1] == "TOPLEFT" and S.win().points[1][2] == S.env.AuctionHouseFrame and S.win().points[1][3] == "TOPRIGHT"
-  and S.win().size[1] == 460 and S.win().size[2] == 600)
+  and S.win().size[1] == 560 and S.win().size[2] == 600)
 check("the list is refreshed when it appears", S.refreshes == 1)
 check("it leaves room for the close button", S.win().gfPadRight == 30)
 check("it hides with the auction house frame, however that closes", type(S.env.AuctionHouseFrame.hooks.OnHide) == "function")
@@ -144,6 +159,48 @@ Sf.fire("AUCTION_HOUSE_SHOW"); Sf.flush()
 check("a creation error is printed and nothing is left shown", #Sf.prints == 1 and Sf.prints[1]:find("boom", 1, true) ~= nil and Sf.win() == nil)
 Sf.fire("AUCTION_HOUSE_SHOW"); Sf.flush()
 check("it tries again the next time", #Sf.createCalls == 2)
+
+-- 11. something wider than the auction house covers it (a replacement UI draws a window of its own): go beyond it
+local function cover(l, r, t, b, extra)
+  local f = newFrame("Cover")
+  f.rect, f.shown = { l, r, t, b }, true
+  for k, v in pairs(extra or {}) do f[k] = v end
+  return f
+end
+local AH = { 0, 800, 900, 100 }   -- left, right, top, bottom of the auction house in UIParent units
+local function placed(children, ahRect)
+  local Sp = session({ ahRect = ahRect or AH, children = children })
+  Sp.fire("AUCTION_HOUSE_SHOW"); Sp.flush()
+  return Sp, Sp.win().points[1]
+end
+local Sp, p = placed({})
+check("nothing covers it: to the right of the auction house frame", p[2] == Sp.env.AuctionHouseFrame and p[3] == "TOPRIGHT")
+Sp, p = placed({ cover(100, 1000, 880, 120) })
+check("a wider window over it: beyond that window, at the top of the auction house",
+  p[1] == "TOPLEFT" and p[2] == Sp.env.UIParent and p[3] == "BOTTOMLEFT" and p[4] == 1006 and p[5] == 900)
+Sp, p = placed({ cover(100, 1000, 880, 120), cover(200, 1200, 870, 130) })
+check("two covering windows: beyond the widest", p[4] == 1206)
+Sp, p = placed({ cover(0, 2000, 1100, 0) })
+check("a frame nearly as wide as the screen is ignored", p[2] == Sp.env.AuctionHouseFrame)
+Sp, p = placed({ cover(100, 1000, 60, 0) })
+check("a frame that is not over the auction house is ignored", p[2] == Sp.env.AuctionHouseFrame)
+Sp, p = placed({ cover(100, 1000, 880, 120, { shown = false }) })
+check("a hidden frame is ignored", p[2] == Sp.env.AuctionHouseFrame)
+Sp, p = placed({ cover(100, 700, 880, 120) })
+check("a frame that ends inside the auction house is ignored", p[2] == Sp.env.AuctionHouseFrame)
+Sp, p = placed({ cover(850, 1200, 880, 120) })
+check("a frame that starts to the right of it is not an overlay", p[2] == Sp.env.AuctionHouseFrame)
+Sp, p = placed({ cover(50, 500, 440, 60, { scale = 2 }) })
+check("a frame with another scale is compared in the same units", p[4] == 1006)
+Sp, p = placed({ cover(100, 1000, 880, 120, { boom = true }) })
+check("a frame that raises when asked its size is ignored", p[2] == Sp.env.AuctionHouseFrame)
+Sp, p = placed({ "garbage", 42, cover(100, 1000, 880, 120) })
+check("junk among the children does not break it", p[4] == 1006)
+Sp, p = placed({ cover(100, 1000, 880, 120) }, { 0, 800, 900, 100 })
+check("the height of the window is still the auction house's", Sp.win().size[2] == 600)
+local Sd2 = session({ ahRect = AH, children = { cover(100, 1000, 880, 120) }, db = { matsPos = { "TOPLEFT", "BOTTOMLEFT", 10, 20 } } })
+Sd2.fire("AUCTION_HOUSE_SHOW"); Sd2.flush()
+check("a position you dragged it to still wins over the covering window", Sd2.win().points[1][4] == 10 and Sd2.win().points[1][5] == 20)
 
 -- 10. wiring in the main file, the tab, the options and the texts
 local function read(p) local f = io.open(p, "rb"); if not f then return "" end local s = f:read("*a"); f:close(); return (s:gsub("\13", "")) end

@@ -68,11 +68,23 @@ local function read(p) local f = io.open(p, "rb"); if not f then return "" end l
 local toc, main, en, es = read("GoldFinderForever.toc"), read("GoldFinder.lua"), read("locales/enUS.lua"), read("locales/esES.lua")
 check("the toc loads the module before the main file", toc:find("core/materials.lua", 1, true) ~= nil
   and toc:find("core/materials.lua", 1, true) < toc:find("GoldFinder.lua", 1, true))
-check("the view uses the category helpers", main:find("GF.CurrentMaterialCategory(char)", 1, true) ~= nil
+check("the view uses the category helpers", main:find("GF.CurrentMaterialCategory(Char())", 1, true) ~= nil
   and main:find("GF.NextMaterialCategory(cat.id, step)", 1, true) ~= nil and main:find("GF.MaterialMatches(cat, classID, subClassID)", 1, true) ~= nil)
+-- the selector is in the header: a list row with buttons made every row reserve the action column and squeezed the names
+local a0 = main:find("    cuero = function()", 1, true)
+local a1 = a0 and main:find("    end,", a0, true)
+local loader = (a0 and a1) and main:sub(a0, a1) or ""
+check("the Materials rows carry no buttons (no action column is reserved)", loader ~= "" and loader:find("actions", 1, true) == nil)
+check("the loader shows the header controls and writes the category name", loader:find("ui.catControls", 1, true) ~= nil
+  and loader:find("ui.catLabel:SetText", 1, true) ~= nil)
+check("every view hides the header controls first", main:find("for _, c in ipairs(ui.catControls) do c:Hide() end", 1, true) ~= nil)
+check("the header has the two step buttons and a label", main:find("ui.catStep(1)", 1, true) ~= nil and main:find("ui.catStep(-1)", 1, true) ~= nil
+  and main:find("local catLabel = Text(header", 1, true) ~= nil)
+check("the controls sit left of the Settings button when there is one", main:find("local catAnchor = ui.bOpts or bScan", 1, true) ~= nil)
+check("the short category names fit the label", read("locales/enUS.lua"):find('["mat.ore"] = "Ore"', 1, true) ~= nil)
 check("the tab is labelled Materials", main:find('L["tab.materials"]', 1, true) ~= nil and main:find('L["tab.leather"]', 1, true) == nil)
 check("the choice is saved per character, not as an option", main:find("Char().matCat =", 1, true) ~= nil)
-for _, k in ipairs({ "tab.materials", "mat.category", "mat.leather", "mat.cloth", "mat.ore", "mat.herb", "mat.leather.h", "mat.cloth.h", "mat.ore.h",
+for _, k in ipairs({ "tab.materials", "mat.leather", "mat.cloth", "mat.ore", "mat.herb", "mat.leather.h", "mat.cloth.h", "mat.ore.h",
   "mat.herb.h", "mat.leather.l", "mat.cloth.l", "mat.ore.l", "mat.herb.l", "win.matEmpty" }) do
   check("both languages have " .. k, en:find('["' .. k .. '"]', 1, true) ~= nil and es:find('["' .. k .. '"]', 1, true) ~= nil)
 end

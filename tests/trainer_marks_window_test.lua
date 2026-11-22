@@ -20,7 +20,12 @@ local function newFrame(name)
   function known.GetStringHeight(self) return self.text and (select(2, self.text:gsub("\n", "")) + 1) * 14 or 0 end
   function known.RegisterEvent(self, e) self.events[e] = true end
   function known.SetScript(self, n, fn) self.scripts[n] = fn end
-  return setmetatable(f, { __index = function(_, k) return known[k] or function() end end })
+  -- only methods (capitalised, like WoW's) are no-ops; a missing plain field is nil, not a function
+  return setmetatable(f, { __index = function(_, k)
+    if known[k] then return known[k] end
+    if type(k) == "string" and k:find("^%u") then return function() end end
+    return nil
+  end })
 end
 
 local function session(opts)

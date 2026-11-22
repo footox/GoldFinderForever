@@ -5,7 +5,7 @@
 
 local _, GF = ...
 
-local W_DEFAULT, H_DEFAULT = 460, 520
+local W_DEFAULT, H_DEFAULT = 560, 520
 
 -- d: CreateUI(parent, opts), Cfg(key), Print(line)
 function GF.InitAuctionMaterials(d)
@@ -14,7 +14,41 @@ function GF.InitAuctionMaterials(d)
   local win, ui
   local isOpen, hooked = false, false
 
-  -- Default: to the right of the auction house, as tall as it is. A position you dragged it to wins.
+  -- The rectangle of a frame in UIParent units (frames can have different scales): left, right, top, bottom, or nil.
+  local function Rect(f)
+    local ok, l, r, t, b, s = pcall(function() return f:GetLeft(), f:GetRight(), f:GetTop(), f:GetBottom(), f:GetEffectiveScale() end)
+    if not (ok and type(l) == "number" and type(r) == "number" and type(t) == "number" and type(b) == "number" and type(s) == "number") then
+      return nil
+    end
+    local pe = UIParent:GetEffectiveScale() or 1
+    if type(pe) ~= "number" or pe <= 0 then pe = 1 end
+    local k = s / pe
+    return l * k, r * k, t * k, b * k
+  end
+
+  -- The right edge of the auction house UI: the auction house frame and any visible frame that overlays it (a replacement
+  -- UI draws a window of its own, often wider than Blizzard's). Frames that are nearly as wide as the screen, that are not
+  -- over the auction house (less than half of its height in common) or that end before its right edge are ignored.
+  local function RightEdge(ah)
+    local left, right, top, bottom = Rect(ah)
+    if not right then return nil end
+    local screenW = UIParent:GetWidth()
+    if type(screenW) ~= "number" or screenW <= 0 then screenW = 1e9 end
+    local edge = right
+    local ok, children = pcall(function() return { UIParent:GetChildren() } end)
+    for _, f in ipairs(ok and children or {}) do
+      if f ~= win and f ~= ah and type(f) == "table" and f.IsShown and f:IsShown() then
+        local l, r, t, b = Rect(f)
+        if l and l < right and r > edge and (r - l) < screenW * 0.9 and (math.min(t, top) - math.max(b, bottom)) > (top - bottom) * 0.5 then
+          edge = r
+        end
+      end
+    end
+    return edge, top, bottom
+  end
+
+  -- Default: to the right of the auction house UI (including any window that covers it), as tall as the auction house.
+  -- A position you dragged it to wins.
   local function Place()
     local ah = rawget(_G, "AuctionHouseFrame")
     local h = ah and ah.GetHeight and ah:GetHeight()
@@ -26,7 +60,13 @@ function GF.InitAuctionMaterials(d)
         and type(pos[3]) == "number" and type(pos[4]) == "number" then
       win:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4])
     elseif ah then
-      win:SetPoint("TOPLEFT", ah, "TOPRIGHT", 6, 0)
+      local edge, top = RightEdge(ah)
+      local _, ahRight = Rect(ah)
+      if edge and ahRight and edge > ahRight + 0.5 then
+        win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", edge + 6, top)   -- something wider covers it: go beyond that
+      else
+        win:SetPoint("TOPLEFT", ah, "TOPRIGHT", 6, 0)
+      end
     else
       win:SetPoint("CENTER", UIParent, "CENTER", 300, 0)
     end
