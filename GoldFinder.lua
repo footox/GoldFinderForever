@@ -3257,7 +3257,7 @@ local function CreateUI(parent, opts)
   ui.status = Text(header, 11, PAL.text)
   if parent.gfPadRight then ui.status:SetPoint("TOPLEFT", 6, -26) else ui.status:SetPoint("LEFT", header, "LEFT", 8, 0) end
   ui.status:SetPoint("RIGHT", header, "RIGHT", -240, 0)
-  local bScan = Btn(header, "Escanear", 90, 22, nil, function() StartFullScan() end)
+  local bScan = Btn(header, L["win.scan"], 90, 22, nil, function() StartFullScan() end)
   bScan:SetPoint("RIGHT", header, "RIGHT", -(parent.gfPadRight or 4), 0)
 
   local inset = native and parent.Inset
@@ -3274,7 +3274,7 @@ local function CreateUI(parent, opts)
       inset:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -2); inset:SetPoint("BOTTOMRIGHT", ui, "BOTTOMRIGHT", 0, embedded and 0 or 32)
     end
   end
-  local bReset = Btn(header, "Reiniciar sesion", 110, 22, nil, function()
+  local bReset = Btn(header, L["win.resetSession"], 110, 22, nil, function()
     Char().session = nil
     Sess()
     MarkSessionBaseline()
@@ -3282,13 +3282,13 @@ local function CreateUI(parent, opts)
   end)
   bReset:SetPoint("RIGHT", bScan, "LEFT", -8, 0)
   bReset:Hide()
-  local bExport = Btn(header, "Exportar a TSM", 110, 22, nil, function() ShowTSMExport() end)
+  local bExport = Btn(header, L["win.exportTSM"], 110, 22, nil, function() ShowTSMExport() end)
   bExport:SetPoint("RIGHT", bScan, "LEFT", -8, 0)
   bExport:Hide()
   if auction then
     -- en la subasta no hay pestana Ajustes: un boton abre la pagina de Opciones > AddOns
-    local bOpts = Btn(header, "Ajustes", 80, 22, nil, function()
-      local function nope() Print("Escribe /gf ajustes para abrir las opciones.") end
+    local bOpts = Btn(header, L["win.settings"], 80, 22, nil, function()
+      local function nope() Print(L["win.typeOptions"]) end
       if not (OpenOptions and OpenOptions(nope)) then nope() end
     end)
     bOpts:SetPoint("RIGHT", bScan, "LEFT", -8, 0)
@@ -3298,8 +3298,9 @@ local function CreateUI(parent, opts)
 
   -- pestanas abajo, como en la ventana de personaje (PanelTabButtonTemplate). Sin la plantilla, botones.
   local navDefs = {
-    { "resumen", "Resumen" }, { "bolsas", "Bolsas" }, { "compras", "Compras" }, { "fabricar", "Fabricar" }, { "ruta", "Ruta" }, { "cuero", "Cuero" },
-    { "sesion", "Sesion" }, { "ajustes", "Ajustes" },
+    { "resumen", L["tab.summary"] }, { "bolsas", L["tab.bags"] }, { "compras", L["tab.shopping"] },
+    { "fabricar", L["tab.craft"] }, { "ruta", L["tab.route"] }, { "cuero", L["tab.leather"] },
+    { "sesion", L["tab.session"] }, { "ajustes", L["tab.settings"] },
   }
   if embedded then navDefs = {} end
   ui.nav = {}
@@ -3398,8 +3399,8 @@ local function CreateUI(parent, opts)
   end
   -- FIN DE FILTRO DE BOLSAS
   local verdictText = {
-    AH = GREEN .. "SUBASTA|r", VENDOR = ORANGE .. "VENDEDOR|r",
-    KEEP = BLUE .. "GUARDAR|r", NONE = DIM .. "sin datos|r",
+    AH = GREEN .. L["verdict.AH"] .. "|r", VENDOR = ORANGE .. L["verdict.VENDOR"] .. "|r",
+    KEEP = BLUE .. L["verdict.KEEP"] .. "|r", NONE = DIM .. L["win.noData"] .. "|r",
   }
 
   ui.loaders = {
@@ -3407,46 +3408,46 @@ local function CreateUI(parent, opts)
       local s = ui.summary
       local _, sum = BagRows()
       s.c1.value:SetText(Money(sum.sell))
-      s.c1.sub:SetText(sum.nAH .. " a subasta, " .. sum.nVendor .. " al vendedor")
-      s.c2.value:SetText(sum.nKeep .. " objetos")
-      s.c2.sub:SetText("para tu profesion o esperar")
+      s.c1.sub:SetText(format(L["win.sumAH"], sum.nAH, sum.nVendor))
+      s.c2.value:SetText(format(L["win.sumKeepValue"], sum.nKeep))
+      s.c2.sub:SetText(L["win.sumKeepSub"])
       local sess = Sess()
       if sess.count > 0 and sess.secs >= 60 then
         s.c3.value:SetText(Money(sess.total / (sess.secs / 3600)) .. "/h")
-        s.c3.sub:SetText(sess.count .. " u. en " .. floor(sess.secs / 60) .. " min")
+        s.c3.sub:SetText(format(L["win.sumRate"], sess.count, floor(sess.secs / 60)))
       elseif sess.count > 0 then
         s.c3.value:SetText(Money(sess.total))
-        s.c3.sub:SetText(sess.count .. " u. (poco tiempo aun para el oro/hora)")
+        s.c3.sub:SetText(format(L["win.sumRateShort"], sess.count))
       else
         s.c3.value:SetText("-")
-        s.c3.sub:SetText("Desuella algo para empezar")
+        s.c3.sub:SetText(L["win.sumStart"])
       end
       local tips = {}
       local known = {}
       for prof, d in pairs(Char().prof) do if d.learned then known[#known + 1] = prof:lower() end end
       local all = table.concat(known, " ")
-      if not all:find("leather") then tips[#tips + 1] = "- Abre una vez tu ventana de Peleteria para memorizar sus materiales." end
-      if not all:find("cook") then tips[#tips + 1] = "- Abre tambien tu ventana de Cocina: asi sabre que materiales guardar para subirla." end
+      if not all:find("leather") then tips[#tips + 1] = L["win.tipLeather"] end
+      if not all:find("cook") then tips[#tips + 1] = L["win.tipCooking"] end
       local st = Auctionator and Auctionator.SavedState
       local t = st and math.max(st.TimeOfLastReplicateScan or 0, st.TimeOfLastBrowseScan or 0) or 0
-      if t == 0 then tips[#tips + 1] = "- Pulsa Escanear con la subasta abierta para tener precios."
-      elseif time() - t > 1800 then tips[#tips + 1] = "- Tus precios tienen mas de 30 min: conviene escanear otra vez." end
+      if t == 0 then tips[#tips + 1] = L["win.tipScan"]
+      elseif time() - t > 1800 then tips[#tips + 1] = L["win.tipStale"] end
       if (sum.nBank or 0) > 0 then
-        tips[#tips + 1] = format("- %d objeto(s) para enviar a %s y subastar (valor aprox. %s).",
+        tips[#tips + 1] = format(L["win.tipBanker"],
           sum.nBank, BankerName(), ShortMoney(sum.bankValue or 0))
       elseif sum.nAH > 0 then
-        tips[#tips + 1] = "- Tienes " .. sum.nAH .. " objeto(s) que conviene subastar: pestana Bolsas."
+        tips[#tips + 1] = format(L["win.tipAuction"], sum.nAH)
       end
-      if sum.nKeep > 0 then tips[#tips + 1] = "- " .. sum.nKeep .. " objeto(s) marcados GUARDAR: llevalos al banco." end
+      if sum.nKeep > 0 then tips[#tips + 1] = format(L["win.tipKeep"], sum.nKeep) end
       local unsaved = UnsavedUnits()
-      if unsaved >= 5 then tips[#tips + 1] = "- " .. unsaved .. " unidades de cuero de esta sesion aun no estan en disco (se guardan al cerrar sesion)." end
-      if sess.count > 0 then tips[#tips + 1] = "- Mira la pestana Sesion: que zona te da mas oro por hora." end
-      if #tips == 0 then tips[1] = "- Todo al dia." end
+      if unsaved >= 5 then tips[#tips + 1] = format(L["win.tipUnsaved"], unsaved) end
+      if sess.count > 0 then tips[#tips + 1] = L["win.tipSession"] end
+      if #tips == 0 then tips[1] = L["win.tipAllGood"] end
       s.tips:SetText(table.concat(tips, "\n"))
     end,
 
     bolsas = function()
-      ui.list.setHeaders("Objeto", "Cant.", "Decision", "Valor")
+      ui.list.setHeaders(L["win.hItem"], L["win.hQty"], L["win.hDecision"], L["win.hValue"])
       local allRows = BagRows()
       -- en la subasta lo que se puede subastar alli va arriba (en /gf queda el orden de siempre)
       if auction then allRows = AHBagOrder(allRows) end
@@ -3459,9 +3460,9 @@ local function CreateUI(parent, opts)
       for _, r in ipairs(rows) do
         local c2 = verdictText[r.verdict]
         local name = ItemLink(r.id)
-        if r.bound then name = name .. "  " .. DIM .. "(ligado)|r" end
+        if r.bound then name = name .. "  " .. DIM .. L["win.bound"] .. "|r" end
         if r.verdict == "KEEP" and r.count > 0 then
-          name = name .. " " .. BLUE .. (r.forOther and ("> para " .. r.forOther) or "> banco") .. "|r"
+          name = name .. " " .. BLUE .. (r.forOther and format(L["win.toFor"], r.forOther) or L["win.toBank"]) .. "|r"
         end
         if r.verdict == "AH" and r.toBanker and not r.bound then
           name = name .. " " .. BLUE .. "> " .. BankerName() .. "|r"
@@ -3474,22 +3475,22 @@ local function CreateUI(parent, opts)
           local okP, pl = pcall(A.Plan, r.id)
           shift = function() SellItem(r.id) end
           acts[#acts + 1] = {
-            "Subastar",
+            L["win.btnPost"],
             function() if IsShiftKeyDown() then SellItem(r.id) else A.Post(r.id) end end,
             tip = function(tt) A.Tooltip(tt, r.id, r.toBanker) end,
             disabled = not (okP and pl and pl.post),
           }
         end
         if r.manual then
-          acts[#acts + 1] = { "Soltar", function() Char().keep[r.id] = nil; ui.refresh() end }
+          acts[#acts + 1] = { L["win.btnRelease"], function() Char().keep[r.id] = nil; ui.refresh() end }
         elseif r.verdict ~= "KEEP" and r.verdict ~= "NONE" then
-          acts[#acts + 1] = { "Fijar", function() Char().keep[r.id] = true; ui.refresh() end }
+          acts[#acts + 1] = { L["win.btnKeep"], function() Char().keep[r.id] = true; ui.refresh() end }
         end
         -- unidades reservadas (tus profesiones y otros personajes): se muestran, y solo se vende o publica el resto
         local reserved
         if (r.verdict == "AH" or r.verdict == "VENDOR") and (r.sellQty or r.count) < r.count then
-          reserved = format("%d reservados para %s: se %s %d.", r.count - r.sellQty, r.reserveFor or "tus profesiones",
-            r.verdict == "AH" and "subastan" or "venden", r.sellQty)
+          reserved = format(r.verdict == "AH" and L["win.reservedAH"] or L["win.reservedVendor"],
+            r.count - r.sellQty, r.reserveFor or L["win.yourProfessions"], r.sellQty)
           if r.reason then reserved = reserved .. " " .. r.reason end
         end
         out[#out + 1] = {
@@ -3500,13 +3501,13 @@ local function CreateUI(parent, opts)
         }
       end
       if hidden > 0 then
-        out[#out + 1] = { name = DIM .. hidden .. " ocultos (sin precio)|r" }
+        out[#out + 1] = { name = DIM .. format(L["win.hidden"], hidden) .. "|r" }
       end
-      ui.list.setRows(out, "Tus bolsas estan vacias.")
+      ui.list.setRows(out, L["win.bagsEmpty"])
     end,
 
     compras = function()
-      ui.list.setHeaders("Material", "Faltan", "Precio c/u", "Coste")
+      ui.list.setHeaders(L["win.hMaterial"], L["win.hMissing"], L["win.hUnitPrice"], L["win.hCost"])
       local byId, order = {}, {}
       local function add(id, need, have, use)
         local n = byId[id]
@@ -3521,7 +3522,7 @@ local function CreateUI(parent, opts)
       for _, e in ipairs(NextStepList()) do
         if e.unknown and e.learn and e.learn.item then
           local bags, bank = Counts(e.learn.item)
-          add(e.learn.item, 1, bags + bank, "aprender " .. e.what .. " (" .. LearnText(e) .. ")")
+          add(e.learn.item, 1, bags + bank, format(L["win.useLearn"], e.what, LearnText(e)))
         end
         for _, m in ipairs(e.mats or {}) do
           add(m.id, m.need, m.have, e.prof .. (e.upto and (" " .. e.rank .. " > " .. e.upto) or ""))
@@ -3540,20 +3541,20 @@ local function CreateUI(parent, opts)
           allMats[#allMats + 1] = mat
           out[#out + 1] = {
             id = n.id, name = ItemLink(n.id),
-            reason = "Para " .. table.concat(n.uses, ", ") .. format(" (tienes %d de %d)", n.have, n.need) .. SourceText(n.id),
+            reason = format(L["win.for"], table.concat(n.uses, ", ")) .. format(L["win.have"], n.have, n.need) .. SourceText(n.id),
             c1 = "x" .. miss,
-            c2 = price and ShortMoney(price) or (DIM .. "sin precio|r"),
+            c2 = price and ShortMoney(price) or (DIM .. L["win.noPrice"] .. "|r"),
             c3 = cost and Money(cost) or (DIM .. "-|r"),
-            actions = { { "Buscar", function() SearchMaterials({ mats = { mat } }) end } },
+            actions = { { L["win.btnSearch"], function() SearchMaterials({ mats = { mat } }) end } },
           }
         end
       end
       local final = {}
       if #out > 0 then
         final[1] = {
-          name = "|cffffd100TOTAL a comprar (paso actual)|r", c1 = #out .. " mat.", c2 = "",
+          name = L["win.totalBuy"], c1 = format(L["win.matShort"], #out), c2 = "",
           c3 = Money(total) .. (unknown and "+" or ""),
-          actions = { { "Buscar todo", function() SearchMaterials({ mats = allMats }) end } },
+          actions = { { L["win.btnSearchAll"], function() SearchMaterials({ mats = allMats }) end } },
         }
         for _, r in ipairs(out) do final[#final + 1] = r end
       end
@@ -3566,25 +3567,25 @@ local function CreateUI(parent, opts)
             local short = Skin.Route.CapReason(c)
             capRows[#capRows + 1] = {
               name = format("%s %d > %d", prof, pd.rank, c.truncated and c.to or c.cap),
-              reason = (short and (short .. "\n") or "") .. format("%d materiales por comprar%s (estimacion segun tu ruta)",
-                c.n, c.unknown > 0 and (", " .. c.unknown .. " sin precio") or ""),
-              c1 = c.n .. " mat.", c2 = "",
+              reason = (short and (short .. "\n") or "") .. format(L["win.capBuy"],
+                c.n, c.unknown > 0 and format(L["win.capUnknown"], c.unknown) or ""),
+              c1 = format(L["win.matShort"], c.n), c2 = "",
               c3 = Money(c.cost) .. (c.unknown > 0 and "+" or ""),
-              actions = { { "Buscar todo", function() SearchMaterials({ mats = c.mats }) end } },
+              actions = { { L["win.btnSearchAll"], function() SearchMaterials({ mats = c.mats }) end } },
             }
           end
         end
       end
       table.sort(capRows, function(a, b) return a.name < b.name end)
       if #capRows > 0 then
-        final[#final + 1] = { name = "|cffffd100Hasta el tope de rango de cada profesion|r", c1 = "", c2 = "", c3 = "" }
+        final[#final + 1] = { name = L["win.capHead"], c1 = "", c2 = "", c3 = "" }
         for _, r in ipairs(capRows) do final[#final + 1] = r end
       end
-      ui.list.setRows(final, "No te falta ningun material para el paso actual de tus profesiones (abre la ventana de cada profesion una vez si esperabas ver algo).")
+      ui.list.setRows(final, L["win.shopEmpty"])
     end,
 
     fabricar = function()
-      ui.list.setHeaders("Fabricar", "Puedes", "Vale c/u", "Ganancia c/u")
+      ui.list.setHeaders(L["win.hCraft"], L["win.hCanMake"], L["win.hWorthEa"], L["win.hProfitEa"])
       local rows = {}
       for prof, pd in pairs(Char().prof) do
         if ProfOn(prof) and pd.crafts and (not ui.profFilter or ui.profFilter == prof) then
@@ -3610,46 +3611,46 @@ local function CreateUI(parent, opts)
         if i > 80 then break end
         -- sin materiales propios: la ganancia comprandolos; algun material sin precio: "sin precio"
         local g = r.n > 0 and r.gain or r.gainBuy
-        local gtxt = (r.noPrice or not g) and (DIM .. "sin precio|r")
+        local gtxt = (r.noPrice or not g) and (DIM .. L["win.noPrice"] .. "|r")
           or ((g >= 0 and GREEN .. "+" or "|cffff6666-") .. Money(math.abs(g)) .. "|r")
         local chance = r.x and SkillUpChance(r.x, r.skill) or nil
         local color = r.x and RecipeColor(r.x, r.skill) or r.d
         local lines = {
-          format("%s%s|r: materiales sueltos valen %s%s", DIM, r.prof, Money(r.outVal - r.gain),
-            r.gainBuy and (" | comprandolos ganarias " .. (r.gainBuy >= 0 and "+" or "-") .. Money(math.abs(r.gainBuy)))
-              or " | algun material sin precio (escanea la subasta)"),
+          format(L["win.craftLoose"], DIM, r.prof, Money(r.outVal - r.gain),
+            r.gainBuy and format(L["win.craftBuyGain"], r.gainBuy >= 0 and "+" or "-", Money(math.abs(r.gainBuy)))
+              or L["win.craftNoPriceMat"]),
         }
         if chance and chance > 0 and r.gainBuy then
           local psu = r.gainBuy / chance
-          lines[#lines + 1] = format("Probabilidad de subir habilidad: %d%% | por cada subida (comprando los materiales): %s%s",
+          lines[#lines + 1] = format(L["win.craftSkillUp"],
             math.floor(chance * 100 + 0.5), psu >= 0 and "+" or "-", Money(math.abs(psu)))
         end
         if r.n > 0 then
-          lines[#lines + 1] = format("Con lo que te sobra (sin lo reservado para tu ruta): %d fabricaciones = %s en total",
+          lines[#lines + 1] = format(L["win.craftSpare"],
             r.n, (r.total >= 0 and "+" or "-") .. Money(math.abs(r.total)))
-          lines[#lines + 1] = format("%sSolo %d unidades valen precio de subasta (/gf tope); el resto, lo que paga el vendedor.|r",
+          lines[#lines + 1] = format(L["win.craftCap"],
             DIM, Cfg("sellCap") or 5)
         end
         out[#out + 1] = {
           id = r.out,
           name = (C_Item.GetItemInfo(r.out) or ItemLink(r.out)) .. (r.q > 1 and (" x" .. r.q) or "")
-            .. ((color == 0 and "  |cffff8040naranja|r") or (color == 1 and "  |cffffff00amarilla|r")
-              or (color == 2 and "  |cff40c040verde|r") or (color == 3 and ("  " .. DIM .. "gris|r")) or "")
+            .. ((color == 0 and ("  |cffff8040" .. L["win.colorOrange"] .. "|r")) or (color == 1 and ("  |cffffff00" .. L["win.colorYellow"] .. "|r"))
+              or (color == 2 and ("  |cff40c040" .. L["win.colorGreen"] .. "|r")) or (color == 3 and ("  " .. DIM .. L["win.colorGrey"] .. "|r")) or "")
             .. (chance and format("  %d%%", math.floor(chance * 100 + 0.5)) or ""),
           reason = table.concat(lines, "\n"),
           c1 = r.n > 0 and ("x" .. r.n) or (DIM .. "-|r"),
-          c2 = ShortMoney(r.outVal) .. (r.viaAH and "" or (" " .. DIM .. "(vendedor)|r")),
+          c2 = ShortMoney(r.outVal) .. (r.viaAH and "" or (" " .. DIM .. L["win.vendorTag"] .. "|r")),
           c3 = gtxt,
           -- dentro de la ventana de profesiones, Abrir la cerraria: se vuelve a la lista de recetas del juego
-          actions = { ui.back and { "Recetas", ui.back }
-            or { "Abrir", function() OpenProfession({ prof = r.prof, skillLine = r.pd.skillLine }) end } },
+          actions = { ui.back and { L["win.btnRecipes"], ui.back }
+            or { L["win.btnOpen"], function() OpenProfession({ prof = r.prof, skillLine = r.pd.skillLine }) end } },
         }
       end
-      ui.list.setRows(out, "Abre la ventana de cada profesion una vez para que GoldFinder aprenda que fabrica cada receta, y escanea la subasta para tener precios.")
+      ui.list.setRows(out, L["win.craftEmpty"])
     end,
 
     ruta = function()
-      ui.list.setHeaders("Ruta de profesion", "Cantidad", "Coste", "Venta")
+      ui.list.setHeaders(L["win.hRoute"], L["win.hAmount"], L["win.hCost"], L["win.hSale"])
       local out = {}
       local span = Cfg("routeSpan") or 25
       local names = {}
@@ -3665,20 +3666,20 @@ local function CreateUI(parent, opts)
           local net = plan.cost - plan.sell
           out[#out + 1] = {
             name = "|cffffd100" .. prof .. "|r  " .. plan.from .. " > " .. plan.to,
-            reason = format("Compras %s | vendiendo lo fabricado recuperas %s | neto %s%s%s", Money(plan.cost), Money(plan.sell),
+            reason = format(L["win.routeSummary"], Money(plan.cost), Money(plan.sell),
               net >= 0 and "" or "-", Money(math.abs(net)),
-              plan.unknown > 0 and (" | " .. plan.unknown .. " materiales sin precio") or "")
-              .. "\nCantidades esperadas, sin sobrantes: puede hacer falta alguna fabricacion mas."
-              .. format("\nLo fabricado vale precio de subasta solo en sus primeras %d unidades; el resto, lo que paga el vendedor (/gf tope).", plan.cap),
+              plan.unknown > 0 and format(L["win.routeUnknown"], plan.unknown) or "")
+              .. L["win.routeNote1"]
+              .. format(L["win.routeNote2"], plan.cap),
             c1 = "", c2 = Money(plan.cost), c3 = Money(plan.sell),
           }
           for _, l in ipairs(plan.learns) do
             local t = l.t
-            local where = t.zone and (" en " .. t.zone .. (t.x and (" (" .. t.x .. ", " .. t.y .. ")") or "")) or ""
+            local where = t.zone and (format(L["win.inZone"], t.zone) .. (t.x and (" (" .. t.x .. ", " .. t.y .. ")") or "")) or ""
             out[#out + 1] = {
-              name = format("Aprender %s  |cffb3b3b3(desde %d)|r", t.n, l.at),
-              reason = format("La ensena %s%s. Pide habilidad %d.", t.npc or "tu instructor", where, t.req or 0),
-              c1 = "", c2 = t.cost and Money(t.cost) or (DIM .. "sin precio|r"), c3 = "",
+              name = format(L["win.learnName"], t.n, l.at),
+              reason = format(L["win.learnWhy"], t.npc or L["win.yourTrainer"], where, t.req or 0),
+              c1 = "", c2 = t.cost and Money(t.cost) or (DIM .. L["win.noPrice"] .. "|r"), c3 = "",
             }
           end
           for _, st in ipairs(plan.steps) do
@@ -3686,8 +3687,8 @@ local function CreateUI(parent, opts)
             local nm = (st.c.o and C_Item.GetItemInfo(st.c.o)) or st.c.name
             out[#out + 1] = {
               id = st.c.o,
-              name = format("Fabricar %s  |cffb3b3b3(%d > %d)|r  %d%%", nm, st.from, st.to, math.floor(chance * 100 + 0.5)),
-              reason = format("%s | por fabricacion: materiales %s, vale %s en subasta (%d de %d) y %s al vendedor (el resto)",
+              name = format(L["win.craftName"], nm, st.from, st.to, math.floor(chance * 100 + 0.5)),
+              reason = format(L["win.craftStepWhy"],
                 st.c.name, Money(st.c.unitBuy), Money(st.c.outVal), st.ahUnits, st.n, Money(st.c.outVend)),
               c1 = "x" .. st.n, c2 = Money(st.n * st.c.unitBuy), c3 = Money(st.value),
             }
@@ -3697,44 +3698,44 @@ local function CreateUI(parent, opts)
             if m.missing > 0 and shown < 12 then
               shown = shown + 1
               out[#out + 1] = {
-                id = m.id, name = "Comprar " .. ItemLink(m.id),
-                reason = format("Necesitas %d, tienes %d", m.need, m.have)
-                  .. (m.price and (" | precio por unidad " .. Money(m.price) .. (m.est and " (estimado)" or "")) or ""),
+                id = m.id, name = format(L["win.buyName"], ItemLink(m.id)),
+                reason = format(L["win.need"], m.need, m.have)
+                  .. (m.price and format(L["win.unitPrice"], Money(m.price), m.est and L["win.estimated"] or "") or ""),
                 c1 = "x" .. m.missing,
-                c2 = m.cost and (Money(m.cost) .. (m.est and "~" or "")) or (DIM .. "sin precio|r"),
+                c2 = m.cost and (Money(m.cost) .. (m.est and "~" or "")) or (DIM .. L["win.noPrice"] .. "|r"),
                 c3 = "",
-                actions = { { "Buscar", function() SearchMaterials({ mats = { { id = m.id, need = m.need, have = m.have } } }) end } },
+                actions = { { L["win.btnSearch"], function() SearchMaterials({ mats = { { id = m.id, need = m.need, have = m.have } } }) end } },
               }
             end
           end
         end
       end
-      ui.list.setRows(out, "Abre la ventana de cada profesion una vez (para que GoldFinder aprenda tus recetas) y escanea la subasta para tener precios.")
+      ui.list.setRows(out, L["win.routeEmpty"])
     end,
 
     cuero = function()
-      ui.list.setHeaders("Cuero / piel", "Subasta", "Pila de 20", "Consejo")
+      ui.list.setHeaders(L["win.hLeather"], L["win.hAuction"], L["win.hStack"], L["win.hAdvice"])
       local out = {}
       for _, r in ipairs(LeatherRows()) do
         local name = ItemLink(r.id)
-        if r.owned > 0 then name = name .. "  " .. DIM .. "(tienes " .. r.owned .. ")|r" end
+        if r.owned > 0 then name = name .. "  " .. DIM .. format(L["win.owned"], r.owned) .. "|r" end
         local lines = {}
-        lines[#lines + 1] = r.farm or "Aun no lo has desollado: GoldFinder anota donde lo consigues."
-        if r.region then lines[#lines + 1] = "Precio medio en la region (TSM): " .. Money(r.region) end
+        lines[#lines + 1] = r.farm or L["win.notSkinned"]
+        if r.region then lines[#lines + 1] = format(L["win.regionPrice"], Money(r.region)) end
         out[#out + 1] = {
           id = r.id, name = name,
           reason = #lines > 0 and table.concat(lines, "\n") or nil,
           c1 = ShortMoney(r.price), c2 = ShortMoney(r.stack), c3 = r.advice,
         }
       end
-      ui.list.setRows(out, "No encontre cueros. Escanea la subasta primero.")
+      ui.list.setRows(out, L["win.leatherEmpty"])
     end,
 
     sesion = function()
-      ui.list.setHeaders("Zona / objeto", "Cant.", "Tiempo", "Valor")
+      ui.list.setHeaders(L["win.hZoneItem"], L["win.hQty"], L["win.hTime"], L["win.hValue"])
       local s = Sess()
       if s.count == 0 then
-        ui.list.setRows({}, "Aun no hay cuero registrado. Desuella algo y vuelve aqui.")
+        ui.list.setRows({}, L["win.sessEmpty"])
         return
       end
       local out = {}
@@ -3742,7 +3743,7 @@ local function CreateUI(parent, opts)
         return secs >= 60 and (" " .. DIM .. "(" .. Money(value / (secs / 3600)) .. "/h)|r") or ""
       end
       out[#out + 1] = {
-        name = "|cffffd100TOTAL|r", c1 = s.count .. " u.", c2 = floor(s.secs / 60) .. " min",
+        name = "|cffffd100" .. L["win.total"] .. "|r", c1 = format(L["win.units"], s.count), c2 = format(L["win.minutes"], floor(s.secs / 60)),
         c3 = Money(s.total) .. rate(s.total, s.secs),
       }
       local zs = {}
@@ -3750,7 +3751,7 @@ local function CreateUI(parent, opts)
       table.sort(zs, function(a, b) return a.z.value > b.z.value end)
       for _, e in ipairs(zs) do
         out[#out + 1] = {
-          name = "  " .. e.name, c1 = e.z.count .. " u.", c2 = floor(e.z.secs / 60) .. " min",
+          name = "  " .. e.name, c1 = format(L["win.units"], e.z.count), c2 = format(L["win.minutes"], floor(e.z.secs / 60)),
           c3 = Money(e.z.value) .. rate(e.z.value, e.z.secs),
         }
       end
@@ -3794,7 +3795,7 @@ local function CreateUI(parent, opts)
     if key == "bolsas" then bExport:Show() else bExport:Hide() end
     nameMissing = false
     local ok, err = pcall(ui.loaders[key])
-    if not ok then Print("Error en la pantalla " .. key .. ": " .. tostring(err)) end
+    if not ok then Print(format(L["win.screenError"], key, tostring(err))) end
     -- si algun nombre aun no estaba cargado, se vuelve a dibujar una sola vez
     if nameMissing and (retry or 0) < 4 then
       C_Timer.After(1.5, function()
@@ -3804,7 +3805,7 @@ local function CreateUI(parent, opts)
   end
 
   function ui.refresh()
-    local parts = { ScanAgeText(), TSM_API and "TSM activo" or "TSM no detectado" }
+    local parts = { ScanAgeText(), TSM_API and L["win.tsmOn"] or L["win.tsmOff"] }
     ui.status:SetText(table.concat(parts, "   |   "))
     -- en la subasta, Compras aparece o desaparece segun lo que falte para el paso actual
     if auction then pcall(ui.layoutNav) end
