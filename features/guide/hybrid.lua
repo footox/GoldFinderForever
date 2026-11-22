@@ -161,6 +161,8 @@ function GF.InitGuide(d)
         local nm, m = ItemName(b.item)
         miss = miss or m
         sub[#sub + 1] = format(L["guide.vendorRecipe"], nm, b.req or 0)
+        local src = GF.RecipeSourceLine(it.learn, L, WhereText)
+        if src then sub[#sub + 1] = "   |cffb3b3b3" .. src .. "|r" end
       elseif b.learn == "u" then
         sub[#sub + 1] = format(L["guide.unknownSource"], b.req or 0)
       else
@@ -177,6 +179,8 @@ function GF.InitGuide(d)
       local nm, m = ItemName(b.opt.item)
       miss = miss or m
       sub[#sub + 1] = format(L["guide.optional"], b.opt.name or "?", nm)
+      local osrc = GF.RecipeSourceLine(GF.WithRecipeSource({ item = b.opt.item }), L, WhereText)
+      if osrc then sub[#sub + 1] = "   |cffb3b3b3" .. osrc .. "|r" end
     end
     if b.alt then
       sub[#sub + 1] = format(L["guide.alt"], b.alt.what, b.alt.n or 0,

@@ -37,3 +37,16 @@ function GF.PickRecipeSource(api, itemId, faction)
   return { kind = kind, name = chosen.name, zone = chosen.zone, x = chosen.x, y = chosen.y, level = chosen.level,
     others = (nv + nd) - 1 }
 end
+
+-- The one-line text for where a recipe item can be had, from an entry filled by GF.WithRecipeSource
+-- ({ npc, zone, x, y, level, drop, others }). L = the locale table; where(l) -> "Zone (x, y)". nil when there is no place.
+function GF.RecipeSourceLine(l, L, where)
+  if type(l) ~= "table" or not l.npc then return nil end
+  local place = l.zone and string.format(L["guide.srcIn"], where(l)) or ""
+  local more = (l.others and l.others > 0) and string.format(L["learn.more"], l.others) or ""
+  if l.drop then
+    local lvl = l.level and string.format(L["learn.level"], l.level) or ""
+    return string.format(L["guide.srcDrop"], l.npc, lvl, place, more)
+  end
+  return string.format(L["guide.srcVendor"], l.npc, place, more)
+end

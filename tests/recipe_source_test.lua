@@ -73,5 +73,17 @@ run("adapters/questie.lua", {}, GF3)
 l = GF3.WithRecipeSource({ item = 5 })
 check("without QuestieDB nothing changes and nothing errors", l.zone == nil and l.npc == nil)
 
+-- 3. The guide line
+do
+  local LL = { ["guide.srcVendor"] = "Sold by %s%s%s", ["guide.srcDrop"] = "Dropped by %s%s%s%s", ["guide.srcIn"] = " in %s",
+    ["learn.level"] = " (level %d)", ["learn.more"] = " (+%d more places)" }
+  local where = function(l) return l.zone .. " (" .. l.x .. ", " .. l.y .. ")" end
+  check("line: vendor with its place", GF.RecipeSourceLine({ npc = "Bob", zone = "Orgrimmar", x = 5, y = 6 }, LL, where) == "Sold by Bob in Orgrimmar (5, 6)")
+  check("line: drop with level, place and more", GF.RecipeSourceLine({ npc = "Mob", drop = true, level = 41, zone = "Feralas", x = 1, y = 2, others = 2 }, LL, where)
+    == "Dropped by Mob (level 41) in Feralas (1, 2) (+2 more places)")
+  check("line: no zone known leaves the place out", GF.RecipeSourceLine({ npc = "Bob" }, LL, where) == "Sold by Bob")
+  check("line: no npc or no entry gives nil", GF.RecipeSourceLine({}, LL, where) == nil and GF.RecipeSourceLine(nil, LL, where) == nil)
+end
+
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")
