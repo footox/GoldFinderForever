@@ -11,6 +11,7 @@ function GF.InitVendor(d)
   local Cfg, BagRows, SellQty, Char, ShortMoney, Money, Print = d.Cfg, d.BagRows, d.SellQty, d.Char, d.ShortMoney, d.Money, d.Print
   local RecipeForOthers, RecordVendorPrices, InvalidateRoutes = d.RecipeForOthers, d.RecordVendorPrices, d.InvalidateRoutes
   local format = string.format
+  local L = GF.L
 
   local SELL_LINES = 12
 
@@ -39,10 +40,10 @@ function GF.InitVendor(d)
       f.title:SetText("GoldFinder Forever")
       f.sub = Text(f, 12, PAL.text)
       f.sub:SetPoint("TOPLEFT", f, "TOPLEFT", 18, -36)
-      f.sub:SetText("Para vender")
+      f.sub:SetText(L["vendor.sub"])
       f.empty = Text(f, 12, PAL.dim)
       f.empty:SetPoint("TOPLEFT", f, "TOPLEFT", 18, -60)
-      f.empty:SetText("Nada que venderle a este vendedor")
+      f.empty:SetText(L["vendor.empty"])
       -- lista con barra de desplazamiento (y rueda del raton): muestra SELL_LINES filas y el resto se desplaza
       f.scroll = NewFrame("ScrollFrame", "GoldFinderSellPanelScroll", f, "UIPanelScrollFrameTemplate")
         or CreateFrame("ScrollFrame", "GoldFinderSellPanelScroll", f)
@@ -69,7 +70,7 @@ function GF.InitVendor(d)
           end
         end
         if sold < qty and left > 0 then
-          Print(format("Vendidas %d unidades; quedan pilas que superan lo que conviene vender (lo demas esta reservado).", sold))
+          Print(format(L["vendor.sold"], sold))
         end
         C_Timer.After(0.5, function() pcall(RefreshSellPanel) end)
       end
@@ -92,10 +93,10 @@ function GF.InitVendor(d)
         row.icon = row:CreateTexture(nil, "ARTWORK")
         row.icon:SetSize(20, 20)
         row.icon:SetPoint("LEFT", row, "LEFT", 0, 0)
-        row.btn = Btn(row, "Vender", 56, 20)
+        row.btn = Btn(row, L["vendor.sell"], 56, 20)
         row.btn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
         -- Guardar: no volver a recomendar venderlo (lo fija, igual que en la pestana Bolsas; ahi se suelta)
-        row.keep = Btn(row, "Guardar", 60, 20)
+        row.keep = Btn(row, L["vendor.keep"], 60, 20)
         row.keep:SetPoint("RIGHT", row.btn, "LEFT", -4, 0)
         row.keep:SetScript("OnClick", function()
           if not row.id then return end
@@ -122,7 +123,7 @@ function GF.InitVendor(d)
       end
       row.id, row.qty = e.id, e.qty
       row.icon:SetTexture(C_Item.GetItemIconByID(e.id))
-      local name = C_Item.GetItemNameByID(e.id) or ("objeto " .. e.id)
+      local name = C_Item.GetItemNameByID(e.id) or format(L["vendor.item"], e.id)
       row.name:SetText(format("%s |cffffffffx%d|r", name, e.qty))
       row.money:SetText(ShortMoney(e.value))
       row:Show()
@@ -133,7 +134,7 @@ function GF.InitVendor(d)
     f.scroll:SetShown(#list > 0)
     local y = -56 - visible * 26
     if #list == 0 then f.empty:Show(); y = y - 22 else f.empty:Hide() end
-    f.total:SetText("Total: " .. Money(total))
+    f.total:SetText(format(L["vendor.total"], Money(total)))
     f.total:SetShown(#list > 0)
     f:SetHeight(-y + 40)
     f:Show()
@@ -164,7 +165,8 @@ function GF.InitVendor(d)
             lines[#lines + 1] = "   |cffffd100" .. ro.note .. "|r"
           else
             lines[#lines + 1] = format("   |cff6bb5ff%s|r (%s %d%s): %s%s|r", ro.who, ro.prof, ro.rank,
-              ro.req and (", pide " .. ro.req) or "", col, ro.ready and "puede aprenderla" or "aun le falta habilidad")
+              ro.req and format(L["vendor.recipes.req"], ro.req) or "", col,
+              ro.ready and L["vendor.recipes.canLearn"] or L["vendor.recipes.lacksSkill"])
           end
         end
       end
@@ -181,7 +183,7 @@ function GF.InitVendor(d)
       f.head = Skin.Head(f, "GoldFinder Forever")
       f.title = Text(f, 12, PAL.text)
       f.title:SetPoint("TOPLEFT", 18, -36)
-      f.title:SetText("Recetas que te sirven aqui")
+      f.title:SetText(L["vendor.recipes.title"])
       f.body = Text(f, 12, PAL.text)
       f.body:SetPoint("TOPLEFT", 18, -56)
       f.body:SetWidth(324)
