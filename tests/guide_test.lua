@@ -88,4 +88,16 @@ rows = GuideMerge(bands, state({ rank = 60, plan = plan }))
 check("band ending at skill is done", rows[2].done and rows[2].alt == nil and rows[2].mats == nil)
 check("next band current at its start", rows[3].current and rows[3].left == 20)
 
+-- GuideBandName: the guide's recipe for the current skill
+do
+  local guides = { leatherworking = { name = "Leatherworking", line = 165, bands = {
+    { f = 90, t = 100, n = "Fine Leather Belt" }, { f = 100, t = 115, n = "Light Leather Pants" } } } }
+  check("band name at 103", GF.GuideBandName(guides, "Leatherworking", 165, 103) == "Light Leather Pants")
+  check("band edges: f included, t excluded", GF.GuideBandName(guides, "Leatherworking", 165, 100) == "Light Leather Pants"
+    and GF.GuideBandName(guides, "Leatherworking", 165, 115) == nil)
+  check("found by name when the skill line is unknown", GF.GuideBandName(guides, "leatherworking", nil, 95) == "Fine Leather Belt")
+  check("no guide for the profession", GF.GuideBandName(guides, "Cooking", 185, 100) == nil)
+  check("nil input", GF.GuideBandName(nil, "Cooking", 185, 100) == nil)
+end
+
 os.exit(failures == 0 and 0 or 1)

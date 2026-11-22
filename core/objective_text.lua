@@ -14,9 +14,10 @@ local function ObjectiveHeader(e)
   return string.format("%s %d > %d: %s x%d", e.prof, e.rank or 0, e.upto or 0, tostring(e.what), e.qty or 0)
 end
 -- Bloque del seguimiento para una entrada de NextStepList: { id, header, lines = { { key, kind, text } } }.
--- kind: learn (receta del instructor), train (rango del instructor), mat (material que falta), more, ready.
+-- kind: learn (receta del instructor), train (rango del instructor), mat (material que falta, con su icono si iconOf
+-- lo da), more, ready, info (coste de lo que falta, probabilidad de subir), note (la guia propone otra receta).
 -- nameOf(id) da el nombre del objeto o nil (aun sin cargar: el segundo resultado avisa de que hay que esperar).
-local function ObjectiveBlock(e, nameOf, learnText)
+local function ObjectiveBlock(e, nameOf, learnText, iconOf, money)
   local lines, waiting = {}, false
   if e.unknown then
     lines[#lines + 1] = { key = "learn", kind = "learn",
@@ -42,11 +43,25 @@ local function ObjectiveBlock(e, nameOf, learnText)
       shown = shown + 1
       local nm = nameOf and nameOf(m.id)
       if not nm then waiting = true; nm = string.format(L["obj.item"], m.id) end
-      lines[#lines + 1] = { key = "m" .. tostring(m.id), kind = "mat", text = string.format("%d/%d %s", have, m.need, nm) }
+      local icon = iconOf and iconOf(m.id)
+      local text = string.format("%d/%d %s", have, m.need, nm)
+      if icon then text = string.format("|T%s:14|t %s", tostring(icon), text) end
+      lines[#lines + 1] = { key = "m" .. tostring(m.id), kind = "mat", text = text }
     end
   end
   if not missing and #mats > 0 then
     lines[#lines + 1] = { key = "ready", kind = "ready", text = L["obj.ready"] }
+  end
+  -- datos utiles del paso: cuanto cuesta lo que falta y que probabilidad tiene cada fabricacion de subirte
+  if missing and e.missingCost and e.missingCost > 0 and money then
+    lines[#lines + 1] = { key = "cost", kind = "info", text = string.format(L["obj.missingCost"], money(e.missingCost)) }
+  end
+  if e.chance and e.chance < 0.995 and e.chance > 0 then
+    lines[#lines + 1] = { key = "chance", kind = "info", text = string.format(L["obj.chance"], math.floor(e.chance * 100 + 0.5)) }
+  end
+  -- el paso sale del planificador (lo mas barato para ti); si la guia pone otra receta, se dice con palabras simples
+  if e.guide then
+    lines[#lines + 1] = { key = "guide", kind = "note", text = string.format(L["obj.cheaperThanGuide"], e.guide) }
   end
   return { id = e.prof, header = ObjectiveHeader(e), lines = lines }, waiting
 end

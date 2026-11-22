@@ -26,6 +26,9 @@ function GF.InitObjectives(d)
     if not nm and C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(id) end
     return nm
   end
+  local function IconOf(id)
+    return C_Item.GetItemIconByID and C_Item.GetItemIconByID(id) or nil
+  end
   -- llama a fn con sus argumentos y manda el error al manejador del juego (BugGrabber), sin cortar a los demas
   local function Safe(_, fn, ...)
     local n, args = select("#", ...), { ... }
@@ -214,7 +217,7 @@ function GF.InitObjectives(d)
     local blocks, waiting = {}, false
     if OB.active() then
       for _, e in ipairs(entries or {}) do
-        local b, w = GF.ObjectiveBlock(e, NameOf, LearnText)
+        local b, w = GF.ObjectiveBlock(e, NameOf, LearnText, IconOf, ShortMoney)
         blocks[#blocks + 1] = b
         waiting = waiting or w
       end

@@ -122,5 +122,31 @@ local plan = PlanRoute("Leatherworking", { rank = 110, maxRank = 150, skillLine 
 -- at 110: chance (130-110)/(130-100) = 2/3; cost 10*100 = 1000 per craft, nothing to sell: 1000 / (2/3) = 1500
 check("plan.eff cost per point", plan and plan.eff and math.abs((plan.eff.known or 0) - 1500) < 1e-6)
 
+-- 8. Material icons, useful data and the friendly note when the guide proposes another recipe.
+do
+  local money = function(c) return c .. "c" end
+  local ee = { prof = "Leatherworking", rank = 103, from = 103, upto = 105, what = "Fine Leather Belt", qty = 6,
+    guide = "Light Leather Pants", chance = 0.4, missingCost = 250, mats = { { id = 10, need = 6, have = 0 } } }
+  local b = ObjectiveBlock(ee, nameOf, nil, function() return 134400 end, money)
+  check("material line carries its icon", b.lines[1].text == "|T134400:14|t 0/6 Tiger Meat")
+  check("cost of what is missing", b.lines[2].kind == "info" and b.lines[2].text == "Missing materials: about 250c")
+  check("chance per craft", b.lines[3].kind == "info" and b.lines[3].text == "Chance to level per craft: 40%")
+  check("guide note is the last line", b.lines[#b.lines].kind == "note"
+    and b.lines[#b.lines].text == "Cheaper than the guide (Light Leather Pants)")
+  b = ObjectiveBlock(ee, nameOf)
+  check("no icon provider: plain material line", b.lines[1].text == "0/6 Tiger Meat")
+  check("no money formatter: no cost line", b.lines[2].text == "Chance to level per craft: 40%")
+  ee.guide, ee.chance, ee.missingCost = nil, 1, nil
+  b = ObjectiveBlock(ee, nameOf, nil, function() return nil end, money)
+  check("sure skill-up, no guide difference: only the material, missing icon skipped",
+    #b.lines == 1 and b.lines[1].text == "0/6 Tiger Meat")
+  ee.mats[1].have = 6
+  ee.guide, ee.missingCost = "Light Leather Pants", 0
+  b = ObjectiveBlock(ee, nameOf, nil, nil, money)
+  check("ready line then the note, no cost line when nothing is missing", #b.lines == 2
+    and b.lines[1].kind == "ready" and b.lines[2].kind == "note")
+end
+
+
 print(failures == 0 and "ALL PASS" or (failures .. " FAILED"))
 os.exit(failures == 0 and 0 or 1)

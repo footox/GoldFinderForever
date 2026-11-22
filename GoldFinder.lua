@@ -710,6 +710,21 @@ local function NextStepList()
             else
               stepFrom[prof] = { what = e.what, from = e.from }
             end
+            -- la guia pone otra receta a este nivel: el seguimiento lo dice (el paso sigue siendo el mas barato)
+            local gname = GF.GuideBandName(GoldFinderGuides, prof, pd.skillLine, pd.rank)
+            if gname and e.what and gname:lower() ~= tostring(e.what):lower() then e.guide = gname end
+            -- datos del paso: probabilidad de subir por fabricacion y coste de los materiales que faltan
+            local okC, rec = pcall(RecipeLookup, pd.skillLine, e.what)
+            if okC and rec then e.chance = SkillUpChance(rec, pd.rank) end
+            local cost, priced = 0, true
+            for _, m in ipairs(e.mats or {}) do
+              local miss = (m.need or 0) - (m.have or 0)
+              if miss > 0 then
+                local p = BuyPrice(m.id)
+                if p then cost = cost + p * miss else priced = false end
+              end
+            end
+            if priced then e.missingCost = cost end
           end
         end
         local train, trainState
