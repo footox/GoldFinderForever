@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.2.1
 
 - Shopping tab: each profession row also has its own List button, with a list named GoldFinder - <profession>, for when you only care about one.
 - Zone notes of the guides (for example "copper", "tin and silver" or the Fishing tips) are now shown in English with an English interface instead of in Spanish.
