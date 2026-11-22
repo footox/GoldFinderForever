@@ -22,7 +22,7 @@ Branch: feat/guide-integrations (stacked on feat/materials-tab so the game loads
 - [ ] T2 (S3) buy what the route needs | route: inline | commit: - | Risk: item 1 (spends the player's gold: an irreversible effect), so it gets an independent verification before release
 - [ ] T3 (S4) Waylaid Crates | route: inline | commit: -
 - [ ] T4 (S5) recipe sources table | route: inline | commit: -
-- [ ] T5 (S6) who already knows a recipe | route: inline | commit: -
+- [x] T5 (S6) who already knows a recipe | route: inline | core/recipe_known.lua, tooltip and merchant box | in-game check pending
 - [ ] T6 (S7) search by material in the guide | route: inline | commit: -
 
 - [ ] T7 (S10) optional support for a popular interface manager (EllesmereUI): to evaluate first | route: inline | commit: -
