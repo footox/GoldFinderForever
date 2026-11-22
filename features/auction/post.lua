@@ -11,6 +11,7 @@ function GF.InitAuction(d)
   local Cfg, AHApi, TSMValue, RefPrice, SellQty, VendorPrice, Money, Print, BankerName =
     d.Cfg, d.AHApi, d.TSMValue, d.RefPrice, d.SellQty, d.VendorPrice, d.Money, d.Print, d.BankerName
   local format, floor = string.format, math.floor
+  local L = GF.L
 
   local DURATION = { [12] = 1, [24] = 2, [48] = 3 }   -- horas -> valor de duracion de la API (igual que Auctionator)
   local function Hours() return (tonumber(Cfg("postDuration")) or 24) <= 12 and 12 or 24 end
@@ -65,7 +66,7 @@ function GF.InitAuction(d)
     })
     p.hours, p.lowest, p.market = Hours(), lowest, market
     -- publicacion de varias unidades en curso (la subasta las crea de una en una): no se publica otra hasta acabar
-    if p.post and busy.on then p.post, p.reason = false, "publicacion en curso: espera a que termine" end
+    if p.post and busy.on then p.post, p.code, p.reason = false, "busy", L["auction.reason.busy"] end
     if loc and p.qty > 0 then
       local ok, dep
       if IsCommodity(loc) then
@@ -82,26 +83,26 @@ function GF.InitAuction(d)
 
   local function Tooltip(tt, id, toBanker)
     local p = Plan(id, FindLoc(id))
-    tt:AddLine("Subastar con un clic", 1, 0.82, 0)
-    if not AHOpen() then tt:AddLine("Abre la casa de subastas para publicarlo.", 1, 0.3, 0.3, true) end
+    tt:AddLine(L["auction.tip.title"], 1, 0.82, 0)
+    if not AHOpen() then tt:AddLine(L["auction.tip.open"], 1, 0.3, 0.3, true) end
     if p.post then
-      tt:AddDoubleLine("Precio c/u", Money(p.unit), 1, 1, 1, 1, 1, 1)
-      tt:AddDoubleLine("Cantidad", tostring(p.qty), 1, 1, 1, 1, 1, 1)
-      tt:AddDoubleLine("Total", Money(p.unit * p.qty), 1, 1, 1, 1, 1, 1)
-      tt:AddDoubleLine("Recibes (tras la comision)", Money(floor(p.unit * p.qty * (1 - AH_CUT))), 1, 1, 1, 1, 1, 1)
-      tt:AddDoubleLine("Deposito", p.deposit and Money(p.deposit) or "(con la subasta abierta)", 1, 1, 1, 1, 1, 1)
-      tt:AddDoubleLine("Duracion", p.hours .. " h", 1, 1, 1, 1, 1, 1)
+      tt:AddDoubleLine(L["auction.tip.unit"], Money(p.unit), 1, 1, 1, 1, 1, 1)
+      tt:AddDoubleLine(L["auction.tip.qty"], tostring(p.qty), 1, 1, 1, 1, 1, 1)
+      tt:AddDoubleLine(L["auction.tip.total"], Money(p.unit * p.qty), 1, 1, 1, 1, 1, 1)
+      tt:AddDoubleLine(L["auction.tip.receive"], Money(floor(p.unit * p.qty * (1 - AH_CUT))), 1, 1, 1, 1, 1, 1)
+      tt:AddDoubleLine(L["auction.tip.deposit"], p.deposit and Money(p.deposit) or L["auction.tip.depositOpen"], 1, 1, 1, 1, 1, 1)
+      tt:AddDoubleLine(L["auction.tip.duration"], p.hours .. " h", 1, 1, 1, 1, 1, 1)
     end
-    tt:AddLine((p.post and "" or "No se publica: ") .. p.reason, p.post and 0.42 or 1, p.post and 0.71 or 0.3,
+    tt:AddLine((p.post and "" or L["auction.tip.notPosted"]) .. p.reason, p.post and 0.42 or 1, p.post and 0.71 or 0.3,
       p.post and 1 or 0.3, true)
     if p.min then
-      tt:AddLine(format("Minimo %s / normal %s / maximo %s", Money(p.min), Money(p.normal), Money(p.max)),
+      tt:AddLine(format(L["auction.tip.range"], Money(p.min), Money(p.normal), Money(p.max)),
         0.6, 0.6, 0.6, true)
     end
     if toBanker then
-      tt:AddLine("Tu banquero es " .. BankerName() .. ": puedes enviarselo, o publicarlo aqui mismo.", 0.42, 0.71, 1, true)
+      tt:AddLine(format(L["auction.tip.banker"], BankerName()), 0.42, 0.71, 1, true)
     end
-    tt:AddLine("Mayus+clic (o Mayus+clic en la fila): abrirlo en la pestana Selling de Auctionator.", 0.6, 0.6, 0.6, true)
+    tt:AddLine(L["auction.tip.shift"], 0.6, 0.6, 0.6, true)
   end
 
   local function RefreshShown()
@@ -112,7 +113,7 @@ function GF.InitAuction(d)
   local function PostDone()
     local q = busy.post
     busy.post = nil
-    if q and q.n > 0 then Print(format("Publicado: %d x %s", q.n * q.per, q.what)) end
+    if q and q.n > 0 then Print(format(L["auction.posted"], q.n * q.per, q.what)) end
   end
   -- ventana corta: solo cuenta AUCTION_HOUSE_AUCTION_CREATED que llegue en 5 s desde la publicacion o la
   -- confirmacion (cada subasta creada la alarga); si no llega, se olvida y otra subasta posterior no la imprime
@@ -126,19 +127,19 @@ function GF.InitAuction(d)
 
   -- una publicacion por clic; si la subasta esta ocupada (limite de mensajes) no se hace nada
   local function Post(id)
-    if not AHOpen() then Print("Abre la casa de subastas primero."); return end
+    if not AHOpen() then Print(L["auction.openFirst"]); return end
     if C_AuctionHouse.IsThrottledMessageSystemReady and not C_AuctionHouse.IsThrottledMessageSystemReady() then
-      Print("La casa de subastas esta ocupada: espera un momento y vuelve a pulsar Subastar.")
+      Print(L["auction.busyAH"])
       return
     end
     local loc = FindLoc(id)
-    if not loc then Print("No puedo publicar ese objeto (ligado, bloqueado o ya no esta en la bolsa)."); return end
+    if not loc then Print(L["auction.cantPost"]); return end
     local p = Plan(id, loc)
-    if not p.post then Print("No se publica: " .. p.reason); return end
+    if not p.post then Print(format(L["auction.notPosted"], p.reason)); return end
     local dur = DURATION[p.hours]
     local commodity = IsCommodity(loc)
     local fn = commodity and C_AuctionHouse.PostCommodity or C_AuctionHouse.PostItem
-    if type(fn) ~= "function" then Print("Este cliente no permite publicar desde GoldFinder."); return end
+    if type(fn) ~= "function" then Print(L["auction.unsupported"]); return end
     -- varias unidades de un objeto que no es mercancia: la subasta las crea de una en una (multisell);
     -- los botones Subastar quedan desactivados hasta que acaba, falla o pasa el tiempo maximo
     busy.on, busy.serial = not commodity and p.qty > 1, busy.serial + 1
@@ -147,8 +148,8 @@ function GF.InitAuction(d)
     C_Timer.After(math.max(30, p.qty * 2), function()
       if busy.serial == serial and (busy.on or busy.post) then busy.on = false; PostDone(); RefreshShown() end
     end)
-    local name = C_Item.GetItemInfo(id) or ("objeto " .. id)
-    local q = { what = format("%s a %s c/u (%d h)", name, Money(p.unit), p.hours),
+    local name = C_Item.GetItemInfo(id) or format(L["auction.item"], id)
+    local q = { what = format(L["auction.what"], name, Money(p.unit), p.hours),
       per = commodity and p.qty or 1, n = 0, tick = 0 }
     busy.post = q
     local ok, res
@@ -156,7 +157,7 @@ function GF.InitAuction(d)
     else ok, res = pcall(fn, loc, dur, p.qty, nil, p.unit) end
     if not ok then
       busy.on, busy.post = false, nil
-      Print("La casa de subastas rechazo la publicacion: " .. tostring(res))
+      Print(format(L["auction.rejected"], tostring(res)))
       RefreshShown()
       return
     end
@@ -168,7 +169,7 @@ function GF.InitAuction(d)
         if commodity then sf:CachePendingPost(loc, dur, p.qty, p.unit)
         else sf:CachePendingPost(loc, dur, p.qty, nil, p.unit) end
       end)
-      Print("Confirma la publicacion en la ventana de Blizzard")
+      Print(L["auction.confirm"])
     else
       PostArm(q)
     end
@@ -184,7 +185,7 @@ function GF.InitAuction(d)
     if e == "AUCTION_HOUSE_POST_ERROR" then
       busy.on = false
       PostDone()
-      Print("La casa de subastas no acepto la publicacion.")
+      Print(L["auction.postError"])
     elseif e == "AUCTION_HOUSE_AUCTION_CREATED" then
       -- antes de confirmar (o fuera de la ventana) la subasta creada no es la nuestra
       if q and q.armed then

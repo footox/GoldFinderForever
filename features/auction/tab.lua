@@ -6,6 +6,7 @@ local _, GF = ...
 -- d: CreateUI, Print
 function GF.InitAuctionTab(d)
   local format, floor = string.format, math.floor
+  local L = GF.L
   local TAB_ID = "GoldFinderTab"
   local panelBuilt = false
 
@@ -31,7 +32,7 @@ function GF.InitAuctionTab(d)
         if w and w > 200 then
           if not reported then
             reported = true
-            d.Print(format("La pestana medía %d px; la ajusto a 110.", floor(w)))
+            d.Print(format(L["auction.tab.width"], floor(w)))
           end
           btn:SetWidth(110)
         end
@@ -49,7 +50,7 @@ function GF.InitAuctionTab(d)
   tabEvents:SetScript("OnEvent", function()
     C_Timer.After(0.5, function()
       local ok, err = pcall(BuildTab)
-      if not ok then d.Print("No pude crear la pestana: " .. tostring(err)) end
+      if not ok then d.Print(format(L["auction.tab.fail"], tostring(err))) end
     end)
   end)
 end

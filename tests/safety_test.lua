@@ -226,19 +226,21 @@ check("nothing known: vendor x4 estimate", p5 == 40 and est == true)
 ---------------------------------------------------------------------------
 -- AuctionPlan: one-click refused for variant gear and without a market reference
 ---------------------------------------------------------------------------
+loadCore("core/locale.lua", GF)
+loadCore("locales/enUS.lua", GF)
 loadCore("core/auction.lua", GF)
 local AuctionPlan = GF.AuctionPlan
 local p = AuctionPlan({ lowest = 900, market = 1000, vendor = 0, available = 3, variant = true })
-check("variant gear: no one-click", not p.post and p.reason == "precio por variante: usa Auctionator (Mayus+clic)")
+check("variant gear: no one-click", not p.post and p.code == "variant")
 p = AuctionPlan({ lowest = 800, vendor = 0, available = 2 })
 check("no market reference: no one-click",
-  not p.post and p.reason == "sin precio de referencia: usa Auctionator (Mayus+clic)")
+  not p.post and p.code == "noref")
 p = AuctionPlan({ lowest = 900, market = 1000, vendor = 0, available = 20, soldPerDay = 3.2 })
-check("cap wording: per post", p.reason:find("tope de 7 por publicacion", 1, true) ~= nil)
+check("cap wording: per post", p.reason:find("cap of 7 per posting", 1, true) ~= nil)
 -- R1b: no Auctionator price (TSM-only verdict): no one-click until the auction house is scanned
 p = AuctionPlan({ market = 1000, vendor = 0, available = 5 })
 check("TSM only: no one-click, scan first",
-  not p.post and p.reason == "escanea la casa de subastas antes de publicar")
+  not p.post and p.code == "scan")
 check("TSM only: range still shown", p.min == 600 and p.normal == 1000)
 
 ---------------------------------------------------------------------------
