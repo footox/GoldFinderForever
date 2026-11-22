@@ -12,7 +12,7 @@ for _, p in ipairs({ "core/locale.lua", "locales/enUS.lua" }) do assert(loadfile
 local loot = {}
 local env = setmetatable({
   L = GFL.L,
-  GoldFinderDB = {},
+  GoldFinderForeverDB = {},
   GetRealZoneText = function() return "Arathi Highlands" end,
   UnitExists = function() return true end,
   UnitIsDead = function() return true end,
@@ -37,7 +37,7 @@ end
 
 loot = { { id = 4234, qty = 2 }, { id = 9999, qty = 1 }, { id = 2589, qty = 3 } }
 M.RecordSources()
-local s = env.GoldFinderDB.sources
+local s = env.GoldFinderForeverDB.sources
 check("leather recorded although no profession needs it", s[4234] and s[4234]["Arathi Highlands"].n == 2
   and s[4234]["Arathi Highlands"].mob == "Highland Raptor")
 check("needed material still recorded", s[2589] and s[2589]["Arathi Highlands"].n == 3)

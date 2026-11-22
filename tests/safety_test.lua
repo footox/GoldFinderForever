@@ -23,7 +23,7 @@ loadCore("core/config.lua", GF)
 loadCore("core/locale.lua", GF)
 loadCore("locales/enUS.lua", GF)
 loadCore("core/quest_need.lua", GF)
-loadCore("core/decision.lua", GF, { GoldFinderDB = {} })
+loadCore("core/decision.lua", GF, { GoldFinderForeverDB = {} })
 
 local S   -- per-test state
 local function reset()
@@ -158,7 +158,7 @@ local oenv = setmetatable({
   StockOf = function() return 0 end,
   RouteNeedFor = function(c, id) return needs[c.name] and { need = needs[c.name], prof = "Tailoring", upto = 100 } end,
   ReagentInfoFor = function() return nil end,
-  GoldFinderDB = { chars = { ["Me-Realm"] = me, ["Ashes-Realm"] = { name = "Ashes", prof = {} },
+  GoldFinderForeverDB = { chars = { ["Me-Realm"] = me, ["Ashes-Realm"] = { name = "Ashes", prof = {} },
     ["Bob-Realm"] = { name = "Bob", prof = {} }, ["Cid-Realm"] = { name = "Cid", prof = {} } } },
 }, { __index = _G })
 f = assert(loadstring(src:sub(a, b - 1) .. "\nreturn OtherNeed"))
@@ -180,7 +180,7 @@ local oenv2 = setmetatable({
   StockOf = function(who) return stock[who] end,
   RouteNeedFor = function(c) return rneed[c.name] and { need = rneed[c.name], prof = "Tailoring", upto = 100 } end,
   ReagentInfoFor = function(c) return rgneed[c.name] and { need = rgneed[c.name], prof = "Tailoring", recipe = "X" } end,
-  GoldFinderDB = { chars = { ["Me-Realm"] = me, ["Ashes-Realm"] = altA,
+  GoldFinderForeverDB = { chars = { ["Me-Realm"] = me, ["Ashes-Realm"] = altA,
     ["Bob-Realm"] = { name = "Bob", prof = {} } } },
 }, { __index = _G })
 f = assert(loadstring(src:sub(a, b - 1) .. "\nreturn OtherNeed"))
@@ -206,20 +206,20 @@ check("alt need: still summed over alts (10 + 5)", OtherNeed(1, true).need == 15
 local prices, vsell = {}, {}
 loadCore("core/routeplanner.lua", GF)
 local penv = setmetatable({
-  CALLER = "GoldFinder", AH_CUT = 0.05, GoldFinderDB = { vendorBuy = {} },
+  CALLER = "GoldFinder", AH_CUT = 0.05, GoldFinderForeverDB = { vendorBuy = {} },
   AHApi = function() return { GetAuctionPriceByItemID = function(_, id) return prices[id] end } end,
   VendorPrice = function(id) return vsell[id] end,
   Counts = function() return 0, 0 end,
   Cfg = function() return nil end,
 }, { __index = _G })
 local BuyPrice = GF.NewRoutePlanner(penv).BuyPrice
-prices[1], penv.GoldFinderDB.vendorBuy[1] = 100, 60
+prices[1], penv.GoldFinderForeverDB.vendorBuy[1] = 100, 60
 check("vendor cheaper than AH: vendor price", BuyPrice(1) == 60)
-prices[2], penv.GoldFinderDB.vendorBuy[2] = 50, 60
+prices[2], penv.GoldFinderForeverDB.vendorBuy[2] = 50, 60
 check("AH cheaper than vendor: AH price", BuyPrice(2) == 50)
 prices[3] = 70
 check("only AH known", BuyPrice(3) == 70)
-penv.GoldFinderDB.vendorBuy[4] = 30
+penv.GoldFinderForeverDB.vendorBuy[4] = 30
 check("only vendor known", BuyPrice(4) == 30)
 vsell[5] = 10
 local p5, est = BuyPrice(5)

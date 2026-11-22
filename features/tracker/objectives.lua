@@ -265,7 +265,7 @@ function GF.InitObjectives(d)
   -- probabilidad y coste por punto de una receta de la profesion abierta. Cache por profesion: se rehace si cambia
   -- la habilidad o el plan (InvalidateRoutes lo borra con las bolsas, la subasta y las recetas aprendidas).
   local function Note(info)
-    if not (GoldFinderDB and Cfg("recipeNotes") and info and info.name) or info.learned == false then return nil end
+    if not (GoldFinderForeverDB and Cfg("recipeNotes") and info and info.name) or info.learned == false then return nil end
     local prof = OpenProf()
     local c = Char()
     local pd = prof and ProfOn(prof) and c.prof[prof] or nil

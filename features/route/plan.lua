@@ -1,6 +1,6 @@
 -- features/route/plan.lua: combined farming spots (FarmCombos) and the routes-and-plan summary of the guide window
 -- (RouteSummary: compare your route with the others, and per material decide buy, farm or wait). Container: data and
--- game readers come from d, called at use time; GoldFinderDB, GoldFinderRoutes and C_Item are read from d too (the main
+-- game readers come from d, called at use time; GoldFinderForeverDB, GoldFinderRoutes and C_Item are read from d too (the main
 -- file passes a table that falls back to the real globals).
 
 local _, GF = ...
@@ -19,7 +19,7 @@ function GF.InitRoutePlan(d)
   -- FARMEO COMBINADO: criaturas/zonas donde ya conseguiste VARIOS de los materiales que te faltan
   -- para los proximos pasos (de todas tus profesiones). Se apoya en lo que el addon aprende al abrir botines.
   local function FarmCombos()
-    local SS = d.GoldFinderDB.sources
+    local SS = d.GoldFinderForeverDB.sources
     local out = {}
     if not SS then return out end
     local groups = {}

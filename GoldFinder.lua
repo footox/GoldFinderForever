@@ -3,7 +3,7 @@
 -- GUARDAR (porque lo usa tu profesion o el precio esta bajo), y mide cuanto
 -- oro por hora te da el desuello. Solo informa: nunca compra ni publica solo.
 
-local _, GF = ...
+local ADDON, GF = ...
 
 local CALLER, AH_CUT, DEFAULTS = GF.CALLER, GF.AH_CUT, GF.DEFAULTS
 local Print, Money, ShortMoney, Cfg = GF.Print, GF.Money, GF.ShortMoney, GF.Cfg
@@ -42,7 +42,7 @@ do
         out[#out + 1] = nm
       end
     end
-    for key in pairs((GoldFinderDB and GoldFinderDB.chars) or {}) do add(key) end
+    for key in pairs((GoldFinderForeverDB and GoldFinderForeverDB.chars) or {}) do add(key) end
     local db = _G.BrotherBags
     if type(db) == "table" then
       for _, cc in pairs(db) do
@@ -131,8 +131,8 @@ do
   local temp, done
 
   function Char()
-    GoldFinderDB.chars = GoldFinderDB.chars or {}
-    local chars = GoldFinderDB.chars
+    GoldFinderForeverDB.chars = GoldFinderForeverDB.chars or {}
+    local chars = GoldFinderForeverDB.chars
     local name = FirstName(UnitName("player") or "?")
     local full = FullName()
     if not full:find(" ", 1, true) then
@@ -166,7 +166,7 @@ do
     c.prof, c.keep, c.off = c.prof or {}, c.keep or {}, c.off or {}
 
     -- Datos de versiones antiguas (comunes a la cuenta): se unen a la ficha de su personaje (nombre de pila exacto).
-    local legacy = GoldFinderDB.legacy
+    local legacy = GoldFinderForeverDB.legacy
     if legacy and LEGACY_OWNER and name == LEGACY_OWNER then
       for k, v in pairs(legacy.prof or {}) do
         local cur = c.prof[k]
@@ -180,7 +180,7 @@ do
       end
       for k, v in pairs(legacy.keep or {}) do c.keep[k] = v end
       if legacy.session and not c.session then c.session = legacy.session end
-      GoldFinderDB.legacy = nil
+      GoldFinderForeverDB.legacy = nil
     end
     return c
   end
@@ -189,7 +189,7 @@ do
   -- la ficha del nombre completo ("Nombre Apellido") cuando es el unico personaje conocido con ese nombre de pila.
   -- Con dos o mas (o ninguno) se dejan: Char() las reclama al entrar su personaje si no hay duda.
   function CleanPhantomChars()
-    local chars = GoldFinderDB and GoldFinderDB.chars
+    local chars = GoldFinderForeverDB and GoldFinderForeverDB.chars
     if not chars then return end
     local phantoms = {}
     for key in pairs(chars) do
@@ -206,9 +206,9 @@ do
       end
     end
     -- banquero guardado solo con el nombre de pila: se completa si no hay duda (fichas o BagBrother)
-    local b = GoldFinderDB.banker
+    local b = GoldFinderForeverDB.banker
     if type(b) == "string" and b ~= "" and not b:find(" ", 1, true) then
-      GoldFinderDB.banker = ResolveFullName(b)
+      GoldFinderForeverDB.banker = ResolveFullName(b)
     end
   end
 end
@@ -340,7 +340,7 @@ end
 ---------------------------------------------------------------------------
 local function CacheProfession()
   local T = C_TradeSkillUI
-  if not (GoldFinderDB and T and T.GetAllRecipeIDs and T.GetRecipeInfo and T.GetRecipeSchematic) then return end
+  if not (GoldFinderForeverDB and T and T.GetAllRecipeIDs and T.GetRecipeInfo and T.GetRecipeSchematic) then return end
   if T.IsTradeSkillReady and not T.IsTradeSkillReady() then return end
   if (T.IsTradeSkillGuild and T.IsTradeSkillGuild()) or (T.IsTradeSkillLinked and T.IsTradeSkillLinked()) then return end
   local base = T.GetBaseProfessionInfo and T.GetBaseProfessionInfo()
@@ -400,7 +400,7 @@ end
 -- Las recetas y materiales solo se memorizan al abrir la ventana de cada profesion.
 local skillSess = {}   -- por profesion: habilidad al empezar la sesion, hora, ultima subida
 local function ReadSkills()
-  if not (GetProfessions and GetProfessionInfo and GoldFinderDB) then return end
+  if not (GetProfessions and GetProfessionInfo and GoldFinderForeverDB) then return end
   local P = Char().prof
   local idx = { GetProfessions() }
   for i = 1, 6 do
@@ -435,7 +435,7 @@ local function SkillUpData()
   local api = _G.SkillUpForever and _G.SkillUpForever.API
   if not (api and api.ShoppingList) then
     -- sin SkillUp (desactivado o desinstalado): su copia de este personaje ya no vale para los demas
-    if GoldFinderDB and GetTime() - suLoad > 60 then
+    if GoldFinderForeverDB and GetTime() - suLoad > 60 then
       local me = Char()
       if me.suNeed or me.suTracked then me.suNeed, me.suTracked = nil, nil end
     end
@@ -562,7 +562,7 @@ end
 local function OtherNeed(id, all)
   local mine = Char()
   local list, sum, best = {}, 0, nil
-  for key, c in pairs(GoldFinderDB.chars or {}) do
+  for key, c in pairs(GoldFinderForeverDB.chars or {}) do
     if c ~= mine and c.prof then
       local who = key:match("^([^-]+)") or key
       local z
@@ -645,12 +645,12 @@ local RANK_NAMES = { [75] = "Apprentice", [150] = "Journeyman", [225] = "Expert"
 local RANK_MAX = { Apprentice = 75, Journeyman = 150, Expert = 225, Artisan = 300 }
 
 -- Instructores de cada rango de una profesion para tu faccion: primero el que anotaste al visitarlo
--- (GoldFinderDB.trainers, ver RecordTrainer) y, si no, el primero de GoldFinderTrainers (guias de Icy Veins).
+-- (GoldFinderForeverDB.trainers, ver RecordTrainer) y, si no, el primero de GoldFinderTrainers (guias de Icy Veins).
 -- Cada uno: { max, name, npc, zone, x, y, seen = true si viene de tu visita }. nil si no hay ninguno.
 local function TrainList(prof)
   local faction = UnitFactionGroup("player") or "?"
   local fac = (faction == "Horde") and "H" or "A"
-  local rec = GoldFinderDB and GoldFinderDB.trainers and GoldFinderDB.trainers[faction]
+  local rec = GoldFinderForeverDB and GoldFinderForeverDB.trainers and GoldFinderForeverDB.trainers[faction]
   local mine = rec and rec[prof]
   local p = (prof or ""):lower()
   local static
@@ -763,7 +763,7 @@ end
 -- DONDE CONSEGUIR LOS MATERIALES: el addon lo aprende solo. Al abrir un botin, si algo le sirve a
 -- alguna profesion de tus personajes, anota la zona y la criatura (datos de toda la cuenta).
 local function NeededByAny(id)
-  for _, c in pairs(GoldFinderDB.chars or {}) do
+  for _, c in pairs(GoldFinderForeverDB.chars or {}) do
     if c.prof and (RouteNeedFor(c, id) or ReagentInfoFor(c, id)) then return true end
   end
   return false
@@ -788,7 +788,7 @@ end
 -- FIN DE OBJETOS DE USO
 
 local function RecordSources()
-  if not GoldFinderDB then return end
+  if not GoldFinderForeverDB then return end
   local zone = GetRealZoneText()
   if not zone or zone == "" then return end
   local mob = (UnitExists("target") and UnitIsDead("target")) and UnitName("target") or nil
@@ -797,9 +797,9 @@ local function RecordSources()
     local id = link and tonumber(link:match("item:(%d+)"))
     if id and (NeededByAny(id) or IsLeather(id)) then
       local qty = tonumber(select(3, GetLootSlotInfo(slot))) or 1
-      GoldFinderDB.sources = GoldFinderDB.sources or {}
-      local t = GoldFinderDB.sources[id]
-      if not t then t = {}; GoldFinderDB.sources[id] = t end
+      GoldFinderForeverDB.sources = GoldFinderForeverDB.sources or {}
+      local t = GoldFinderForeverDB.sources[id]
+      if not t then t = {}; GoldFinderForeverDB.sources[id] = t end
       local z = t[zone]
       if not z then z = { n = 0 }; t[zone] = z end
       z.n = z.n + qty
@@ -810,7 +810,7 @@ end
 
 -- "Lo has conseguido en: Arathi Highlands (12, Highland Raptor); ..."
 local function SourceText(id)
-  local t = GoldFinderDB and GoldFinderDB.sources and GoldFinderDB.sources[id]
+  local t = GoldFinderForeverDB and GoldFinderForeverDB.sources and GoldFinderForeverDB.sources[id]
   if not t then return "" end
   local arr = {}
   for zone, z in pairs(t) do arr[#arr + 1] = { zone = zone, n = z.n, mob = z.mob } end
@@ -845,7 +845,7 @@ local function RecipeToLearn(id)
   if not key then return nil end
   local name = C_Item.GetItemInfo(id)
   if not name then return nil end
-  for prof, data in pairs((GoldFinderDB and Char().prof) or {}) do
+  for prof, data in pairs((GoldFinderForeverDB and Char().prof) or {}) do
     if prof:lower():find(key, 1, true) and data.learned and ProfOn(prof) then
       local recipe = name
       for _, pre in ipairs(RECIPE_PREFIX) do
@@ -901,7 +901,7 @@ local function RecipeForOthers(id, includeMine, all)
   local mine = Char()
   local req = RecipeReq(id)
   local out = {}
-  for ckey, c in pairs(GoldFinderDB.chars or {}) do
+  for ckey, c in pairs(GoldFinderForeverDB.chars or {}) do
     if (c ~= mine or includeMine) and c.prof then
       for prof, data in pairs(c.prof) do
         if prof:lower():find(key, 1, true) and not (c.off and c.off[prof]) and data.learned and next(data.learned) then
@@ -1150,7 +1150,7 @@ end
 local lootFrame = CreateFrame("Frame")
 lootFrame:RegisterEvent("CHAT_MSG_LOOT")
 lootFrame:SetScript("OnEvent", function(_, _, text, ...)
-  if not GoldFinderDB or not Cfg("track") then return end
+  if not GoldFinderForeverDB or not Cfg("track") then return end
   if select(11, ...) ~= UnitGUID("player") then return end   -- solo tu botin
   local msg = tostring(text)
   local id = tonumber(msg:match("item:(%d+)"))
@@ -2478,7 +2478,7 @@ function OpenGuide(name)
     f:SetScript("OnDragStop", function(self)
       self:StopMovingOrSizing()
       local point, _, relPoint, x, y = self:GetPoint()
-      GoldFinderDB.guidePos = { point, relPoint, x, y }
+      GoldFinderForeverDB.guidePos = { point, relPoint, x, y }
     end)
     -- top: donde va el texto de la profesion; gx: margen izquierdo (a la derecha del retrato si es nativo)
     local top, gx = -8, 12
@@ -2537,7 +2537,7 @@ function OpenGuide(name)
     f.content:SetSize(GUIDE_W - 14, 100)
     sf:SetScrollChild(f.content)
     f.sf = sf
-    local pos = GoldFinderDB.guidePos
+    local pos = GoldFinderForeverDB.guidePos
     if pos then f:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4])
     else f:SetPoint("RIGHT", UIParent, "RIGHT", -60, 0) end
     tinsert(UISpecialFrames, "GoldFinderGuide")   -- Esc la cierra
@@ -2584,7 +2584,7 @@ function UpdateTracker(retry, tick)
   -- lo que puedes hacer en la zona donde estas va arriba: farmeo de esa zona o materiales
   -- que ya conseguiste aqui (el addon los aprende solo al abrir botines)
   local zoneNow = GetRealZoneText()
-  local SS = GoldFinderDB.sources
+  local SS = GoldFinderForeverDB.sources
   for _, e in ipairs(entries) do
     e.score = 0
     if e.gather and e.zone == zoneNow then
@@ -2601,7 +2601,7 @@ function UpdateTracker(retry, tick)
   end)
   -- firma barata de lo calculado: en el aviso periodico (tick, cada 4 s) sin cambios no se repinta nada oculto
   local function sv(x) return type(x) == "table" and "t" or tostring(x) end
-  local sig = { sv(Cfg("trackerMode")), sv(GoldFinderDB.trackerCollapsed), sv(zoneNow) }
+  local sig = { sv(Cfg("trackerMode")), sv(GoldFinderForeverDB.trackerCollapsed), sv(zoneNow) }
   for _, e in ipairs(entries) do
     sig[#sig + 1] = table.concat({ sv(e.prof), sv(e.rank), sv(e.from), sv(e.upto), sv(e.what or e.recipe or e.zone),
       sv(e.qty), sv(e.score), sv(e.unknown), e.train and "1" or "0", e.game and "1" or "0" }, "|")
@@ -2643,26 +2643,26 @@ function UpdateTracker(retry, tick)
     f:SetScript("OnDragStop", function(self)
       self:StopMovingOrSizing()
       local point, _, relPoint, x, y = self:GetPoint()
-      GoldFinderDB.trackerPos = { point, relPoint, x, y }
+      GoldFinderForeverDB.trackerPos = { point, relPoint, x, y }
     end)
     f.title = Text(f, 12, PAL.gold); f.title:SetPoint("TOPLEFT", 12, -9)
     f.title:SetText(L["ft.title"])
     local close = Skin.Close(f, function()
-      GoldFinderDB.nextSteps = false
+      GoldFinderForeverDB.nextSteps = false
       UpdateTracker()
       for _, u in ipairs(uiInstances) do pcall(u.refresh) end
     end, 22)
     close:SetPoint("TOPRIGHT", -1, -1)
-    local fold = Skin.Icon(f, 14, GoldFinderDB.trackerCollapsed and Skin.PLUS or Skin.MINUS,
-      GoldFinderDB.trackerCollapsed and "+" or "-", L["ft.fold"], function(self)
-      GoldFinderDB.trackerCollapsed = (not GoldFinderDB.trackerCollapsed) or nil
-      Skin.Fold(self, GoldFinderDB.trackerCollapsed)
+    local fold = Skin.Icon(f, 14, GoldFinderForeverDB.trackerCollapsed and Skin.PLUS or Skin.MINUS,
+      GoldFinderForeverDB.trackerCollapsed and "+" or "-", L["ft.fold"], function(self)
+      GoldFinderForeverDB.trackerCollapsed = (not GoldFinderForeverDB.trackerCollapsed) or nil
+      Skin.Fold(self, GoldFinderForeverDB.trackerCollapsed)
       UpdateTracker()
     end)
     fold:SetPoint("RIGHT", close, "LEFT", -2, 0)
     local gbtn = Skin.Icon(f, 16, Skin.BOOK, "G", L["ft.guide"], function() OpenGuide() end)
     gbtn:SetPoint("RIGHT", fold, "LEFT", -4, 0)
-    local pos = GoldFinderDB.trackerPos
+    local pos = GoldFinderForeverDB.trackerPos
     if pos then f:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4])
     else f:SetPoint("LEFT", UIParent, "LEFT", 20, 120) end
   end
@@ -2705,7 +2705,7 @@ function UpdateTracker(retry, tick)
     -- como completado si tu habilidad llego al objetivo anterior.
     if ss and prevStep and e.upto and e.upto > prevStep and e.rank and e.rank >= prevStep then ss.done = now end
     lastStep[e.prof] = e.upto or prevStep
-    local collapsed = GoldFinderDB.trackerCollapsed
+    local collapsed = GoldFinderForeverDB.trackerCollapsed
     local txt
     if collapsed then
       txt = format("|cffffd100%s|r  %d%s", e.prof, e.rank, e.upto and (" > " .. e.upto) or "")
@@ -2820,7 +2820,7 @@ local function MakeSettings(parent)
     -- eleccion de dos valores como casilla: marcada = seguimiento de objetivos, sin marcar = ventana flotante
     { "trackerMode", L["set.trackerMode"],
       get = function() return Cfg("trackerMode") ~= "flotante" end,
-      set = function(on) GoldFinderDB.trackerMode = on and "objetivos" or "flotante" end },
+      set = function(on) GoldFinderForeverDB.trackerMode = on and "objetivos" or "flotante" end },
   }
   v.cbs = {}
   for _, c in ipairs(checks) do
@@ -2831,7 +2831,7 @@ local function MakeSettings(parent)
     if c.get then cb:SetChecked(c.get() and true or false) else cb:SetChecked(Cfg(c[1]) and true or false) end
     cb:SetScript("OnClick", function(self)
       if c.set then c.set(self:GetChecked() and true or false)
-      else GoldFinderDB[c[1]] = self:GetChecked() and true or false end
+      else GoldFinderForeverDB[c[1]] = self:GetChecked() and true or false end
       if c[1] == "nextSteps" or c[1] == "trackerMode" then UpdateTracker() end
       if c[1] == "recipeNotes" and Skin.RecipeNotes then pcall(Skin.RecipeNotes.refresh) end
       if c[1] == "shopping" or c[1] == "craftTab" or c[1] == "routeTab" or c[1] == "profTabs" then
@@ -2857,7 +2857,7 @@ local function MakeSettings(parent)
   local function show() eb:SetText(tostring((Cfg("minGain") or 0) / 10000)) end
   local function save()
     local val = tonumber(eb:GetText())
-    if val and val >= 0 then GoldFinderDB.minGain = val * 10000 end
+    if val and val >= 0 then GoldFinderForeverDB.minGain = val * 10000 end
     show()
   end
   eb:SetScript("OnEnterPressed", function(self) save(); self:ClearFocus() end)
@@ -2872,7 +2872,7 @@ local function MakeSettings(parent)
   local function show2() eb2:SetText(tostring(Cfg("reserve") or 20)) end
   local function save2()
     local val = tonumber(eb2:GetText())
-    if val and val >= 0 then GoldFinderDB.reserve = floor(val) end
+    if val and val >= 0 then GoldFinderForeverDB.reserve = floor(val) end
     show2()
   end
   eb2:SetScript("OnEnterPressed", function(self) save2(); self:ClearFocus() end)
@@ -2899,7 +2899,7 @@ local function MakeSettings(parent)
       if val then
         val = math.min(math.max(floor(val + 0.5), o[3]), o[4])
         if o[1] == "postDuration" then val = val <= 12 and 12 or 24 end
-        GoldFinderDB[o[1]] = val
+        GoldFinderForeverDB[o[1]] = val
       end
       showO()
     end
@@ -2920,7 +2920,7 @@ local function MakeSettings(parent)
   -- Se elige entre los personajes con los que ya has entrado (el addon los identifica al iniciar sesion).
   local function layoutBankers()
     local names = {}
-    for key in pairs(GoldFinderDB.chars or {}) do
+    for key in pairs(GoldFinderForeverDB.chars or {}) do
       names[#names + 1] = ResolveFullName(key:match("^([^-]+)") or key)
     end
     table.sort(names)
@@ -2935,7 +2935,7 @@ local function MakeSettings(parent)
           cb.label = Text(v, 12)
           cb.label:SetPoint("LEFT", cb, "RIGHT", 4, 0)
           cb:SetScript("OnClick", function(self)
-            GoldFinderDB.banker = ResolveFullName(self.charName or "")
+            GoldFinderForeverDB.banker = ResolveFullName(self.charName or "")
             for _, u in ipairs(uiInstances) do pcall(u.refresh) end
           end)
           v.bankChecks[i] = cb
@@ -3074,15 +3074,15 @@ end
 
 -- Precios a los que el vendedor te vende cada objeto (se anotan al abrir un vendedor): sirven para costear materiales.
 local function RecordVendorPrices()
-  if not (GetMerchantNumItems and GoldFinderDB) then return end
-  GoldFinderDB.vendorBuy = GoldFinderDB.vendorBuy or {}
+  if not (GetMerchantNumItems and GoldFinderForeverDB) then return end
+  GoldFinderForeverDB.vendorBuy = GoldFinderForeverDB.vendorBuy or {}
   for i = 1, (GetMerchantNumItems() or 0) do
     local link = GetMerchantItemLink(i)
     local id = link and tonumber(link:match("item:(%d+)"))
     if id then
       local _, _, price, qty, _, _, _, extended = GF.MerchantItemInfo(i)
       if price and price > 0 and not extended then
-        GoldFinderDB.vendorBuy[id] = price / math.max(1, qty or 1)
+        GoldFinderForeverDB.vendorBuy[id] = price / math.max(1, qty or 1)
       end
     end
   end
@@ -3852,8 +3852,8 @@ GF.InitAuctionTab({
 ---------------------------------------------------------------------------
 local minimapReady = false
 local function SetupMinimap()
-  if minimapReady or not GoldFinderDB then return end
-  GoldFinderDB.minimap = GoldFinderDB.minimap or {}
+  if minimapReady or not GoldFinderForeverDB then return end
+  GoldFinderForeverDB.minimap = GoldFinderForeverDB.minimap or {}
   local ICON = "Interface\\Icons\\INV_Misc_Coin_01"
 
   local function tip(tt)
@@ -3869,13 +3869,13 @@ local function SetupMinimap()
   local LDB = LibStub and LibStub("LibDataBroker-1.1", true)
   local DBI = LibStub and LibStub("LibDBIcon-1.0", true)
   if LDB and DBI then
-    local obj = LDB:GetDataObjectByName("GoldFinder") or LDB:NewDataObject("GoldFinder", {
+    local obj = LDB:GetDataObjectByName("GoldFinderForever") or LDB:NewDataObject("GoldFinderForever", {
       type = "launcher", text = "GoldFinder Forever", icon = ICON,
       OnClick = function() ToggleWindow() end,
       OnTooltipShow = function(tt) pcall(tip, tt) end,
     })
     if obj then
-      pcall(DBI.Register, DBI, "GoldFinder", obj, GoldFinderDB.minimap)
+      pcall(DBI.Register, DBI, "GoldFinderForever", obj, GoldFinderForeverDB.minimap)
       minimapReady = true
       return
     end
@@ -3891,7 +3891,7 @@ local function SetupMinimap()
   local ring = b:CreateTexture(nil, "OVERLAY")
   ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder"); ring:SetSize(53, 53); ring:SetPoint("TOPLEFT")
   local function place()
-    local a = math.rad(GoldFinderDB.minimap.angle or 215)
+    local a = math.rad(GoldFinderForeverDB.minimap.angle or 215)
     b:ClearAllPoints()
     b:SetPoint("CENTER", Minimap, "CENTER", math.cos(a) * 80, math.sin(a) * 80)
   end
@@ -3901,7 +3901,7 @@ local function SetupMinimap()
       local mx, my = Minimap:GetCenter()
       local x, y = GetCursorPosition()
       local s = Minimap:GetEffectiveScale()
-      GoldFinderDB.minimap.angle = math.deg(math.atan2(y / s - my, x / s - mx))
+      GoldFinderForeverDB.minimap.angle = math.deg(math.atan2(y / s - my, x / s - mx))
       place()
     end)
   end)
@@ -3913,21 +3913,21 @@ local function SetupMinimap()
     GameTooltip:Show()
   end)
   b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-  if GoldFinderDB.minimap.hide then b:Hide() end
+  if GoldFinderForeverDB.minimap.hide then b:Hide() end
   place()
   minimapReady = true
 end
 
 local function ToggleMinimapIcon()
-  GoldFinderDB.minimap = GoldFinderDB.minimap or {}
-  GoldFinderDB.minimap.hide = not GoldFinderDB.minimap.hide
+  GoldFinderForeverDB.minimap = GoldFinderForeverDB.minimap or {}
+  GoldFinderForeverDB.minimap.hide = not GoldFinderForeverDB.minimap.hide
   local DBI = LibStub and LibStub("LibDBIcon-1.0", true)
-  if DBI and DBI.IsRegistered and DBI:IsRegistered("GoldFinder") then
-    if GoldFinderDB.minimap.hide then DBI:Hide("GoldFinder") else DBI:Show("GoldFinder") end
+  if DBI and DBI.IsRegistered and DBI:IsRegistered("GoldFinderForever") then
+    if GoldFinderForeverDB.minimap.hide then DBI:Hide("GoldFinderForever") else DBI:Show("GoldFinderForever") end
   elseif GoldFinderMinimapButton then
-    if GoldFinderDB.minimap.hide then GoldFinderMinimapButton:Hide() else GoldFinderMinimapButton:Show() end
+    if GoldFinderForeverDB.minimap.hide then GoldFinderMinimapButton:Hide() else GoldFinderMinimapButton:Show() end
   end
-  Print(format(L["mm.state"], GoldFinderDB.minimap.hide and L["mm.hidden"] or L["mm.visible"]))
+  Print(format(L["mm.state"], GoldFinderForeverDB.minimap.hide and L["mm.hidden"] or L["mm.visible"]))
 end
 
 ---------------------------------------------------------------------------
@@ -4046,7 +4046,7 @@ local Vendor = GF.InitVendor({
 
 -- RECETAS DEL INSTRUCTOR: las tablas del juego no dicen que habilidad pide cada receta ni quien la ensena, asi que
 -- se anotan al abrir la ventana de un instructor de profesion: receta, habilidad requerida, precio, instructor y
--- donde esta. Se guardan por faccion y profesion en GoldFinderDB.trainerRecipes[faccion][profesion][receta].
+-- donde esta. Se guardan por faccion y profesion en GoldFinderForeverDB.trainerRecipes[faccion][profesion][receta].
 -- Se muestran un momento todas las categorias (disponibles, no disponibles y aprendidas) y se restaura el filtro.
 local RecordTrainer
 do
@@ -4081,12 +4081,12 @@ do
       x, y = format("%.1f", px * 100), format("%.1f", py * 100)
     end
     local faction = UnitFactionGroup("player") or "?"
-    GoldFinderDB.trainerRecipes = GoldFinderDB.trainerRecipes or {}
-    local byFaction = GoldFinderDB.trainerRecipes[faction] or {}
-    GoldFinderDB.trainerRecipes[faction] = byFaction
-    GoldFinderDB.trainers = GoldFinderDB.trainers or {}
-    local ranksOf = GoldFinderDB.trainers[faction] or {}
-    GoldFinderDB.trainers[faction] = ranksOf
+    GoldFinderForeverDB.trainerRecipes = GoldFinderForeverDB.trainerRecipes or {}
+    local byFaction = GoldFinderForeverDB.trainerRecipes[faction] or {}
+    GoldFinderForeverDB.trainerRecipes[faction] = byFaction
+    GoldFinderForeverDB.trainers = GoldFinderForeverDB.trainers or {}
+    local ranksOf = GoldFinderForeverDB.trainers[faction] or {}
+    GoldFinderForeverDB.trainers[faction] = ranksOf
     local n = GetNumTrainerServices() or 0
     -- profesion de la ventana: la que piden la mayoria de sus recetas
     local votes, windowSkill, best = {}, nil, 0
@@ -4130,7 +4130,7 @@ do
   end
 
   function RecordTrainer()
-    if not (GoldFinderDB and GetNumTrainerServices and IsTradeskillTrainer and IsTradeskillTrainer()) then return end
+    if not (GoldFinderForeverDB and GetNumTrainerServices and IsTradeskillTrainer and IsTradeskillTrainer()) then return end
     local filters, shown = { "available", "unavailable", "used" }, {}
     local canFilter = GetTrainerServiceTypeFilter and SetTrainerServiceTypeFilter
     -- en Forever el filtro pide true/false (con 1/0 da "Missing on/off parameter"); se prueba con booleano y,
@@ -4219,7 +4219,7 @@ local function RegisterOptions()
   end
 
   local function check(key, label, tip)
-    local setting = S.RegisterAddOnSetting(cat, "GoldFinder_" .. key, key, GoldFinderDB, BOOL, label, DEFAULTS[key])
+    local setting = S.RegisterAddOnSetting(cat, "GoldFinderForever_" .. key, key, GoldFinderForeverDB, BOOL, label, DEFAULTS[key])
     setting:SetValueChangedCallback(function() applied(key) end)
     S.RegisterInitializer(cat, S.CreateCheckboxInitializer(setting, nil, tip))
   end
@@ -4232,12 +4232,12 @@ local function RegisterOptions()
     return o
   end
 
-  -- numeros enteros guardados tal cual en GoldFinderDB (mismos nombres que usan Cfg y los comandos)
+  -- numeros enteros guardados tal cual en GoldFinderForeverDB (mismos nombres que usan Cfg y los comandos)
   local function number(key, label, lo, hi, step, tip)
-    local setting = S.RegisterAddOnSetting(cat, "GoldFinder_" .. key, key, GoldFinderDB, NUM, label, DEFAULTS[key])
+    local setting = S.RegisterAddOnSetting(cat, "GoldFinderForever_" .. key, key, GoldFinderForeverDB, NUM, label, DEFAULTS[key])
     setting:SetValueChangedCallback(function()
-      local v = tonumber(GoldFinderDB[key])
-      if v and v ~= floor(v) then GoldFinderDB[key] = floor(v + 0.5) end
+      local v = tonumber(GoldFinderForeverDB[key])
+      if v and v ~= floor(v) then GoldFinderForeverDB[key] = floor(v + 0.5) end
       applied(key)
     end)
     slider(setting, lo, hi, step, function(v) return tostring(floor(v + 0.5)) end, tip)
@@ -4251,8 +4251,8 @@ local function RegisterOptions()
       return 1
     end,
     function(i)
-      GoldFinderDB.language = LANGS[floor((tonumber(i) or 1) + 0.5)] or "auto"
-      GF.SetLocale(GF.ResolveLocale(GoldFinderDB.language, GetLocale()))
+      GoldFinderForeverDB.language = LANGS[floor((tonumber(i) or 1) + 0.5)] or "auto"
+      GF.SetLocale(GF.ResolveLocale(GoldFinderForeverDB.language, GetLocale()))
       Print(L["opt.language.reload"])
       refreshAll()
     end)
@@ -4280,7 +4280,7 @@ local function RegisterOptions()
   local mode = S.RegisterProxySetting(cat, "GoldFinder_trackerMode", NUM, L["opt.mode.l"], 1,
     function() return Cfg("trackerMode") == "flotante" and 2 or 1 end,
     function(i)
-      GoldFinderDB.trackerMode = MODES[floor((tonumber(i) or 1) + 0.5)] or "objetivos"
+      GoldFinderForeverDB.trackerMode = MODES[floor((tonumber(i) or 1) + 0.5)] or "objetivos"
       applied("trackerMode")
     end)
   slider(mode, 1, 2, 1, function(i)
@@ -4341,7 +4341,7 @@ local function RegisterOptions()
     floor(DEFAULTS.minGain / 100),
     function() return floor((tonumber(Cfg("minGain")) or 0) / 100 + 0.5) end,
     function(silver)
-      GoldFinderDB.minGain = math.max(0, floor((tonumber(silver) or 0) + 0.5)) * 100
+      GoldFinderForeverDB.minGain = math.max(0, floor((tonumber(silver) or 0) + 0.5)) * 100
       refreshShown()
     end)
   slider(gain, 0, 5000, 5, function(silver) return Money(floor(silver + 0.5) * 100) end,
@@ -4367,7 +4367,7 @@ local function RegisterOptions()
   local function buildNames()
     for i = #names, 1, -1 do names[i] = nil end
     for k in pairs(seen) do seen[k] = nil end
-    for key in pairs(GoldFinderDB.chars or {}) do addName(ResolveFullName(key:match("^([^-]+)") or key)) end
+    for key in pairs(GoldFinderForeverDB.chars or {}) do addName(ResolveFullName(key:match("^([^-]+)") or key)) end
     addName(BankerName())
     table.sort(names)
     table.insert(names, 1, "")   -- "" = ninguno
@@ -4387,7 +4387,7 @@ local function RegisterOptions()
   end
   local banker = S.RegisterProxySetting(cat, "GoldFinder_banker", NUM, L["opt.banker.l"], 1, bankerIndex,
     function(i)
-      GoldFinderDB.banker = ResolveFullName(names[floor((tonumber(i) or 1) + 0.5)] or "") or ""
+      GoldFinderForeverDB.banker = ResolveFullName(names[floor((tonumber(i) or 1) + 0.5)] or "") or ""
       refreshAll()
     end)
   bankerOpts = slider(banker, 1, math.max(2, #names), 1, function(i)
@@ -4436,13 +4436,13 @@ OpenOptions = function(fallback)
 end
 
 -- Cambia una opcion por la API Settings (asi la pagina de opciones y sus efectos quedan al dia) o, sin ella,
--- directamente en GoldFinderDB.
+-- directamente en GoldFinderForeverDB.
 local function SetOption(key, value)
-  if optionsCategory and Settings.SetValue and pcall(Settings.SetValue, "GoldFinder_" .. key, value)
-      and GoldFinderDB[key] == value then
+  if optionsCategory and Settings.SetValue and pcall(Settings.SetValue, "GoldFinderForever_" .. key, value)
+      and GoldFinderForeverDB[key] == value then
     return
   end
-  GoldFinderDB[key] = value
+  GoldFinderForeverDB[key] = value
   for _, u in ipairs(uiInstances) do pcall(u.refresh) end
 end
 
@@ -4453,18 +4453,18 @@ for _, ev in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKIL
   pcall(f.RegisterEvent, f, ev)
 end
 f:SetScript("OnEvent", function(_, event, arg1)
-  if event == "ADDON_LOADED" and arg1 == "GoldFinder" then
-    GoldFinderDB = GoldFinderDB or {}
-    GoldFinderDB.chars = GoldFinderDB.chars or {}
+  if event == "ADDON_LOADED" and arg1 == ADDON then
+    GoldFinderForeverDB = GoldFinderForeverDB or {}
+    GoldFinderForeverDB.chars = GoldFinderForeverDB.chars or {}
     GF.SetLocale(GF.ResolveLocale(Cfg("language"), GetLocale()))
     -- datos de versiones anteriores (comunes a la cuenta): pasan a la ficha de su personaje al entrar
-    if GoldFinderDB.prof or GoldFinderDB.keep or GoldFinderDB.session then
-      GoldFinderDB.legacy = GoldFinderDB.legacy or
-        { prof = GoldFinderDB.prof, keep = GoldFinderDB.keep, session = GoldFinderDB.session }
-      GoldFinderDB.prof, GoldFinderDB.keep, GoldFinderDB.session = nil, nil, nil
+    if GoldFinderForeverDB.prof or GoldFinderForeverDB.keep or GoldFinderForeverDB.session then
+      GoldFinderForeverDB.legacy = GoldFinderForeverDB.legacy or
+        { prof = GoldFinderForeverDB.prof, keep = GoldFinderForeverDB.keep, session = GoldFinderForeverDB.session }
+      GoldFinderForeverDB.prof, GoldFinderForeverDB.keep, GoldFinderForeverDB.session = nil, nil, nil
     end
     -- limpieza de datos de versiones anteriores
-    GoldFinderDB.log, GoldFinderDB.items, GoldFinderDB.lastScan = nil, nil, nil
+    GoldFinderForeverDB.log, GoldFinderForeverDB.items, GoldFinderForeverDB.lastScan = nil, nil, nil
   elseif event == "PLAYER_LOGIN" then
     pcall(MarkSessionBaseline)
     C_Timer.After(1, function() pcall(CleanPhantomChars) end)
@@ -4479,7 +4479,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
       C_Timer.After(d, function() suCache.t = -10; pcall(SkillUpData) end)
     end
     C_Timer.NewTicker(4, function()
-      if GoldFinderDB and GoldFinderDB.nextSteps then
+      if GoldFinderForeverDB and GoldFinderForeverDB.nextSteps then
         pcall(ReadSkills)
         xpcall(function() UpdateTracker(nil, true) end, geterrorhandler())
       end
@@ -4542,9 +4542,11 @@ f:SetScript("OnEvent", function(_, event, arg1)
   end
 end)
 
-SLASH_GOLDFINDER1 = "/gf"
-SlashCmdList["GOLDFINDER"] = function(msg)
-  if not GoldFinderDB then return end
+SLASH_GOLDFINDERFOREVER1 = "/gff"
+-- /gf is kept only when no other addon has registered it: a name that is already taken is never overridden
+if not GF.CommandTaken(SlashCmdList, _G, "GOLDFINDERFOREVER", "/gf") then SLASH_GOLDFINDERFOREVER2 = "/gf" end
+SlashCmdList["GOLDFINDERFOREVER"] = function(msg)
+  if not GoldFinderForeverDB then return end
   local cmd, rest = msg:match("^(%S*)%s*(.-)$")
   cmd = (cmd or ""):lower()
   if cmd == "" then
@@ -4553,7 +4555,7 @@ SlashCmdList["GOLDFINDER"] = function(msg)
     local n = tonumber(rest)
     if n and n >= 5 and n <= 100 then
       SetOption("routeSpan", math.floor(n))
-      Print(format(L["cmd.routeSet"], GoldFinderDB.routeSpan))
+      Print(format(L["cmd.routeSet"], GoldFinderForeverDB.routeSpan))
     else
       Print(L["cmd.routeUsage"])
     end
@@ -4561,7 +4563,7 @@ SlashCmdList["GOLDFINDER"] = function(msg)
     local n = tonumber(rest)
     if n and n >= 0 and n <= 1000 then
       SetOption("sellCap", math.floor(n))
-      Print(format(L["cmd.capSet"], GoldFinderDB.sellCap))
+      Print(format(L["cmd.capSet"], GoldFinderForeverDB.sellCap))
     else
       Print(L["cmd.capUsage"])
     end

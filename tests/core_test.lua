@@ -20,12 +20,12 @@ load("core/money.lua", GF)
 -- config
 check("constants", GF.CALLER == "GoldFinder" and GF.AH_CUT == 0.05)
 check("default returned without DB", GF.Cfg("minGain") == 2000 and GF.Cfg("tip") == true)
-local env = { GoldFinderDB = { minGain = 5000, tip = false } }
+local env = { GoldFinderForeverDB = { minGain = 5000, tip = false } }
 local GF2 = {}
 load("core/config.lua", GF2, env)
 check("DB value wins, including false", GF2.Cfg("minGain") == 5000 and GF2.Cfg("tip") == false)
 check("unset key falls back to default", GF2.Cfg("reserve") == 20)
-env.GoldFinderDB = nil
+env.GoldFinderForeverDB = nil
 check("DB is read at call time", GF2.Cfg("minGain") == 2000)
 check("unknown key is nil", GF2.Cfg("nope") == nil)
 

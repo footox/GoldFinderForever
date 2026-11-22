@@ -70,7 +70,7 @@ local function joined(lines) return table.concat(lines or {}, "\n") end
 prices[10], prices[11], prices[12] = 100, 50, 10
 
 -- 1. Truncated route: "Known" turns grey at 130, so a 150 target stops at 130.
-env.GoldFinderDB = {}
+env.GoldFinderForeverDB = {}
 local P = loadPlanner()
 local p = P.PlanRoute("Leatherworking", lw(), 150)
 check("1 truncated: to < target", p and p.to == 130 and p.target == 150 and p.truncated == true)
@@ -78,7 +78,7 @@ p = P.PlanRoute("Leatherworking", lw(), 120)
 check("1 complete route not truncated", p and p.to == 120 and p.truncated == false)
 
 -- 3. Learn cost amortization does not depend on the target: every view picks the same first recipe.
-env.GoldFinderDB = { trainerRecipes = { Horde = { Leatherworking = {
+env.GoldFinderForeverDB = { trainerRecipes = { Horde = { Leatherworking = {
   cheap = { n = "Cheap", req = 100, cost = 30000, npc = "T", zone = "Z" } } } } }
 P = loadPlanner()
 local short = P.PlanRoute("Leatherworking", lw(), 101)
@@ -87,7 +87,7 @@ check("3 same recipe for short and long targets", short.steps[1].c.name == long.
   and short.steps[1].c.name == "Cheap")
 
 -- 7. Unpriced reagent: no 1e7 penalty in plan.eff (false = "sin precio"); priced recipe keeps its number.
-env.GoldFinderDB = {}
+env.GoldFinderForeverDB = {}
 P = loadPlanner()
 local pdU = lw()
 pdU.crafts.Cheap = { r = { { 13, 1 } }, o = 21, q = 1 }   -- item 13 has no price at all
@@ -109,7 +109,7 @@ check("7 note tooltip says sin precio", (notes.lines(1, false, money)[2] or ""):
 check("7 note text without plan unchanged", notes.text(1, nil, money) == "100%")
 
 -- 8. sellCap counts units: a recipe giving 5 items sells only 5 units at AH price in total.
-env.GoldFinderDB = {}
+env.GoldFinderForeverDB = {}
 P = loadPlanner()
 prices[22] = 1000
 p = P.PlanRoute("Leatherworking", { rank = 100, maxRank = 150, skillLine = 165,
@@ -118,7 +118,7 @@ p = P.PlanRoute("Leatherworking", { rank = 100, maxRank = 150, skillLine = 165,
 check("8 cap in units", p and p.steps[1].n > 5 and p.steps[1].ahUnits == 5 and math.abs(p.sell - 5 * 950) < 1e-6)
 
 -- 6. Own reserve: the profession that needs most, whatever the pairs order.
-env.GoldFinderDB = {}
+env.GoldFinderForeverDB = {}
 P = loadPlanner()
 local c = { off = {}, prof = {
   Leatherworking = lw(),
@@ -137,7 +137,7 @@ RK, P = loadHelpers()
 check("helpers block loads", type(RK) == "table")
 
 -- 2. Recipe learned at the trainer: only its profession, and the route keeps using it.
-env.GoldFinderDB = { trainerRecipes = { Horde = { Leatherworking = {
+env.GoldFinderForeverDB = { trainerRecipes = { Horde = { Leatherworking = {
   cheap = { n = "Cheap", req = 100, cost = 300, npc = "T", zone = "Z" } } } } }
 RK, P = loadHelpers()
 c = { off = {}, prof = { Leatherworking = lw(),
@@ -180,7 +180,7 @@ check("4 priced and complete: own route wins", joined(lines):find("|cffffd100You
   and best and best.name == "Tu ruta")
 
 -- 9. Fabricar: buy prices from BuyPrice (vendor), no price = "sin precio", gain when buying, capped total.
-env.GoldFinderDB = { vendorBuy = { [40] = 20 } }
+env.GoldFinderForeverDB = { vendorBuy = { [40] = 20 } }
 RK = loadHelpers()
 prices[50] = 1000
 local r = RK.CraftProfit({ r = { { 40, 2 } }, o = 50, q = 1 })

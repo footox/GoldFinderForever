@@ -58,7 +58,7 @@ function GF.InitGuide(d)
       local known = {}
       for n in pairs(pd.crafts or {}) do known[n:lower()] = true end
       for n in pairs(pd.learned or {}) do known[n:lower()] = true end
-      local TR = GoldFinderDB.trainerRecipes and GoldFinderDB.trainerRecipes[UnitFactionGroup("player") or "?"]
+      local TR = GoldFinderForeverDB.trainerRecipes and GoldFinderForeverDB.trainerRecipes[UnitFactionGroup("player") or "?"]
       local R = GoldFinderRecipes and GoldFinderRecipes.spells or {}
       local plan = pd.crafts and RouteFor(Char(), prof, math.min(300, rank + 75)) or nil
       local rows = GF.GuideMerge(g.bands, {

@@ -1,6 +1,6 @@
 -- features/route/helpers.lua: texts and calculations the guide, the shopping list, the learned-recipe notice and Fabricar
 -- share: recipe learned, why there is no route, route comparison and the profit of one craft. They live in
--- Skin.Route. Container: data comes from d; GoldFinderDB, GoldFinderRecipes, C_Item, CALLER and AH_CUT are read from
+-- Skin.Route. Container: data comes from d; GoldFinderForeverDB, GoldFinderRecipes, C_Item, CALLER and AH_CUT are read from
 -- d at call time (the main file passes a table that falls back to the real globals).
 
 local _, GF = ...
@@ -29,7 +29,7 @@ function GF.InitRouteHelpers(d)
     if not (c and c.prof and name) then return nil end
     local spells = d.GoldFinderRecipes and d.GoldFinderRecipes.spells
     local byId = spells and recipeID and spells[recipeID] or nil
-    local TR = d.GoldFinderDB.trainerRecipes and d.GoldFinderDB.trainerRecipes[faction or "?"]
+    local TR = d.GoldFinderForeverDB.trainerRecipes and d.GoldFinderForeverDB.trainerRecipes[faction or "?"]
     local key = name:lower()
     local profs = {}
     for prof in pairs(c.prof) do profs[#profs + 1] = prof end

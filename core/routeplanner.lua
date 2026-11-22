@@ -4,7 +4,7 @@
 
 local _, GF = ...
 
--- d: Cfg, Counts, VendorPrice, AHApi, SuOwned (plus GoldFinderDB, GoldFinderRecipes, GoldFinderRoutes,
+-- d: Cfg, Counts, VendorPrice, AHApi, SuOwned (plus GoldFinderForeverDB, GoldFinderRecipes, GoldFinderRoutes,
 --    UnitFactionGroup, GetRealZoneText, geterrorhandler, C_Item, which fall back to the game globals)
 function GF.NewRoutePlanner(d)
   local CALLER, AH_CUT = GF.CALLER, GF.AH_CUT
@@ -47,7 +47,7 @@ function GF.NewRoutePlanner(d)
     local v1 = d.AHApi()
     local ah = v1 and v1.GetAuctionPriceByItemID(CALLER, id) or nil
     if ah and ah <= 0 then ah = nil end
-    local vb = d.GoldFinderDB.vendorBuy and d.GoldFinderDB.vendorBuy[id]
+    local vb = d.GoldFinderForeverDB.vendorBuy and d.GoldFinderForeverDB.vendorBuy[id]
     if vb and vb <= 0 then vb = nil end
     -- lo mas barato de la subasta y del vendedor que lo vende (precio visto en su ventana)
     if ah and vb then return math.min(ah, vb), false end
@@ -106,7 +106,7 @@ function GF.NewRoutePlanner(d)
     for name in pairs(pd.learned or {}) do known[name:lower()] = true end
     -- Recetas que aun no sabes pero ensena tu instructor (anotadas al abrir su ventana): entran en la ruta desde la
     -- habilidad que piden, con sus materiales y objeto de GoldFinderRecipes y el precio de aprenderlas.
-    local TR = d.GoldFinderDB.trainerRecipes and d.GoldFinderDB.trainerRecipes[d.UnitFactionGroup("player") or "?"]
+    local TR = d.GoldFinderForeverDB.trainerRecipes and d.GoldFinderForeverDB.trainerRecipes[d.UnitFactionGroup("player") or "?"]
     for key, t in pairs(TR and TR[prof] or {}) do
       local x = not known[key] and RecipeLookup(pd.skillLine, t.n)
       if x then addCand(t.n, x, { r = x.r, o = x.o, q = x.q }, t) end

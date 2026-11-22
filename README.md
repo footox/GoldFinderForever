@@ -17,7 +17,7 @@ professions cheaply. Nothing is sold, posted or mailed without your click. The i
   casilla (y "Seleccionar todo") para dejar objetos fuera de ese correo.
 - **Bolsas**: botón X para ocultar un objeto de la lista (por personaje) y botón Ver para recuperarlo.
 - **Profesiones**: pestañas Ruta y Fabricar en la ventana de profesiones, chance de subir y coste por punto en cada
-  receta, y una guía 1-300 (`/gf guia`) con tus precios, que ahora incluye Pesca y, con QuestieDB, dónde conseguir las
+  receta, y una guía 1-300 (`/gff guia`) con tus precios, que ahora incluye Pesca y, con QuestieDB, dónde conseguir las
   recetas que se aprenden con un objeto.
 - **Compras**: lo que te falta de cada profesión, con botón Lista que lo manda (nombres exactos y cantidades) a una lista de
   Auctionator, y una lista aparte por profesión.
@@ -35,7 +35,11 @@ professions cheaply. Nothing is sold, posted or mailed without your click. The i
 
 La interfaz está en español e inglés: sigue el idioma del juego y se cambia en las opciones.
 
-`/gf` abre la ventana, `/gf guia [profesion]` la guía, `/gf ajustes` las opciones, `/gf ruta N` y `/gf tope N`.
+`/gff` abre la ventana, `/gff guia [profesion]` la guía, `/gff ajustes` las opciones, `/gff ruta N` y `/gff tope N`.
+
+## Actualizar desde la 2.2
+
+La carpeta del addon ahora se llama `GoldFinderForever` (antes `GoldFinder`) y el comando principal es `/gff`. Borra la carpeta `GoldFinder` de AddOns. Los datos guardados no se pasan: empiezas limpio (las profesiones se vuelven a leer solas; las listas de guardar y ocultar y las opciones hay que rehacerlas).
 
 ## Fuentes de datos
 

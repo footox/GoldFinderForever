@@ -1,7 +1,7 @@
 -- features/auction/sidepanel.lua: the collapsible right-hand panel of the GoldFinder tab inside the auction house.
 -- It holds the navigation between the auction views (Bags, Shopping, Leather) and the posting options, so the list
 -- keeps the whole width. Container: the window (ui), its header and inset come from the caller; options are read from
--- and written to GoldFinderDB the same way the settings page does, with the same limits.
+-- and written to GoldFinderForeverDB the same way the settings page does, with the same limits.
 
 local _, GF = ...
 
@@ -24,7 +24,7 @@ GF.SidePanel = {}
 
 -- ui: the window; header: its top strip; inset: the framed area to shrink; cfg(key) reads an option.
 function GF.SidePanel.Attach(ui, header, inset, cfg)
-  local shut = (GoldFinderDB and GoldFinderDB.sideShut) and true or false
+  local shut = (GoldFinderForeverDB and GoldFinderForeverDB.sideShut) and true or false
   local panel = CreateFrame("Frame", nil, ui)
   panel:SetPoint("TOPRIGHT", header, "BOTTOMRIGHT", 0, -2)
   panel:SetPoint("BOTTOMRIGHT", ui, "BOTTOMRIGHT", 0, 0)
@@ -67,7 +67,7 @@ function GF.SidePanel.Attach(ui, header, inset, cfg)
     local function show() box:SetText(tostring(cfg(o[1]))) end
     local function save()
       local val = GF.AuctionClampOption(box:GetText(), o[3], o[4], o[1] == "postDuration")
-      if val then GoldFinderDB[o[1]] = val end
+      if val then GoldFinderForeverDB[o[1]] = val end
       show()
     end
     box:SetScript("OnEnterPressed", function(self) save(); self:ClearFocus() end)
@@ -122,7 +122,7 @@ function GF.SidePanel.Attach(ui, header, inset, cfg)
 
   toggle:SetScript("OnClick", function()
     shut = not shut
-    if GoldFinderDB then GoldFinderDB.sideShut = shut or nil end
+    if GoldFinderForeverDB then GoldFinderForeverDB.sideShut = shut or nil end
     apply()
     pcall(ui.refresh)   -- the list width changed: lay the columns out again
   end)

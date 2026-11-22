@@ -93,7 +93,7 @@ local env = setmetatable({
   Cfg = function(k) return ({ sellCap = 5 })[k] end,
   C_Item = { GetItemInfo = function() return nil end },
   UnitFactionGroup = function() return faction end,
-  GoldFinderDB = {}, GoldFinderRecipes = Recipes,
+  GoldFinderForeverDB = {}, GoldFinderRecipes = Recipes,
 }, { __index = _G })
 local PlanRoute = GF.NewRoutePlanner(env).PlanRoute
 

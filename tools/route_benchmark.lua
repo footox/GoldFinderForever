@@ -57,7 +57,7 @@ local env = setmetatable({
   Cfg = function(k) return ({ sellCap = 0 })[k] end,
   C_Item = { GetItemInfo = function() return nil end },
   UnitFactionGroup = function() return "Horde" end,
-  GoldFinderDB = {}, GoldFinderRecipes = Recipes,
+  GoldFinderForeverDB = {}, GoldFinderRecipes = Recipes,
 }, { __index = _G })
 
 local function median(t)

@@ -137,7 +137,7 @@ check("no quest API: empty log", #ReadQuestLog() == 0)
 loadCore("core/config.lua", GF)
 loadCore("core/locale.lua", GF)
 loadCore("locales/enUS.lua", GF)
-loadCore("core/decision.lua", GF, { GoldFinderDB = {} })
+loadCore("core/decision.lua", GF, { GoldFinderForeverDB = {} })
 local S
 local function reset()
   S = { ah = {}, vendor = {}, bags = {}, bank = {}, su = {}, route = {}, reagent = {}, quest = {},

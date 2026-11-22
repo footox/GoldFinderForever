@@ -23,7 +23,7 @@ function GF.InitProfTabs(d)
   end
 
   function P.keys()
-    if not (GoldFinderDB and Cfg("profTabs")) then return {} end
+    if not (GoldFinderForeverDB and Cfg("profTabs")) then return {} end
     local prof = P.prof()
     local c = Char()
     local pd = prof and ProfOn(prof) and c.prof[prof] or nil

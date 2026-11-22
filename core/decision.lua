@@ -84,7 +84,7 @@ function GF.NewDecision(d)
     local have = bags + bank
     local d = { ahNet = ahNet, vendor = vendor, unit = math.max(ahNet, vendor), verdict = "NONE", sellQty = 0 }
 
-    if GoldFinderDB and Char().keep[id] then
+    if GoldFinderForeverDB and Char().keep[id] then
       d.verdict, d.code, d.reason, d.manual = "KEEP", "manual", L["decision.manual"], true
       return d
     end

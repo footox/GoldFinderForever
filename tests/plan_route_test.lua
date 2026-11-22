@@ -46,13 +46,13 @@ local function names(plan)
 end
 
 -- 1. Without trainer data the route uses only known recipes (previous behaviour).
-env.GoldFinderDB = {}
+env.GoldFinderForeverDB = {}
 local PlanRoute = load()
 local p = PlanRoute("Leatherworking", pd(), 110)
 check("no trainer data: only known recipes", names(p) == "Known" and #p.learns == 0 and p.learnCost == 0)
 
 -- 2. A cheaper trainer recipe available now is learned once and used; its cost is in the total.
-env.GoldFinderDB = { trainerRecipes = { Horde = { Leatherworking = {
+env.GoldFinderForeverDB = { trainerRecipes = { Horde = { Leatherworking = {
   cheap = { n = "Cheap", req = 100, cost = 300, npc = "Trainer", zone = "Orgrimmar", x = "1.0", y = "2.0" } } } } }
 PlanRoute = load()
 p = PlanRoute("Leatherworking", pd(), 110)
@@ -61,7 +61,7 @@ check("trainer recipe learned once", #p.learns == 1 and p.learns[1].t.n == "Chea
 check("learn cost added to total", p.learnCost == 300 and p.cost == 300 + 10 * 50)
 
 -- 3. A trainer recipe is not used before the skill it requires.
-env.GoldFinderDB.trainerRecipes.Horde.Leatherworking.cheap.req = 105
+env.GoldFinderForeverDB.trainerRecipes.Horde.Leatherworking.cheap.req = 105
 PlanRoute = load()
 p = PlanRoute("Leatherworking", pd(), 110)
 check("required skill respected", p.steps[1].c.name == "Known" and p.steps[1].to == 105 and p.learns[1].at == 105)

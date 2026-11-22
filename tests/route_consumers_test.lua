@@ -57,7 +57,7 @@ local function check(name, cond)
 end
 
 -- 1. Next step = first plan step: recipe, crafts, band and its materials (reagents x crafts, bags + bank).
-env.GoldFinderDB = {}
+env.GoldFinderForeverDB = {}
 local M = load()
 stock[10] = 7
 local c = { prof = { Leatherworking = pd() }, off = {} }
@@ -72,7 +72,7 @@ check("next step: known recipe has no learn info", not e.unknown and e.learn == 
 check("next step: skill line kept", e.skillLine == 165)
 
 -- 2. Trainer recipe as first step: unknown with trainer, zone, coordinates and cost.
-env.GoldFinderDB = { trainerRecipes = { Horde = { Leatherworking = TRAINER } } }
+env.GoldFinderForeverDB = { trainerRecipes = { Horde = { Leatherworking = TRAINER } } }
 M = load()
 c = { prof = { Leatherworking = pd() }, off = {} }
 plan = M.RouteFor(c, "Leatherworking", 110)
@@ -84,7 +84,7 @@ check("trainer step: learn info", e.unknown == true and e.learn and e.learn.npc 
 check("no plan: no entry", M.RouteStepEntry("Leatherworking", c.prof.Leatherworking, nil) == nil)
 
 -- 3. Keep for profession: { need, upto, prof } from the plan materials; nil when the route does not use it.
-env.GoldFinderDB = {}
+env.GoldFinderForeverDB = {}
 M = load()
 c = { prof = { Leatherworking = pd() }, off = {} }
 local z = M.RouteNeedFor(c, 10)

@@ -31,7 +31,7 @@ local charsChunk = block("local function FullName()", "-- Profesiones que el jug
   "\nreturn Char, CleanPhantomChars")
 local function charsEnv(first, surname, db)
   return load(charsChunk, {
-    GoldFinderDB = db, LEGACY_OWNER = "Twistice",
+    GoldFinderForeverDB = db, LEGACY_OWNER = "Twistice",
     UnitName = function() return first, surname end,
   })
 end
@@ -142,7 +142,7 @@ do
     "\nreturn ResolveFullName")
   local db = { chars = { ["Ashes Soulbinder"] = {}, ["Ashes Breakhand"] = {}, ["Twistice Penguin"] = {} },
     banker = "Ashes" }
-  local R = load(resolveChunk, { GoldFinderDB = db, LEGACY_OWNER = "Twistice", UnitName = function() return "X" end })
+  local R = load(resolveChunk, { GoldFinderForeverDB = db, LEGACY_OWNER = "Twistice", UnitName = function() return "X" end })
   check("C4 ambiguous first name returned unchanged", R("Ashes") == "Ashes")
   check("C4 unique first name resolved", R("Twistice") == "Twistice Penguin")
   local _, Clean = charsEnv("Twistice", "Penguin", db)
@@ -192,7 +192,7 @@ end
 do
   local surname
   local db = { chars = { ["Ashes-forever"] = { prof = { Mining = { rank = 40 } }, keep = {} } } }
-  local Char = load(charsChunk, { GoldFinderDB = db, LEGACY_OWNER = "Twistice",
+  local Char = load(charsChunk, { GoldFinderForeverDB = db, LEGACY_OWNER = "Twistice",
     UnitName = function() return "Ashes", surname end })
   local t = Char()
   t.prof.Tailoring = { rank = 3 }
@@ -239,7 +239,7 @@ local curItem
 local function recipeEnv(db, me)
   return load(recipeChunk, {
     L = GFL.L,
-    GoldFinderDB = db, format = string.format,
+    GoldFinderForeverDB = db, format = string.format,
     Char = function() return db.chars[me] end,
     ProfOn = function() return true end,
     C_Item = {
@@ -299,7 +299,7 @@ local function trainerEnv(db, services, opts)
   opts = opts or {}
   local filter = { available = true, unavailable = true, used = false }
   local env = {
-    GoldFinderDB = db, format = string.format, time = function() return 1 end,
+    GoldFinderForeverDB = db, format = string.format, time = function() return 1 end,
     RANK_MAX = { Apprentice = 75, Journeyman = 150, Expert = 225, Artisan = 300 },
     GetNumTrainerServices = function() return #services end,
     IsTradeskillTrainer = function() return true end,

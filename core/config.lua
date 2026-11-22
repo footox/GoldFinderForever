@@ -40,9 +40,9 @@ GF.DEFAULTS = {
   language = "auto",    -- idioma: "auto" (el del cliente), "enUS" o "esES"
 }
 
--- SavedVariables value if set, else the default. GoldFinderDB is read at call time (it is replaced on login).
+-- SavedVariables value if set, else the default. GoldFinderForeverDB is read at call time (it is replaced on login).
 function GF.Cfg(k)
-  local db = GoldFinderDB
+  local db = GoldFinderForeverDB
   if db and db[k] ~= nil then return db[k] end
   return GF.DEFAULTS[k]
 end

@@ -16,7 +16,7 @@ local env = setmetatable({
     [75] = { A = "Alli One|Stormwind City|1.0|2.0", H = "Horde One|Orgrimmar|3.0|4.0;Horde Two|Undercity|5.0|6.0" },
     [225] = { A = "Alli Expert|Darnassus|7.0|8.0", H = "Una|Thunder Bluff|41.4|42.6" },
   } },
-  GoldFinderDB = {},
+  GoldFinderForeverDB = {},
 }, { __index = _G })
 
 local function load()
@@ -40,7 +40,7 @@ check("static: expert", l[2].max == 225 and l[2].npc == "Una" and l[2].name == "
 check("never reads Zygor data", l[1].npc ~= "Zygor NPC")
 
 -- 2. A trainer recorded in game wins over the static list for that rank.
-env.GoldFinderDB = { trainers = { Horde = { Leatherworking = {
+env.GoldFinderForeverDB = { trainers = { Horde = { Leatherworking = {
   [150] = { npc = "Arthur Moore", zone = "Undercity", x = "70.2", y = "57.4" },
   [75] = { npc = "Dan Golthas", zone = "Undercity", x = "70.9", y = "58.4" } } } } }
 l = TrainList("Leatherworking")
@@ -49,13 +49,13 @@ check("recorded: apprentice is the visited trainer", l[1].npc == "Dan Golthas" a
 check("recorded: journeyman only known from the visit", l[2].npc == "Arthur Moore" and l[2].name == "Journeyman Leatherworking")
 
 -- 3. A profession missing from GoldFinderTrainers works from recorded data alone, and is nil with none.
-env.GoldFinderDB.trainers.Horde.Cooking = { [225] = { npc = "Cook", zone = "Orgrimmar", x = "1", y = "2" } }
+env.GoldFinderForeverDB.trainers.Horde.Cooking = { [225] = { npc = "Cook", zone = "Orgrimmar", x = "1", y = "2" } }
 l = TrainList("Cooking")
 check("recorded only: cooking expert", l and #l == 1 and l[1].npc == "Cook" and l[1].name == "Expert Cooking")
 check("no data: nil", TrainList("Alchemy") == nil)
 
 -- 3b. Without a visit, the static trainer in the player's current zone is preferred over the first one.
-env.GoldFinderDB = {}
+env.GoldFinderForeverDB = {}
 zone = "Undercity"
 l = TrainList("Leatherworking")
 check("static: trainer in current zone preferred", l[1].npc == "Horde Two" and l[1].zone == "Undercity")

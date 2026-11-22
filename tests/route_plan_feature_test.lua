@@ -18,7 +18,7 @@ local guide = {
   { kind = "craft", done = true, st = { what = "Done", upto = 100 }, mats = { { id = 3, have = 0, need = 5 } } },
 }
 local env = {
-  GoldFinderDB = { sources = {
+  GoldFinderForeverDB = { sources = {
     [1] = { ["The Barrens"] = { mob = "Raptor", n = 3 } },
     [2] = { ["The Barrens"] = { mob = "Raptor", n = 2 } },
     [3] = { ["Durotar"] = { mob = "Scorpid", n = 9 } },
@@ -48,7 +48,7 @@ check("combo lists both materials with their step", combos[1] and #combos[1].lis
   and combos[1].list[1] == "Item1 (Roast Raptors)")
 check("done steps are ignored", not (combos[1] and combos[1].zone == "Durotar"))
 
-env.GoldFinderDB.sources = nil
+env.GoldFinderForeverDB.sources = nil
 check("no source data: no combos", #P.FarmCombos() == 0)
 
 env.GoldFinderRoutes = nil
