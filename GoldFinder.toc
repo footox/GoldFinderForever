@@ -35,6 +35,7 @@ features/auction/tab.lua
 features/professions/tabs.lua
 features/guide/hybrid.lua
 features/route/helpers.lua
+features/route/plan.lua
 features/tracker/objectives.lua
 GoldFinderRoutes.lua
 GoldFinderTrainers.lua
