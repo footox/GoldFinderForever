@@ -2908,28 +2908,28 @@ local function MakeSettings(parent)
   v:SetSize(700, 1335)
   sf:SetScrollChild(v)
   sf:SetScript("OnSizeChanged", function(_, w) if w and w > 0 then v:SetWidth(w) end end)
-  local title = Text(v, 13, PAL.gold); title:SetPoint("TOPLEFT", v, "TOPLEFT", 0, 0); title:SetText("Opciones")
+  local title = Text(v, 13, PAL.gold); title:SetPoint("TOPLEFT", v, "TOPLEFT", 0, 0); title:SetText(L["set.title"])
   local y = -32
   local checks = {
-    { "tip", "Consejo vender / subastar / guardar en los tooltips" },
-    { "track", "Registrar el cuero que recoges (pestana Sesion)" },
-    { "nextSteps", "Ventana flotante con el siguiente paso de las guias de profesion" },
-    { "crossChars", "Avisar de materiales que sirven a las profesiones de mis otros personajes" },
-    { "questItems", "Proteger objetos de mision: no vender, subastar ni enviar lo que piden tus misiones activas" },
-    { "gamePlan", "Siguiente paso segun mis recetas y los precios de la subasta (en vez de la guia)" },
-    { "shopping", "Pestana Compras: materiales que me faltan para el paso actual, con precios" },
-    { "readyAlert", "Avisar (chat y sonido) cuando reuna los materiales de un paso" },
-    { "mailPanel", "Panel junto al correo con lo que conviene enviar al banquero (si no usas el correo de TSM)" },
-    { "bankPanel", "Panel junto al banco con lo que conviene depositar (y lo que mejor llevas encima)" },
-    { "vendorBox", "Cuadrito junto al vendedor con las recetas que te sirven (el tooltip siempre las indica)" },
-    { "sellPanel", "Panel de venta junto al vendedor: lo que conviene venderle, cada objeto con su boton Vender" },
-    { "useSkillUp", "Usar la ruta de SkillUp Forever (si lo tienes) para decidir que materiales guardar" },
-    { "craftTab", "Pestana Fabricar: que compensa fabricar con tus materiales (valor del objeto fabricado)" },
-    { "routeTab", "Pestana Ruta: planificador de ruta de profesion con tus recetas y los precios de la subasta" },
-    { "profTabs", "Pestanas de GoldFinder en la ventana de profesiones" },
-    { "recipeNotes", "Notas en la lista de recetas: probabilidad de subir y coste o ganancia por punto" },
+    { "tip", L["set.tip"] },
+    { "track", L["set.track"] },
+    { "nextSteps", L["set.nextSteps"] },
+    { "crossChars", L["set.crossChars"] },
+    { "questItems", L["set.questItems"] },
+    { "gamePlan", L["set.gamePlan"] },
+    { "shopping", L["set.shopping"] },
+    { "readyAlert", L["set.readyAlert"] },
+    { "mailPanel", L["set.mailPanel"] },
+    { "bankPanel", L["set.bankPanel"] },
+    { "vendorBox", L["set.vendorBox"] },
+    { "sellPanel", L["set.sellPanel"] },
+    { "useSkillUp", L["set.useSkillUp"] },
+    { "craftTab", L["set.craftTab"] },
+    { "routeTab", L["set.routeTab"] },
+    { "profTabs", L["set.profTabs"] },
+    { "recipeNotes", L["set.recipeNotes"] },
     -- eleccion de dos valores como casilla: marcada = seguimiento de objetivos, sin marcar = ventana flotante
-    { "trackerMode", "Siguiente paso en el seguimiento de objetivos (sin marcar: ventana flotante)",
+    { "trackerMode", L["set.trackerMode"],
       get = function() return Cfg("trackerMode") ~= "flotante" end,
       set = function(on) GoldFinderDB.trackerMode = on and "objetivos" or "flotante" end },
   }
@@ -2974,7 +2974,7 @@ local function MakeSettings(parent)
   eb:SetScript("OnEnterPressed", function(self) save(); self:ClearFocus() end)
   eb:SetScript("OnEditFocusLost", save)
   local l = Text(v, 13); l:SetPoint("LEFT", eb, "RIGHT", 12, 0)
-  l:SetText("Ganancia minima (oro) para recomendar subasta en vez de vendedor")
+  l:SetText(L["set.minGain"])
   y = y - 34
   local eb2 = CreateFrame("EditBox", nil, v, "InputBoxTemplate")
   eb2:SetSize(70, 22)
@@ -2989,15 +2989,15 @@ local function MakeSettings(parent)
   eb2:SetScript("OnEnterPressed", function(self) save2(); self:ClearFocus() end)
   eb2:SetScript("OnEditFocusLost", save2)
   local l2 = Text(v, 13); l2:SetPoint("LEFT", eb2, "RIGHT", 12, 0)
-  l2:SetText("Fabricaciones a reservar de cada material (para subir tu profesion)")
+  l2:SetText(L["set.reserve"])
   y = y - 34
   -- boton Subastar (mismas claves que en Opciones > AddOns)
   for _, o in ipairs({
-    { "postMinPct", "Subastar: precio minimo (% del mercado; nunca menos que el vendedor)", 0, 100 },
-    { "postMaxPct", "Subastar: precio maximo (% del mercado; por encima, precio normal)", 100, 500 },
-    { "postUndercut", "Subastar: rebaja en cobre bajo la subasta mas barata", 0, 500 },
-    { "postCapDays", "Subastar: tope de unidades (dias de ventas en la region, si TSM lo sabe)", 1, 14 },
-    { "postDuration", "Subastar: duracion en horas (12 o 24)", 12, 24 },
+    { "postMinPct", L["set.postMin"], 0, 100 },
+    { "postMaxPct", L["set.postMax"], 100, 500 },
+    { "postUndercut", L["set.postUndercut"], 0, 500 },
+    { "postCapDays", L["set.postCap"], 1, 14 },
+    { "postDuration", L["set.postDuration"], 12, 24 },
   }) do
     local box = CreateFrame("EditBox", nil, v, "InputBoxTemplate")
     box:SetSize(70, 22)
@@ -3023,7 +3023,7 @@ local function MakeSettings(parent)
   end
   local bh = Text(v, 13, PAL.gold)
   bh:SetPoint("TOPLEFT", v, "TOPLEFT", 0, y)
-  bh:SetText("Personaje banquero (al que envias lo que hay que subastar)")
+  bh:SetText(L["set.banker"])
   local bankTop = y - 24
   v.bankChecks = {}
 
@@ -3054,7 +3054,7 @@ local function MakeSettings(parent)
         cb:ClearAllPoints()
         cb:SetPoint("TOPLEFT", v, "TOPLEFT", col * 220, bankTop - row * 26)
         cb.charName = name
-        cb.label:SetText(name == "" and "Ninguno" or name)
+        cb.label:SetText(name == "" and L["set.none"] or name)
         cb:SetChecked((cur == nil and name == "")
           or (cur ~= nil and (name:lower() == cur:lower()
             or (not cur:find(" ", 1, true) and FirstName(name):lower() == cur:lower()))))
@@ -3070,7 +3070,7 @@ local function MakeSettings(parent)
   y = bankTop - 3 * 26 - 12
   local ph = Text(v, 13, PAL.gold)
   ph:SetPoint("TOPLEFT", v, "TOPLEFT", 0, y)
-  ph:SetText("Profesiones que cuentan (materiales a guardar, patrones y siguiente paso)")
+  ph:SetText(L["set.profs"])
   local profTop = y - 24
   v.profChecks = {}
   v.info = Text(v, 12, PAL.dim)
@@ -3101,7 +3101,7 @@ local function MakeSettings(parent)
       cb:SetPoint("TOPLEFT", v, "TOPLEFT", col * 330, profTop - row * 26)
       cb.profName = name
       local d = Char().prof[name]
-      cb.label:SetText(name .. (d.rank and (" (habilidad " .. d.rank .. ")") or ""))
+      cb.label:SetText(name .. (d.rank and format(L["set.skill"], d.rank) or ""))
       cb:SetChecked(not Char().off[name])
       cb:Show()
       cb.label:Show()
@@ -3125,7 +3125,7 @@ local function MakeSettings(parent)
     for _, fn in ipairs(v.postShows or {}) do fn() end
     layoutBankers()
     layoutProfs()
-    v.info:SetText("GoldFinder lee tus profesiones y tu habilidad al entrar. Las recetas se memorizan al abrir la ventana de cada profesion.\nLos objetos que marques con Fijar tambien se guardan.")
+    v.info:SetText(L["set.info"])
   end
   outer.refresh = v.refresh
   return outer
@@ -3140,7 +3140,7 @@ local function ShowTSMExport()
     if r.verdict == "AH" and not r.bound then ids[#ids + 1] = "i:" .. r.id end
   end
   if #ids == 0 then
-    Print("No hay objetos que convenga subastar ahora mismo.")
+    Print(L["export.none"])
     return
   end
   local f = GoldFinderExport
@@ -3156,13 +3156,13 @@ local function ShowTSMExport()
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
-    f.title = Skin.Head(f, "GoldFinder Forever: exportar a TSM")
+    f.title = Skin.Head(f, L["export.title"])
     f.note = Text(f, 12, PAL.text)
     f.note:SetPoint("TOPLEFT", 20, -40)
     f.note:SetWidth(500)
     f.note:SetWordWrap(true)
     f.note:SetJustifyV("TOP")
-    f.note:SetText("Copia el texto con Ctrl+C y pegalo en TSM: Grupos > Importar (crea o rellena un grupo). Luego TSM publica y envia por correo.")
+    f.note:SetText(L["export.note"])
     f.edit = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
     f.edit:SetSize(496, 22)
     f.edit:SetPoint("TOPLEFT", 24, -86)
@@ -3175,7 +3175,7 @@ local function ShowTSMExport()
     tinsert(UISpecialFrames, "GoldFinderExport")
   end
   f.edit:SetText(table.concat(ids, ","))
-  f.count:SetText(#ids .. " objeto(s) que conviene subastar (sin los ligados)")
+  f.count:SetText(format(L["export.count"], #ids))
   f:Show()
   f.edit:SetFocus()
   f.edit:HighlightText()
@@ -4296,56 +4296,74 @@ local function RegisterOptions()
     slider(setting, lo, hi, step, function(v) return tostring(floor(v + 0.5)) end, tip)
   end
 
-  header("Consejos y tooltips")
-  check("tip", "Consejo en los tooltips", "Consejo vender / subastar / guardar en los tooltips de los objetos.")
-  check("track", "Registrar el cuero que recoges", "Registrar el cuero que recoges (pestana Sesion).")
-  check("crossChars", "Materiales de mis otros personajes",
-    "Avisar de materiales que sirven a las profesiones de mis otros personajes.")
-  check("questItems", "Proteger objetos de mision",
-    "Nunca recomendar vender, subastar, enviar al banquero ni dar al vendedor lo que piden tus misiones activas (con QuestieDB, tambien la siguiente mision de la cadena).")
-  check("useSkillUp", "Usar la ruta de SkillUp Forever",
-    "Usar la ruta de SkillUp Forever (si lo tienes) para decidir que materiales guardar.")
-  number("reserve", "Fabricaciones a reservar", 0, 200, 1,
-    "Fabricaciones a reservar de cada material (para subir tu profesion).")
+  header(L["opt.hLang"])
+  local LANGS = { "auto", "enUS", "esES" }
+  local langSetting = S.RegisterProxySetting(cat, "GoldFinder_language", NUM, L["opt.language.l"], 1,
+    function()
+      for i, k in ipairs(LANGS) do if k == Cfg("language") then return i end end
+      return 1
+    end,
+    function(i)
+      GoldFinderDB.language = LANGS[floor((tonumber(i) or 1) + 0.5)] or "auto"
+      GF.SetLocale(GF.ResolveLocale(GoldFinderDB.language, GetLocale()))
+      Print(L["opt.language.reload"])
+      refreshAll()
+    end)
+  slider(langSetting, 1, 3, 1, function(i)
+    local k = floor(i + 0.5)
+    return k == 2 and "English" or (k == 3 and "Espa\195\177ol" or L["opt.language.auto"])
+  end, L["opt.language.t"])
 
-  header("Ventanas y paneles")
-  check("nextSteps", "Ventana del siguiente paso", "Siguiente paso de las guias de profesion (en el seguimiento de objetivos o en una ventana flotante, segun la opcion de abajo).")
+  header(L["opt.hTips"])
+  check("tip", L["opt.tip.l"], L["opt.tip.t"])
+  check("track", L["opt.track.l"], L["opt.track.t"])
+  check("crossChars", L["opt.crossChars.l"],
+    L["opt.crossChars.t"])
+  check("questItems", L["opt.questItems.l"],
+    L["opt.questItems.t"])
+  check("useSkillUp", L["opt.useSkillUp.l"],
+    L["opt.useSkillUp.t"])
+  number("reserve", L["opt.reserve.l"], 0, 200, 1,
+    L["opt.reserve.t"])
+
+  header(L["opt.hWindows"])
+  check("nextSteps", L["opt.nextSteps.l"], L["opt.nextSteps.t"])
   -- donde va el siguiente paso: deslizador con pasos (el desplegable nativo falla en el cliente Forever)
   local MODES = { "objetivos", "flotante" }
-  local mode = S.RegisterProxySetting(cat, "GoldFinder_trackerMode", NUM, "Donde se muestra el siguiente paso", 1,
+  local mode = S.RegisterProxySetting(cat, "GoldFinder_trackerMode", NUM, L["opt.mode.l"], 1,
     function() return Cfg("trackerMode") == "flotante" and 2 or 1 end,
     function(i)
       GoldFinderDB.trackerMode = MODES[floor((tonumber(i) or 1) + 0.5)] or "objetivos"
       applied("trackerMode")
     end)
   slider(mode, 1, 2, 1, function(i)
-    return floor(i + 0.5) == 2 and "Ventana flotante" or "Seguimiento de objetivos"
-  end, "Seguimiento de objetivos: un bloque GoldFinder Forever en el seguimiento de la derecha (junto al de SkillUp Forever si lo tienes). Ventana flotante: el panel movible de siempre.")
-  check("gamePlan", "Siguiente paso segun la subasta",
-    "Siguiente paso segun mis recetas y los precios de la subasta (en vez de la guia).")
-  check("readyAlert", "Aviso al reunir los materiales", "Avisar (chat y sonido) cuando reuna los materiales de un paso.")
-  check("shopping", "Pestana Compras", "Pestana Compras: materiales que me faltan para el paso actual, con precios.")
-  check("mailPanel", "Panel junto al correo",
-    "Panel junto al correo con lo que conviene enviar al banquero (si no usas el correo de TSM).")
-  check("bankPanel", "Panel junto al banco", "Panel junto al banco con lo que conviene depositar (y lo que mejor llevas encima).")
-  check("vendorBox", "Recetas junto al vendedor",
-    "Cuadrito junto al vendedor con las recetas que te sirven (el tooltip siempre las indica).")
-  check("sellPanel", "Panel de venta junto al vendedor",
-    "Al abrir un vendedor, panel junto a su ventana con los objetos que conviene venderle, cada uno con su boton Vender. Nada se vende sin clic.")
+    return floor(i + 0.5) == 2 and L["opt.mode.float"] or L["opt.mode.tracker"]
+  end, L["opt.mode.t"])
+  check("gamePlan", L["opt.gamePlan.l"],
+    L["opt.gamePlan.t"])
+  check("readyAlert", L["opt.readyAlert.l"], L["opt.readyAlert.t"])
+  check("shopping", L["opt.shopping.l"], L["opt.shopping.t"])
+  check("mailPanel", L["opt.mailPanel.l"],
+    L["opt.mailPanel.t"])
+  check("bankPanel", L["opt.bankPanel.l"], L["opt.bankPanel.t"])
+  check("vendorBox", L["opt.vendorBox.l"],
+    L["opt.vendorBox.t"])
+  check("sellPanel", L["opt.sellPanel.l"],
+    L["opt.sellPanel.t"])
 
-  header("Profesiones y ruta",
-    "GoldFinder lee tus profesiones y tu habilidad al entrar. Las recetas se memorizan al abrir la ventana de cada profesion.")
-  check("craftTab", "Pestana Fabricar", "Pestana Fabricar: que compensa fabricar con tus materiales (valor del objeto fabricado).")
-  check("routeTab", "Pestana Ruta",
-    "Pestana Ruta: planificador de ruta de profesion con tus recetas y los precios de la subasta.")
-  check("profTabs", "Pestanas de GoldFinder en la ventana de profesiones",
-    "Pestanas Ruta y Fabricar al pie de la ventana de profesiones, con los datos de la profesion abierta (cada una solo si su pestana esta activa).")
-  check("recipeNotes", "Notas en la lista de recetas",
-    "Junto a cada receta de la ventana de profesiones: probabilidad de subir un punto y coste (-) o ganancia (+) por punto segun la ruta. Con SkillUp Forever mostrando su texto en la fila, van en el tooltip de la receta.")
-  number("routeSpan", "Puntos que planifica la ruta", 5, 100, 1,
-    "Puntos de habilidad que planifica la pestana Ruta, de 5 a 100 (lo mismo que /gf ruta N).")
-  number("sellCap", "Unidades a precio de subasta", 0, 1000, 1,
-    "Unidades de cada objeto fabricado que la pestana Ruta valora a precio de subasta; el resto, a precio del vendedor (lo mismo que /gf tope N).")
+  header(L["opt.hProf"],
+    L["opt.hProf.t"])
+  check("craftTab", L["opt.craftTab.l"], L["opt.craftTab.t"])
+  check("routeTab", L["opt.routeTab.l"],
+    L["opt.routeTab.t"])
+  check("profTabs", L["opt.profTabs.l"],
+    L["opt.profTabs.t"])
+  check("recipeNotes", L["opt.recipeNotes.l"],
+    L["opt.recipeNotes.t"])
+  number("routeSpan", L["opt.routeSpan.l"], 5, 100, 1,
+    L["opt.routeSpan.t"])
+  number("sellCap", L["opt.sellCap.l"], 0, 1000, 1,
+    L["opt.sellCap.t"])
   -- profesiones de este personaje que cuentan (materiales a guardar, patrones y siguiente paso)
   -- Las que aprendas despues de entrar se anaden con SKILL_LINES_CHANGED (ver Skin.OptionsSync): la API Settings no
   -- deja quitar ni mover filas, asi que una profesion nueva aparece al final de la pagina hasta el proximo /reload.
@@ -4357,7 +4375,7 @@ local function RegisterOptions()
     for _, prof in ipairs(profs) do
       profSeen[prof] = true
       local setting = S.RegisterProxySetting(cat, "GoldFinder_prof_" .. (prof:gsub("[^%w]", "_")), BOOL,
-        "Cuenta: " .. prof, true,
+        format(L["opt.profCount.l"], prof), true,
         function() return not Char().off[prof] end,
         function(on)
           Char().off[prof] = (not on) or nil
@@ -4365,13 +4383,13 @@ local function RegisterOptions()
           refreshAll()
         end)
       S.RegisterInitializer(cat, S.CreateCheckboxInitializer(setting, nil,
-        "Profesiones que cuentan (materiales a guardar, patrones y siguiente paso). Solo para este personaje."))
+        L["opt.profCount.t"]))
     end
   end
   addProfs()
 
-  header("Subasta y banquero")
-  local gain = S.RegisterProxySetting(cat, "GoldFinder_minGain", NUM, "Ganancia minima de la subasta",
+  header(L["opt.hAuction"])
+  local gain = S.RegisterProxySetting(cat, "GoldFinder_minGain", NUM, L["opt.minGain.l"],
     floor(DEFAULTS.minGain / 100),
     function() return floor((tonumber(Cfg("minGain")) or 0) / 100 + 0.5) end,
     function(silver)
@@ -4379,17 +4397,17 @@ local function RegisterOptions()
       refreshShown()
     end)
   slider(gain, 0, 5000, 5, function(silver) return Money(floor(silver + 0.5) * 100) end,
-    "Ganancia minima (oro) para recomendar subasta en vez de vendedor.")
+    L["opt.minGain.t"])
   -- boton Subastar de la lista Bolsas (como una operacion de TSM)
-  number("postMinPct", "Subastar: precio minimo (% del mercado)", 0, 100, 5,
-    "Por debajo de este % del valor de mercado no se publica: espera. Nunca baja de lo que paga el vendedor.")
-  number("postMaxPct", "Subastar: precio maximo (% del mercado)", 100, 500, 10,
-    "Si la subasta mas barata pasa de este % del valor de mercado, se publica al precio normal (el de mercado).")
-  number("postUndercut", "Subastar: rebaja (cobre)", 0, 500, 1,
-    "Cobre por debajo de la subasta mas barata.")
-  number("postCapDays", "Subastar: tope (dias de ventas)", 1, 14, 1,
-    "Como mucho se publican las unidades que se venden en la region en estos dias (si TSM lo sabe).")
-  number("postDuration", "Subastar: duracion (horas)", 12, 24, 12, "Duracion de la subasta: 12 o 24 horas.")
+  number("postMinPct", L["opt.postMin.l"], 0, 100, 5,
+    L["opt.postMin.t"])
+  number("postMaxPct", L["opt.postMax.l"], 100, 500, 10,
+    L["opt.postMax.t"])
+  number("postUndercut", L["opt.postUndercut.l"], 0, 500, 1,
+    L["opt.postUndercut.t"])
+  number("postCapDays", L["opt.postCap.l"], 1, 14, 1,
+    L["opt.postCap.t"])
+  number("postDuration", L["opt.postDuration.l"], 12, 24, 12, L["opt.postDuration.t"])
   -- banquero: se elige entre los personajes con los que ya has entrado; un deslizador con pasos en vez de un
   -- desplegable, porque el desplegable nativo falla en el cliente Forever (lo mismo hace SkillUp Forever)
   -- La lista se rehace (misma tabla) al abrir el panel de opciones: recoge fichas nuevas y nombres ya completos.
@@ -4418,15 +4436,15 @@ local function RegisterOptions()
     end
     return 1
   end
-  local banker = S.RegisterProxySetting(cat, "GoldFinder_banker", NUM, "Personaje banquero", 1, bankerIndex,
+  local banker = S.RegisterProxySetting(cat, "GoldFinder_banker", NUM, L["opt.banker.l"], 1, bankerIndex,
     function(i)
       GoldFinderDB.banker = ResolveFullName(names[floor((tonumber(i) or 1) + 0.5)] or "") or ""
       refreshAll()
     end)
   bankerOpts = slider(banker, 1, math.max(2, #names), 1, function(i)
     local n = names[floor(i + 0.5)]
-    return (n and n ~= "") and n or "(ninguno)"
-  end, "Personaje banquero: al que envias lo que hay que subastar. Se elige entre los personajes con los que ya has entrado.")
+    return (n and n ~= "") and n or L["opt.none"]
+  end, L["opt.banker.t"])
 
   S.RegisterAddOnCategory(cat)
   optionsCategory = cat
@@ -4445,7 +4463,7 @@ end
 OpenOptions = function(fallback)
   if not optionsCategory then return false end
   if InCombatLockdown and InCombatLockdown() then
-    Print("Las opciones del juego se abren fuera de combate.")
+    Print(L["opt.combat"])
     return false
   end
   local id = optionsCategory.GetID and optionsCategory:GetID()
@@ -4505,7 +4523,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
       pcall(ReadSkills); xpcall(UpdateTracker, geterrorhandler())
       -- despues de leer las profesiones y ordenar las fichas: la pagina lista profesiones y personajes
       local okO, errO = pcall(RegisterOptions)
-      if not okO then Print("No pude registrar las opciones en Opciones > AddOns: " .. tostring(errO)) end
+      if not okO then Print(format(L["opt.registerFailed"], tostring(errO))) end
     end)
     -- la API de SkillUp puede tardar en estar lista tras entrar: se lee varias veces durante el primer minuto
     for _, d in ipairs({ 8, 20, 40, 65 }) do
