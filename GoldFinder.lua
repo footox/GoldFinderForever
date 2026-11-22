@@ -3860,7 +3860,7 @@ local function ToggleWindow()
     end
     local ok, err = pcall(CreateUI, w)
     if not ok then
-      Print("No pude crear la ventana: " .. tostring(err))
+      Print(format(L["win.createFailed"], tostring(err)))
       w:Hide()
       _G["GoldFinderWindow"] = nil   -- para reintentar limpio la proxima vez
       return
@@ -3913,10 +3913,11 @@ local function SetupMinimap()
   local function tip(tt)
     tt:AddLine("GoldFinder Forever", 1, 0.82, 0.25)
     local _, sum = BagRows()
-    tt:AddLine("Para vender: " .. Money(sum.sell), 1, 1, 1)
-    tt:AddLine(sum.nKeep .. " objeto(s) para guardar", 0.4, 0.7, 1)
+    tt:AddLine(format(L["mm.sell"], Money(sum.sell)), 1, 1, 1)
+    tt:AddLine(format(L["mm.keep"], sum.nKeep), 0.4, 0.7, 1)
     local unsaved = UnsavedUnits()
-    if unsaved > 0 then tt:AddLine(unsaved .. " u. de cuero aun no estan en disco (se guardan al salir)", 0.7, 0.7, 0.7) end    tt:AddLine("Clic: abrir o cerrar la ventana", 0.7, 0.7, 0.7)
+    if unsaved > 0 then tt:AddLine(format(L["mm.unsaved"], unsaved), 0.7, 0.7, 0.7) end
+    tt:AddLine(L["mm.click"], 0.7, 0.7, 0.7)
   end
 
   local LDB = LibStub and LibStub("LibDataBroker-1.1", true)
@@ -3980,7 +3981,7 @@ local function ToggleMinimapIcon()
   elseif GoldFinderMinimapButton then
     if GoldFinderDB.minimap.hide then GoldFinderMinimapButton:Hide() else GoldFinderMinimapButton:Show() end
   end
-  Print("Icono del minimapa: " .. (GoldFinderDB.minimap.hide and "oculto" or "visible"))
+  Print(format(L["mm.state"], GoldFinderDB.minimap.hide and L["mm.hidden"] or L["mm.visible"]))
 end
 
 ---------------------------------------------------------------------------
@@ -4053,10 +4054,10 @@ local function RefreshBank()
     if BankFrame then f:SetPoint("TOPLEFT", BankFrame, "TOPRIGHT", 2, -12)
     else f:SetPoint("LEFT", UIParent, "LEFT", 360, 60) end
   end
-  if n > BANK_LINES then lines[#lines + 1] = "|cffb3b3b3... y " .. (n - BANK_LINES) .. " mas|r" end
-  f.title:SetText("Conviene depositar en el banco")
+  if n > BANK_LINES then lines[#lines + 1] = format(L["bank.more"], n - BANK_LINES) end
+  f.title:SetText(L["bank.title"])
   f.body:SetText(table.concat(lines, "\n"))
-  f.foot:SetText(carry > 0 and (carry .. " objeto(s) mejor encima: los usas en el paso actual") or (n .. " objeto(s)"))
+  f.foot:SetText(carry > 0 and format(L["bank.carry"], carry) or format(L["bank.count"], n))
   f:SetHeight(56 + (f.body:GetStringHeight() or 0) + 36)
   f:Show()
 end
@@ -4536,7 +4537,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
       end
     end)
     local okMM, errMM = pcall(SetupMinimap)
-    if not okMM then Print("No pude crear el icono del minimapa: " .. tostring(errMM)) end
+    if not okMM then Print(format(L["mm.failed"], tostring(errMM))) end
     local v1 = AHApi()
     if v1 and v1.RegisterForDBUpdate then
       v1.RegisterForDBUpdate(CALLER, function()
@@ -4604,19 +4605,19 @@ SlashCmdList["GOLDFINDER"] = function(msg)
     local n = tonumber(rest)
     if n and n >= 5 and n <= 100 then
       SetOption("routeSpan", math.floor(n))
-      Print("La ruta planifica " .. GoldFinderDB.routeSpan .. " puntos de habilidad.")
+      Print(format(L["cmd.routeSet"], GoldFinderDB.routeSpan))
     else
-      Print("Uso: /gf ruta 25 (puntos de habilidad que planifica la pestana Ruta, de 5 a 100)")
+      Print(L["cmd.routeUsage"])
     end
   elseif cmd == "tope" or cmd == "cap" then
     local n = tonumber(rest)
     if n and n >= 0 and n <= 1000 then
       SetOption("sellCap", math.floor(n))
-      Print("La ruta valora a precio de subasta las primeras " .. GoldFinderDB.sellCap .. " unidades de cada objeto fabricado; el resto, a precio del vendedor.")
+      Print(format(L["cmd.capSet"], GoldFinderDB.sellCap))
     else
-      Print("Uso: /gf tope 5 (unidades de cada objeto fabricado que la pestana Ruta valora a precio de subasta, de 0 a 1000)")
+      Print(L["cmd.capUsage"])
     end
-  elseif cmd == "ajustes" or cmd == "config" or cmd == "opciones" then
+  elseif cmd == "ajustes" or cmd == "config" or cmd == "opciones" or cmd == "options" or cmd == "settings" then
     -- sin la pagina de Opciones (o en combate, o no se abrio): la pestana Ajustes de la ventana
     local function inWindow()
       if not (GoldFinderWindow and GoldFinderWindow:IsShown()) then ToggleWindow() end
@@ -4634,11 +4635,11 @@ SlashCmdList["GOLDFINDER"] = function(msg)
       Char().session = nil
       Sess()
       MarkSessionBaseline()
-      Print("Sesion reiniciada.")
+      Print(L["cmd.sessionReset"])
     else
       ToggleWindow()
     end
   else
-    Print("Comandos: /gf (abre la ventana) | /gf ajustes (opciones en Opciones > AddOns) | /gf guia [profesion] (guia completa) | /gf ruta N (puntos que planifica la pestana Ruta, 5-100) | /gf tope N (unidades valoradas a precio de subasta en la Ruta) | /gf icono (muestra u oculta el icono del minimapa) | /gf session reset")
+    Print(L["cmd.help"])
   end
 end
