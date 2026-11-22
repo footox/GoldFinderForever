@@ -25,6 +25,8 @@ local function Api()
         local list = (zid and spawns[zid]) or select(2, next(spawns))
         local first = type(list) == "table" and list[1]
         if type(first) == "table" then x, y = first[1], first[2] end
+        -- Questie marks creatures inside an instance with -1: that is "no position on the map", not a coordinate
+        if (tonumber(x) or 0) < 0 or (tonumber(y) or 0) < 0 then x, y = nil, nil end
       end
       local zone
       if zid and C_Map and C_Map.GetAreaInfo then zone = safe(C_Map.GetAreaInfo, zid) end

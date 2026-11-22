@@ -63,6 +63,20 @@ run("core/recipe_source.lua", G, GF2)
 run("adapters/questie.lua", G, GF2)
 local l = GF2.WithRecipeSource({ item = 5 })
 check("adapter fills zone, npc and coordinates for a vendor", l.zone == "Orgrimmar" and l.npc == "Test Vendor" and l.x == 52.5 and l.y == 61.2 and not l.drop)
+-- the same vendor, but inside an instance: Questie reports the position as -1, -1
+local GF4 = {}
+local G4 = {
+  UnitFactionGroup = function() return "Horde" end,
+  C_Map = { GetAreaInfo = function() return "Orgrimmar" end },
+  ItemDB = { vendors = function() return { 77 } end, npcDrops = function() return nil end },
+  NpcDB = { name = function() return "Test Vendor" end, zoneID = function() return 1637 end,
+    spawns = function() return { [1637] = { { -1, -1 } } } end, minLevel = function() return 35 end,
+    friendlyToFaction = function() return "H" end },
+}
+run("core/recipe_source.lua", G4, GF4)
+run("adapters/questie.lua", G4, GF4)
+l = GF4.WithRecipeSource({ item = 5 })
+check("instance creatures: the -1,-1 position is dropped, the zone stays", l.zone == "Orgrimmar" and l.x == nil and l.y == nil and l.npc == "Test Vendor")
 l = GF2.WithRecipeSource({ item = 6 })
 check("item without sources: unchanged", l.zone == nil and l.npc == nil)
 l = GF2.WithRecipeSource({ item = 5, zone = "Somewhere" })
