@@ -3,13 +3,13 @@
 
 local _, GF = ...
 
--- d: Cfg, AHApi, TSMValue, RefPrice, SellQty, VendorPrice, Money, Print, BankerName
+-- d: Cfg, AHApi, TSMValue, RefPrice, SellQty, VendorPrice, Money, Print, BankerName, ScanAgeMin
 function GF.InitAuction(d)
   local UI = GF.UI
   local Skin = UI.Skin
   local CALLER, AH_CUT = GF.CALLER, GF.AH_CUT
-  local Cfg, AHApi, TSMValue, RefPrice, SellQty, VendorPrice, Money, Print, BankerName =
-    d.Cfg, d.AHApi, d.TSMValue, d.RefPrice, d.SellQty, d.VendorPrice, d.Money, d.Print, d.BankerName
+  local Cfg, AHApi, TSMValue, RefPrice, SellQty, VendorPrice, Money, Print, BankerName, ScanAgeMin =
+    d.Cfg, d.AHApi, d.TSMValue, d.RefPrice, d.SellQty, d.VendorPrice, d.Money, d.Print, d.BankerName, d.ScanAgeMin
   local format, floor = string.format, math.floor
   local L = GF.L
 
@@ -21,6 +21,7 @@ function GF.InitAuction(d)
   -- serial = para el tiempo maximo de espera, post = publicacion pendiente de "Publicado":
   -- { what (objeto, precio y duracion), per (unidades por subasta creada), n (subastas creadas), armed, tick }
   local busy = { on = false, serial = 0, post = nil }
+  local StartCheck
 
   -- primer hueco de las bolsas con ese objeto que la subasta acepta (solo con la subasta abierta)
   local function FindLoc(id)
@@ -41,12 +42,31 @@ function GF.InitAuction(d)
     return ok and st == Enum.ItemCommodityStatus.Commodity
   end
 
+  -- PRECIO EN VIVO: si el ultimo escaneo es viejo, el primer clic en Subastar consulta la casa de subastas por ese
+  -- objeto (un clic = una consulta, nunca una publicacion); al llegar el resultado el plan se recalcula con el precio
+  -- real y el siguiente clic publica. Publicar exige un clic directo, por eso son dos clics. Guardado 2 minutos.
+  local LIVE_TTL, CHECK_WAIT = 120, 8
+  local live = {}      -- [id] = { price, at }
+  local check          -- consulta en curso: { id, commodity, key, at }
+  local function LiveLowest(id)
+    local e = live[id]
+    if e and (GetTime() - e.at) < LIVE_TTL then return e.price end
+    return nil
+  end
+  local function NeedsCheck(id)
+    if LiveLowest(id) then return false end
+    return GF.AuctionNeedsLive(ScanAgeMin and ScanAgeMin() or nil, Cfg("postRefreshMin"))
+  end
+
   -- plan con los datos del momento: Auctionator (la mas barata), TSM (mercado y ventas al dia), reservas de SellQty
   local function Plan(id, loc)
     local v1 = AHApi()
     local okL, lowest = false, nil
     if v1 then okL, lowest = pcall(v1.GetAuctionPriceByItemID, CALLER, id) end
     lowest = okL and Pos(lowest) or nil
+    local stored = lowest
+    local liveP = LiveLowest(id)
+    if liveP then lowest = liveP end
     local market = Pos(TSMValue("DBMarket", id)) or Pos(TSMValue("DBRegionMarketAvg", id)) or Pos(RefPrice(id))
     -- TSM redondea los valores a entero: las ventas al dia se piden x1000 (como hace su tooltip)
     local spd = Pos(TSMValue("DBRegionSoldPerDay * 1000", id))
@@ -65,6 +85,7 @@ function GF.InitAuction(d)
       undercut = tonumber(Cfg("postUndercut")), capDays = tonumber(Cfg("postCapDays")),
     })
     p.hours, p.lowest, p.market = Hours(), lowest, market
+    p.live, p.stored = liveP ~= nil, stored
     -- publicacion de varias unidades en curso (la subasta las crea de una en una): no se publica otra hasta acabar
     if p.post and busy.on then p.post, p.code, p.reason = false, "busy", L["auction.reason.busy"] end
     if loc and p.qty > 0 then
@@ -95,6 +116,12 @@ function GF.InitAuction(d)
     end
     tt:AddLine((p.post and "" or L["auction.tip.notPosted"]) .. p.reason, p.post and 0.42 or 1, p.post and 0.71 or 0.3,
       p.post and 1 or 0.3, true)
+    if p.live then
+      local dr = GF.AuctionDrift(p.stored, p.lowest)
+      tt:AddLine(dr and format(L["auction.tip.live"], string.format("%+.0f%%", dr)) or L["auction.tip.liveNoRef"], 0.35, 0.9, 0.55, true)
+    elseif p.post and NeedsCheck(id) then
+      tt:AddLine(L["auction.tip.willCheck"], 1, 0.82, 0.3, true)
+    end
     if p.min then
       tt:AddLine(format(L["auction.tip.range"], Money(p.min), Money(p.normal), Money(p.max)),
         0.6, 0.6, 0.6, true)
@@ -125,8 +152,74 @@ function GF.InitAuction(d)
     end)
   end
 
+  -- lanza la consulta en vivo; true si la dejo en marcha (el clic termina ahi), false si no se pudo y se sigue con
+  -- el precio guardado como siempre
+  function StartCheck(id, loc)
+    local CA = C_AuctionHouse
+    if not (CA and CA.SendSearchQuery and (CA.GetItemKeyFromItem or CA.MakeItemKey)) then return false end
+    if check and (GetTime() - check.at) < CHECK_WAIT then Print(L["auction.checking"]); return true end
+    local okK, key = pcall(function()
+      if CA.GetItemKeyFromItem then return CA.GetItemKeyFromItem(loc) end
+      return CA.MakeItemKey(id)
+    end)
+    if not (okK and key) then return false end
+    local commodity = IsCommodity(loc)
+    local ok = pcall(CA.SendSearchQuery, key, {}, true)
+    if not ok then return false end
+    check = { id = id, commodity = commodity, key = key, at = GetTime() }
+    Print(L["auction.checking"])
+    local mine = check
+    C_Timer.After(CHECK_WAIT, function()
+      if check == mine then
+        check = nil
+        Print(L["auction.checkTimeout"])
+        RefreshShown()
+      end
+    end)
+    return true
+  end
+
+  local function ReadRows(c)
+    local CA, rows = C_AuctionHouse, {}
+    if c.commodity then
+      local n = (CA.GetNumCommoditySearchResults and CA.GetNumCommoditySearchResults(c.id)) or 0
+      for i = 1, math.min(n, 8) do
+        local info = CA.GetCommoditySearchResultInfo and CA.GetCommoditySearchResultInfo(c.id, i)
+        if info then rows[#rows + 1] = { price = info.unitPrice, mine = info.containsOwnerItem } end
+      end
+    else
+      local n = (CA.GetNumItemSearchResults and CA.GetNumItemSearchResults(c.key)) or 0
+      for i = 1, math.min(n, 8) do
+        local info = CA.GetItemSearchResultInfo and CA.GetItemSearchResultInfo(c.key, i)
+        if info then rows[#rows + 1] = { price = info.buyoutAmount, mine = info.containsOwnerItem } end
+      end
+    end
+    return rows
+  end
+
+  local function CheckDone(eventItemId)
+    local c = check
+    if not c or (eventItemId and eventItemId ~= c.id) then return end
+    local ok, rows = pcall(ReadRows, c)
+    local price = ok and GF.AuctionPickLowest(rows) or nil
+    check = nil
+    local stored
+    local v1 = AHApi()
+    if v1 then local okS, st = pcall(v1.GetAuctionPriceByItemID, CALLER, c.id); stored = okS and Pos(st) or nil end
+    if price then
+      live[c.id] = { price = price, at = GetTime() }
+      local dr = GF.AuctionDrift(stored, price)
+      local name = C_Item.GetItemInfo(c.id) or format(L["auction.item"], c.id)
+      Print(dr and format(L["auction.checked"], name, Money(price), string.format("%+.0f%%", dr))
+        or format(L["auction.checkedNoRef"], name, Money(price)))
+    else
+      Print(L["auction.checkFailed"])
+    end
+    RefreshShown()
+  end
+
   -- una publicacion por clic; si la subasta esta ocupada (limite de mensajes) no se hace nada
-  local function Post(id)
+  local function Post(id)  -- (StartCheck es local de este ambito: ver arriba)
     if not AHOpen() then Print(L["auction.openFirst"]); return end
     if C_AuctionHouse.IsThrottledMessageSystemReady and not C_AuctionHouse.IsThrottledMessageSystemReady() then
       Print(L["auction.busyAH"])
@@ -134,6 +227,7 @@ function GF.InitAuction(d)
     end
     local loc = FindLoc(id)
     if not loc then Print(L["auction.cantPost"]); return end
+    if NeedsCheck(id) and StartCheck(id, loc) then return end
     local p = Plan(id, loc)
     if not p.post then Print(format(L["auction.notPosted"], p.reason)); return end
     local dur = DURATION[p.hours]
@@ -179,10 +273,16 @@ function GF.InitAuction(d)
   -- avisos de la subasta: publicado (cuando la subasta la crea), error al publicar, progreso de varias unidades
   local ev = CreateFrame("Frame")
   for _, e in ipairs({ "AUCTION_HOUSE_AUCTION_CREATED", "AUCTION_HOUSE_POST_ERROR", "AUCTION_MULTISELL_UPDATE",
-    "AUCTION_MULTISELL_FAILURE" }) do pcall(ev.RegisterEvent, ev, e) end
+    "AUCTION_MULTISELL_FAILURE", "COMMODITY_SEARCH_RESULTS_UPDATED", "ITEM_SEARCH_RESULTS_UPDATED" }) do pcall(ev.RegisterEvent, ev, e) end
   ev:SetScript("OnEvent", function(_, e, a1, a2)
     local q = busy.post
-    if e == "AUCTION_HOUSE_POST_ERROR" then
+    if e == "COMMODITY_SEARCH_RESULTS_UPDATED" then
+      if check and check.commodity then CheckDone(a1) end
+      return
+    elseif e == "ITEM_SEARCH_RESULTS_UPDATED" then
+      if check and not check.commodity and type(a1) == "table" and a1.itemID == check.id then CheckDone(check.id) end
+      return
+    elseif e == "AUCTION_HOUSE_POST_ERROR" then
       busy.on = false
       PostDone()
       Print(L["auction.postError"])

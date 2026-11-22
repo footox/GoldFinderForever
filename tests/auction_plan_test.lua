@@ -72,5 +72,18 @@ p = plan({ lowest = 800, vendor = 0, available = 2 })
 check("no market: no one-click (needs a reference)", not p.post
   and p.code == "noref")
 
+-- live price check helpers
+check("needs live: old scan", GF.AuctionNeedsLive(25, 10) == true)
+check("needs live: fresh scan", GF.AuctionNeedsLive(3, 10) == false)
+check("needs live: no scan at all", GF.AuctionNeedsLive(nil, 10) == true)
+check("needs live: 0 minutes disables it", GF.AuctionNeedsLive(500, 0) == false and GF.AuctionNeedsLive(nil, 0) == false)
+check("needs live: missing option disables it", GF.AuctionNeedsLive(500, nil) == false)
+check("lowest: cheapest that is not mine", GF.AuctionPickLowest({ { price = 90, mine = true }, { price = 100 }, { price = 120 } }) == 100)
+check("lowest: all mine, the cheapest overall", GF.AuctionPickLowest({ { price = 90, mine = true }, { price = 95, mine = true } }) == 90)
+check("lowest: nothing usable", GF.AuctionPickLowest({}) == nil and GF.AuctionPickLowest({ { price = 0 } }) == nil and GF.AuctionPickLowest(nil) == nil)
+check("drift: live above and below the stored price",
+  math.abs(GF.AuctionDrift(100, 120) - 20) < 1e-9 and math.abs(GF.AuctionDrift(200, 150) + 25) < 1e-9)
+check("drift: missing data gives nil", GF.AuctionDrift(nil, 100) == nil and GF.AuctionDrift(0, 100) == nil)
+
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")

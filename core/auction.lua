@@ -60,3 +60,32 @@ local function AuctionPlan(input)
 end
 
 GF.AuctionPlan = AuctionPlan
+
+-- Funcion pura: dado cuanto hace del ultimo escaneo (minutos, nil si no hay) y el maximo aceptado (minutos; 0 o
+-- menos lo desactiva), dice si hay que revisar el precio en vivo antes de publicar.
+function GF.AuctionNeedsLive(ageMin, maxMin)
+  maxMin = tonumber(maxMin) or 0
+  if maxMin <= 0 then return false end
+  return ageMin == nil or ageMin > maxMin
+end
+
+-- Funcion pura: de las primeras subastas de la consulta ({ { price, mine } }) el precio mas bajo que no es tuyo; si
+-- todas son tuyas, el mas bajo de todas. nil si no hay ninguna con precio.
+function GF.AuctionPickLowest(rows)
+  local best, bestAny
+  for _, r in ipairs(rows or {}) do
+    local p = tonumber(r.price)
+    if p and p > 0 then
+      if not bestAny or p < bestAny then bestAny = p end
+      if not r.mine and (not best or p < best) then best = p end
+    end
+  end
+  return best or bestAny
+end
+
+-- Funcion pura: cambio del precio en vivo frente al guardado, en %; nil si falta alguno.
+function GF.AuctionDrift(stored, live)
+  stored, live = tonumber(stored), tonumber(live)
+  if not (stored and live and stored > 0) then return nil end
+  return (live - stored) / stored * 100
+end

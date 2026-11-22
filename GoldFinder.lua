@@ -1179,6 +1179,14 @@ local function StartFullScan()
   else Print(format(L["scan.failed"], tostring(err))) end
 end
 
+-- minutos desde el ultimo escaneo de Auctionator (nil si no hay ninguno)
+local function ScanAgeMinutes()
+  local st = Auctionator and Auctionator.SavedState
+  local t = st and math.max(st.TimeOfLastReplicateScan or 0, st.TimeOfLastBrowseScan or 0) or 0
+  if t == 0 then return nil end
+  return (time() - t) / 60
+end
+
 local function ScanAgeText()
   local st = Auctionator and Auctionator.SavedState
   local t = st and math.max(st.TimeOfLastReplicateScan or 0, st.TimeOfLastBrowseScan or 0) or 0
@@ -1348,6 +1356,7 @@ GF.InitAuction({
   Money = function(...) return Money(...) end,
   Print = function(...) return Print(...) end,
   BankerName = function(...) return BankerName(...) end,
+  ScanAgeMin = function() return ScanAgeMinutes() end,
 })
 
 local ROW_H, ACT_W = 30, 112
@@ -2854,6 +2863,7 @@ local function MakeSettings(parent)
     { "postMaxPct", L["set.postMax"], 100, 500 },
     { "postUndercut", L["set.postUndercut"], 0, 500 },
     { "postCapDays", L["set.postCap"], 1, 14 },
+    { "postRefreshMin", L["set.postRefresh"], 0, 120 },
     { "postDuration", L["set.postDuration"], 12, 24 },
   }) do
     local box = CreateFrame("EditBox", nil, v, "InputBoxTemplate")
@@ -4283,6 +4293,7 @@ local function RegisterOptions()
     L["opt.postUndercut.t"])
   number("postCapDays", L["opt.postCap.l"], 1, 14, 1,
     L["opt.postCap.t"])
+  number("postRefreshMin", L["opt.postRefresh.l"], 0, 120, 1, L["opt.postRefresh.t"])
   number("postDuration", L["opt.postDuration.l"], 12, 24, 12, L["opt.postDuration.t"])
   -- banquero: se elige entre los personajes con los que ya has entrado; un deslizador con pasos en vez de un
   -- desplegable, porque el desplegable nativo falla en el cliente Forever (lo mismo hace SkillUp Forever)

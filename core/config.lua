@@ -34,6 +34,7 @@ GF.DEFAULTS = {
   postMinPct = 60,      -- precio minimo: % del valor de mercado (nunca por debajo de lo que paga el vendedor)
   postMaxPct = 200,     -- precio maximo: % del valor de mercado (si la mas barata pasa de aqui, precio normal)
   postUndercut = 1,     -- cobre por debajo de la subasta mas barata
+  postRefreshMin = 10,  -- minutos: si el ultimo escaneo es mas viejo, el primer clic revisa el precio en vivo (0 = no revisar)
   postCapDays = 2,      -- tope de unidades: lo que se vende en la region en estos dias (si TSM lo sabe)
   postDuration = 24,    -- duracion de la subasta en horas (12 o 24)
   language = "auto",    -- idioma: "auto" (el del cliente), "enUS" o "esES"
