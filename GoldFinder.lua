@@ -2250,6 +2250,17 @@ local RoutePlanFeature = GF.InitRoutePlan(setmetatable({
 }, { __index = _G }))
 local FarmCombos, RouteSummary = RoutePlanFeature.FarmCombos, RoutePlanFeature.RouteSummary
 
+-- Name of a material for the guide search: the game's, else the hidden tooltip's; an unknown one is asked for once.
+local askedSearch = {}
+local function SearchName(id)
+  local nm = C_Item.GetItemInfo(id)
+  if nm then return nm end
+  nm = TooltipName(id)
+  if nm then return nm end
+  if not askedSearch[id] and C_Item.RequestLoadItemDataByID then askedSearch[id] = true; C_Item.RequestLoadItemDataByID(id) end
+  return nil
+end
+
 function RefreshGuide()
   local f = GoldFinderGuide
   if not f or not f:IsShown() then return end
@@ -2344,6 +2355,14 @@ function RefreshGuide()
           break
         end
       end
+    end
+  end
+  if items and f.query and f.query ~= "" then
+    local found = GF.GuideBandsUsing(items, GoldFinderRecipes and GoldFinderRecipes.spells, SearchName, f.query)
+    local q = f.query:gsub("^%s+", ""):gsub("%s+$", "")
+    if found then
+      items = { { kind = "tip", text = (#found > 0) and format(L["gsearch.found"], q, #found) or format(L["gsearch.none"], q) } }
+      for _, it in ipairs(found) do items[#items + 1] = it end
     end
   end
   if not items then
@@ -2521,6 +2540,25 @@ function OpenGuide(name)
     end
     f.title = Text(f, 13, PAL.gold)
     f.title:SetPoint("TOPLEFT", gx, top)
+    -- search by material: leaves only the steps whose recipe uses it
+    local sb = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+    sb:SetSize(150, 20)
+    sb:SetPoint("TOPRIGHT", f, "TOPRIGHT", -18, top - 2)
+    sb:SetAutoFocus(false)
+    sb:SetMaxLetters(40)
+    sb.hint = Text(sb, 11, PAL.dim)
+    sb.hint:SetPoint("LEFT", 4, 0)
+    sb.hint:SetText(L["gsearch.hint"])
+    sb:SetScript("OnTextChanged", function(self, user)
+      local txt = self:GetText() or ""
+      if txt == "" then self.hint:Show() else self.hint:Hide() end
+      if user then f.query = txt; RefreshGuide() end
+    end)
+    sb:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    sb:SetScript("OnEscapePressed", function(self)
+      self:SetText(""); self:ClearFocus(); f.query = ""; RefreshGuide()
+    end)
+    f.search = sb
     local gy = f.native and -50 or -53
     f.gbg = Flat(f, "BACKGROUND", { 1, 1, 1, 0.10 })
     f.gbg:SetHeight(4)

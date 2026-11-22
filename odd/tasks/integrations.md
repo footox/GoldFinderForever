@@ -23,7 +23,7 @@ Branch: feat/guide-integrations (stacked on feat/materials-tab so the game loads
 - [ ] T3 (S4) Waylaid Crates | route: inline | commit: -
 - [ ] T4 (S5) recipe sources table | route: inline | commit: -
 - [ ] T5 (S6) who already knows a recipe | route: inline | commit: -
-- [ ] T6 (S7) search by material in the guide | route: inline | commit: -
+- [x] T6 (S7) search by material in the guide | route: inline | core/guide_search.lua, search box in the guide window | in-game check pending
 
 - [ ] T7 (S10) optional support for a popular interface manager (EllesmereUI): to evaluate first | route: inline | commit: -
 

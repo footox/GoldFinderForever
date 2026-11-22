@@ -155,6 +155,8 @@ function GF.InitGuide(d)
       .. (b.name and format("  |cffb3b3b3x%d|r", it.st.qty or b.crafts or 0) or "")
       .. (b.icy and "  |cff8a8a96(Icy Veins)|r" or "")
     local sub = {}
+    -- search by material: which material this step uses
+    if it.uses then sub[#sub + 1] = "   |cff6bb5ff" .. GF.UsesText(it.uses, L) .. "|r" end
     if grey or not b.name then return head, sub, miss end
     if not b.known then
       if b.learn == "i" then

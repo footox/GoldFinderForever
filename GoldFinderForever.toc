@@ -31,6 +31,7 @@ core/recipe_source.lua
 core/auction.lua
 core/proftabs.lua
 core/guide.lua
+core/guide_search.lua
 core/objective_text.lua
 core/routeplanner.lua
 adapters/wow.lua
