@@ -14,12 +14,13 @@ Branch / repository: a NEW addon with its own project and versions (name to deci
 - S7 Use in GoldFinder: the guide's gathering steps show "places you or your friends have found" next to the zone text. Map pins are a separate, later piece of work and are NOT part of the first version.
 - S8 Verification: offline tests for merging, distance threshold, delta building, validation of received points and API results; in-game tests with two clients following a checklist under `odd/validation/`.
 - S9 Scope against existing addons (2026-11-22): GatherMate2 already covers herb, mining and timber nodes for WoW Forever, with a separate GatherMate2_Data addon (user reports and the project pages; coverage may still be thin). This addon does NOT record those nodes a second time: when GatherMate2 is installed it reads them through its public interface (to verify: which functions it offers and that its data is readable in Forever); without it, node recording stays off. What this addon records and shares itself are the point types nobody else offers: trainers and vendors, where recipe items are sold or dropped, fishing spots and any point GoldFinder's guide needs. The name "gather-db" is kept for this spec; the addon's own name should say "points of interest".
+- S10 Using the data: "Y poder utilizarla." (user, 2026-11-22). Two ways. For other addons, GoldFinder first: the public API of S5. For the player, in the game: a simple command to query the base by type and zone (for example `/poi near` for the closest points, or `/poi where <item>` for where something is sold or dropped), printing a short list in the chat. Map pins stay a later phase and are not promised. Export of the player's own recorded points as text is a possible later addition.
 
 ## Tasks
 
 - [ ] T0 write the API contract (S5) and the sync message format (S4) before any code | route: inline | commit: -
 - [ ] T1 (S3) addon skeleton, node recorder and merge (`core/` pure + tests) | route: inline | commit: -
-- [ ] T2 (S5) public API and its tests | route: inline | commit: -
+- [ ] T2 (S5,S10) public API, the player's query command and their tests | route: inline | commit: -
 - [ ] T3 (S4) sharing over the `share-prices` channel, with deltas and limits | route: inline | commit: -
 - [ ] T4 (S7) GoldFinder reads the API and shows the found places in the guide | route: inline | commit: -
 - [ ] T5 (S8) in-game validation with two clients | route: inline | commit: -
@@ -35,3 +36,4 @@ Risk: item 3 (a public API others would depend on, and a message format between 
 - L3 (2026-11-22, user): "O seria un addon nuevo para no sobrecargar este." -> decision: a separate addon from the start (assistant had first suggested a module inside GoldFinder to extract later; the user's reason about load and optionality wins).
 - L4 (2026-11-22, user): "Sí, anótala y seguimos con la validación" -> registered as a spec; work starts after the current validation and share-prices.
 - L5 (2026-11-22, user): "Pero seria bueno tener un addon solo para la bd" -> kept as a separate addon; scope set by S9 so it adds what GatherMate2 does not and reads its nodes instead of duplicating them.
+- L6 (2026-11-22, user): "Y poder utilizarla." -> added S10: usable by other addons through the API and by the player through a simple in-game query command; pins later.
