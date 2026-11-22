@@ -17,6 +17,7 @@ function GF.InitRouteHelpers(d)
     d.SellValue,
     d.VendorPrice
   local format = string.format
+  local L = GF.L
   local RK = {}
   d.Skin.Route = RK
 
@@ -58,19 +59,19 @@ function GF.InitRouteHelpers(d)
 
   -- Profesion de fabricacion sin plan: por que (o nil si no hay nada que hacer).
   function RK.NoRouteReason(pd)
-    if not pd.crafts then return "Abre la ventana de la profesion una vez" end
+    if not pd.crafts then return L["route.noRoute.open"] end
     local top = pd.maxRank or 300
     if pd.rank and pd.rank >= top then
       if top >= 300 then return nil end
-      return "Entrena el siguiente rango para seguir"
+      return L["route.noRoute.train"]
     end
-    return "Ninguna receta (sabida o del instructor) sube tu habilidad: visita al instructor"
+    return L["route.noRoute.visit"]
   end
 
   -- Ruta hasta el tope que no llega (faltan recetas): texto para las compras; nil si llega.
   function RK.CapReason(r)
     if not (r and r.truncated) then return nil end
-    return format("ruta hasta %d (faltan recetas para llegar a %d: visita al instructor)", r.to, r.cap)
+    return format(L["route.cap"], r.to, r.cap)
   end
 
   -- Comparacion de tu ruta (coste del plan: BuyPrice + aprender recetas, y lo que recupera vendiendo) con las otras
@@ -82,41 +83,38 @@ function GF.InitRouteHelpers(d)
     for _, o in ipairs(others) do all[#all + 1] = o end
     local anyUnknown = false
     for _, o in ipairs(all) do
-      head[#head + 1] = format("%s %s%s", o.name, Money(o.cost), o.unknown > 0 and (" (+" .. o.unknown .. " sin precio)") or "")
+      head[#head + 1] = format("%s %s%s", o.name, Money(o.cost), o.unknown > 0 and format(L["route.unpriced"], o.unknown) or "")
       if o.unknown > 0 then anyUnknown = true end
     end
-    out[#out + 1] = format("|cff6bb5ffRutas hasta %d con tus precios (compras):|r %s", cap, table.concat(head, "  |  "))
+    out[#out + 1] = format(L["route.head"], cap, table.concat(head, "  |  "))
     local sell = mine.sell or 0
     local mineNet = mine.cost - sell
     if sell > 0 then
-      out[#out + 1] = format("Tu ruta recupera ~%s vendiendo lo fabricado: al final %s ~%s.", Money(sell),
-        mineNet < 0 and "ganas" or "te cuesta", Money(math.abs(mineNet)))
+      out[#out + 1] = format(L["route.recovers"], Money(sell),
+        mineNet < 0 and L["route.endGain"] or L["route.endCost"], Money(math.abs(mineNet)))
     end
     local cheapest = others[1]
     for i = 2, #others do
       if others[i].cost < cheapest.cost then cheapest = others[i] end
     end
     if mine.truncated then
-      out[#out + 1] = format("Ojo: tu ruta solo llega a %d (faltan recetas para llegar a %d: visita al instructor). Materiales de %s:",
-        mine.to or 0, cap, cheapest.name)
+      out[#out + 1] = format(L["route.truncated"], mine.to or 0, cap, cheapest.name)
       return out, cheapest
     end
     if anyUnknown then
-      out[#out + 1] = "Hay materiales sin precio: escanea la subasta antes de elegir ruta por coste."
+      out[#out + 1] = L["route.scanFirst"]
       return out, nil
     end
     -- Tu ruta elige recetas que recuperan oro vendiendo lo fabricado; de las otras guias no se sabe que se vende,
     -- asi que solo se declara ganadora una ruta cuando lo es pase lo que pase: la tuya si compra menos, la otra si
     -- cuesta menos que lo que a ti te queda despues de vender. Si no, se muestran los numeros y decides tu.
     if mine.cost <= cheapest.cost then
-      out[#out + 1] = format("Conviene |cffffd100tu ruta|r: compras ~%s menos.", Money(cheapest.cost - mine.cost))
+      out[#out + 1] = format(L["route.bestOwn"], Money(cheapest.cost - mine.cost))
       return out, mine
     elseif cheapest.cost < mineNet then
-      out[#out + 1] = format("Conviene la de |cffffd100%s|r: cuesta ~%s menos aun contando lo que tu recuperas vendiendo.",
-        cheapest.name, Money(mineNet - cheapest.cost))
+      out[#out + 1] = format(L["route.bestOther"], cheapest.name, Money(mineNet - cheapest.cost))
     else
-      out[#out + 1] = format("|cffffd100%s|r pide menos compra; tu ruta pide mas pero recupera vendiendo. Materiales de %s:",
-        cheapest.name, cheapest.name)
+      out[#out + 1] = format(L["route.lessBuy"], cheapest.name, cheapest.name)
     end
     return out, cheapest
   end

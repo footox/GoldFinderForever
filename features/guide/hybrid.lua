@@ -25,6 +25,7 @@ function GF.InitGuide(d)
     d.TrainReq,
     d.WhereText
   local format = string.format
+  local L = GF.L
   local BuildGuide
 
 
@@ -150,7 +151,7 @@ function GF.InitGuide(d)
     icon = icon or (b.spell and GF.SpellTexture(b.spell)) or nil
     local head = (icon and format("|T%s:16:16:0:-2|t ", tostring(icon)) or "")
       .. (grey and "" or "|cffffd100") .. format("%d-%d", b.from, b.to) .. (grey and "  " or "|r  ")
-      .. (b.name or "sin receta conocida en las tablas del juego")
+      .. (b.name or L["guide.noRecipe"])
       .. (b.name and format("  |cffb3b3b3x%d|r", it.st.qty or b.crafts or 0) or "")
       .. (b.icy and "  |cff8a8a96(Icy Veins)|r" or "")
     local sub = {}
@@ -159,28 +160,27 @@ function GF.InitGuide(d)
       if b.learn == "i" then
         local nm, m = ItemName(b.item)
         miss = miss or m
-        sub[#sub + 1] = format("|cffff9966Receta de vendedor/botin:|r %s (pide %d)", nm, b.req or 0)
+        sub[#sub + 1] = format(L["guide.vendorRecipe"], nm, b.req or 0)
       elseif b.learn == "u" then
-        sub[#sub + 1] = format("|cffff9966Origen desconocido|r (no sale en las tablas del juego; habilidad aprox. %d)",
-          b.req or 0)
+        sub[#sub + 1] = format(L["guide.unknownSource"], b.req or 0)
       else
         local l = it.learn
-        local who = (l and l.npc) and (l.npc .. " en " .. WhereText(l)) or "el instructor de la profesion"
+        local who = (l and l.npc) and format(L["guide.npcIn"], l.npc, WhereText(l)) or L["guide.trainer"]
         local cost = b.trainerRec and b.trainerRec.cost and b.trainerRec.cost > 0 and (", " .. Money(b.trainerRec.cost)) or ""
-        sub[#sub + 1] = format("|cffff9966Aprendela con|r %s (pide %d%s)%s", who, b.req or 0, cost,
-          b.approx and " |cff8a8a96(habilidad aprox.)|r" or "")
+        sub[#sub + 1] = format(L["guide.learnWith"], who, b.req or 0, cost,
+          b.approx and L["guide.approx"] or "")
       end
     elseif it.current then
-      sub[#sub + 1] = "|cff59eb8dYa sabes esta receta|r"
+      sub[#sub + 1] = L["guide.known"]
     end
     if b.opt then
       local nm, m = ItemName(b.opt.item)
       miss = miss or m
-      sub[#sub + 1] = format("Opcional, mas barata: %s (%s, receta de vendedor/botin)", b.opt.name or "?", nm)
+      sub[#sub + 1] = format(L["guide.optional"], b.opt.name or "?", nm)
     end
     if b.alt then
-      sub[#sub + 1] = format("|cff59eb8dCon tus precios conviene:|r %s x%d (coste ~%s%s)", b.alt.what, b.alt.n or 0,
-        ShortMoney(b.alt.cost), b.cost and (" frente a ~" .. ShortMoney(b.cost)) or "")
+      sub[#sub + 1] = format(L["guide.alt"], b.alt.what, b.alt.n or 0,
+        ShortMoney(b.alt.cost), b.cost and format(L["guide.versus"], ShortMoney(b.cost)) or "")
     end
     if it.current and b.mats and #b.mats > 0 then
       local parts = {}
@@ -189,9 +189,9 @@ function GF.InitGuide(d)
         miss = miss or mm
         if m.missing > 0 then parts[#parts + 1] = format("|cffffa640%s %d|r", nm, m.missing) end
       end
-      sub[#sub + 1] = (#parts > 0) and ("Te falta: " .. table.concat(parts, ", ")
+      sub[#sub + 1] = (#parts > 0) and (format(L["guide.missing"], table.concat(parts, ", "))
         .. (b.cost and (" (~" .. ShortMoney(b.cost) .. ")") or ""))
-        or "|cff59eb8dListo: tienes los materiales del tramo|r"
+        or L["guide.ready"]
     end
     return head, sub, miss
   end

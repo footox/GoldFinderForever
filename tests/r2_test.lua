@@ -12,7 +12,7 @@ end
 
 -- the planner lives in core/routeplanner.lua and gets its dependencies from the stubbed env below
 local GF = {}
-for _, path in ipairs({ "core/config.lua", "core/routeplanner.lua" }) do
+for _, path in ipairs({ "core/config.lua", "core/locale.lua", "locales/enUS.lua", "core/routeplanner.lua" }) do
   local fn = assert(loadfile(path))
   setfenv(fn, setmetatable({}, { __index = _G }))
   fn("GoldFinder", GF)
@@ -155,12 +155,12 @@ RK.LearnRecipe(c, 2, "Cheap", "Horde")
 check("2 never opened: crafts stays nil", c.prof.Leatherworking.crafts == nil and c.prof.Leatherworking.learned.Cheap)
 
 -- 5. Crafting profession without a plan: reason text.
-check("5 at cap", RK.NoRouteReason({ rank = 150, maxRank = 150, crafts = {} }) == "Entrena el siguiente rango para seguir")
-check("5 never opened", RK.NoRouteReason({ rank = 50, maxRank = 75 }) == "Abre la ventana de la profesion una vez")
+check("5 at cap", RK.NoRouteReason({ rank = 150, maxRank = 150, crafts = {} }) == "Train the next rank to continue")
+check("5 never opened", RK.NoRouteReason({ rank = 50, maxRank = 75 }) == "Open the profession window once")
 
 -- 1. Compras text for a truncated route.
 check("1 cap reason", RK.CapReason({ truncated = true, to = 130, cap = 150 })
-  == "ruta hasta 130 (faltan recetas para llegar a 150: visita al instructor)")
+  == "route up to 130 (recipes missing to reach 150: visit the trainer)")
 check("1 cap reason complete", RK.CapReason({ truncated = false, to = 150, cap = 150 }) == nil)
 
 -- 4. Route comparison: truncated own route and unknown prices never declare a winner.
@@ -168,13 +168,13 @@ local other = { name = "Icy Veins", cost = 5000, unknown = 0, rows = {} }
 local lines, best = RK.RouteVerdict({ name = "Tu ruta", cost = 1000, unknown = 0, sell = 0, truncated = true, to = 130 },
   { other }, 150)
 local txt = joined(lines)
-check("4 truncated: says it only reaches to", txt:find("tu ruta solo llega a 130", 1, true) ~= nil
-  and not txt:find("Conviene", 1, true))
+check("4 truncated: says it only reaches to", txt:find("your route only reaches 130", 1, true) ~= nil
+  and not txt:find("better pick", 1, true))
 lines = RK.RouteVerdict({ name = "Tu ruta", cost = 1000, unknown = 1, sell = 0, to = 150 }, { other }, 150)
 txt = joined(lines)
-check("4 unknown prices: no winner", txt:find("sin precio", 1, true) ~= nil and not txt:find("Conviene", 1, true))
+check("4 unknown prices: no winner", txt:find("no price", 1, true) ~= nil and not txt:find("better pick", 1, true))
 lines, best = RK.RouteVerdict({ name = "Tu ruta", cost = 1000, unknown = 0, sell = 0, to = 150 }, { other }, 150)
-check("4 priced and complete: own route wins", joined(lines):find("Conviene |cffffd100tu ruta|r", 1, true) ~= nil
+check("4 priced and complete: own route wins", joined(lines):find("|cffffd100Your route|r is the better pick", 1, true) ~= nil
   and best and best.name == "Tu ruta")
 
 -- 9. Fabricar: buy prices from BuyPrice (vendor), no price = "sin precio", gain when buying, capped total.
