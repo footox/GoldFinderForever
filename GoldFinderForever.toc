@@ -7,7 +7,7 @@
 ## X-License: MIT
 ## X-Curse-Project-ID: 1820519
 ## Dependencies: Auctionator
-## OptionalDeps: TradeSkillMaster, QuestieDB
+## OptionalDeps: TradeSkillMaster, QuestieDB, GoldFinderForeverData
 ## SavedVariables: GoldFinderForeverDB
 
 core/config.lua
@@ -35,6 +35,7 @@ adapters/wow.lua
 adapters/bags.lua
 adapters/quests.lua
 adapters/questie.lua
+adapters/gfdata.lua
 ui/widgets.lua
 features/vendor/panel.lua
 features/mail/panel.lua

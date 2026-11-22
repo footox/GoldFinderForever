@@ -99,5 +99,34 @@ do
   check("line: no npc or no entry gives nil", GF.RecipeSourceLine({}, LL, where) == nil and GF.RecipeSourceLine(nil, LL, where) == nil)
 end
 
+-- 3. WithRecipeSource with the data addon (and without QuestieDB)
+do
+  local DATA = { { type = "RECIPE_SOLD", npcId = 3366, itemId = 777, zone = 1454, x = 0.6304, y = 0.4547, name = "Tamar", confirmations = 1 } }
+  local clearCb
+  local G3 = {
+    UnitFactionGroup = function() return "Horde" end,
+    C_Map = { GetMapInfo = function() return { name = "Orgrimmar" } end },
+    GoldFinderForeverData = { FindItem = function(id)
+        local out = {}
+        for _, p in ipairs(DATA) do if p.itemId == id then out[#out + 1] = p end end
+        return out
+      end,
+      Subscribe = function(fn) clearCb = fn; return 1 end },
+  }
+  local GF3 = {}
+  run("core/recipe_source.lua", G3, GF3)
+  run("adapters/questie.lua", G3, GF3)
+  run("adapters/gfdata.lua", G3, GF3)
+  local l = GF3.WithRecipeSource({ item = 777 })
+  check("data only: the entry gets npc, zone and place", l.npc == "Tamar" and l.zone == "Orgrimmar" and l.x == 63.0 and l.y == 45.5)
+  check("data only: the data addon is watched for changes", clearCb ~= nil)
+  local none = GF3.WithRecipeSource({ item = 888 })
+  check("data only: an item nobody recorded stays without a place", none.npc == nil and none.zone == nil)
+  DATA[#DATA + 1] = { type = "RECIPE_SOLD", npcId = 3367, itemId = 888, zone = 1454, x = 0.5, y = 0.5, name = "New", confirmations = 1 }
+  local later = GF3.WithRecipeSource({ item = 888 })
+  check("data only: nothing is cached without QuestieDB, so a new point shows at once", later.npc == "New")
+  check("an entry that already has a place is left alone", GF3.WithRecipeSource({ item = 777, zone = "X", npc = "Y" }).npc == "Y")
+end
+
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")

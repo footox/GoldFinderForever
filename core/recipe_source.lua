@@ -50,3 +50,38 @@ function GF.RecipeSourceLine(l, L, where)
   end
   return string.format(L["guide.srcVendor"], l.npc, place, more)
 end
+
+-- Two source APIs (same shape as above) become one: vendors and drops are the sorted union of both lists, and npc(id)
+-- asks a first and b only when a does not know the creature (a is the one with levels and factions). Either may be nil;
+-- both nil gives nil. A source that raises is treated as having nothing.
+function GF.MergeSourceApis(a, b)
+  if not a then return b end
+  if not b then return a end
+  local function list(fn, id)
+    local ok, out = pcall(fn, id)
+    return (ok and type(out) == "table") and out or {}
+  end
+  local function union(fn)
+    return function(id)
+      local seen, out = {}, {}
+      for _, src in ipairs({ a, b }) do
+        for _, n in ipairs(list(src[fn], id)) do
+          if not seen[n] then seen[n] = true; out[#out + 1] = n end
+        end
+      end
+      table.sort(out)
+      return out
+    end
+  end
+  return {
+    vendors = union("vendors"),
+    drops = union("drops"),
+    npc = function(id)
+      for _, src in ipairs({ a, b }) do
+        local ok, npc = pcall(src.npc, id)
+        if ok and npc then return npc end
+      end
+      return nil
+    end,
+  }
+end

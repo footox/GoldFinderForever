@@ -39,17 +39,27 @@ end
 
 local cache = {}
 
--- learn = { item = recipeItemId, ... }: if QuestieDB knows where to get that item and the entry has no place yet, the
+-- Forget every cached answer (the data addon calls this when it records or receives a point).
+function GF.ClearRecipeSourceCache()
+  for k in pairs(cache) do cache[k] = nil end
+end
+
+-- learn = { item = recipeItemId, ... }: if QuestieDB (or the data addon, GoldFinderForeverData) knows where to get that item and the entry has no place yet, the
 -- same table gets zone, npc, x, y (a vendor) or zone, npc, level, drop = true (a loot source), plus others = more places.
 function GF.WithRecipeSource(learn)
   if type(learn) ~= "table" or not learn.item or learn.zone or learn.npc then return learn end
   local src = cache[learn.item]
   if src == nil then
-    local api = Api()
-    if not api then return learn end   -- QuestieDB not ready (or not installed): try again next time, cache nothing
+    local questie = Api()
+    local data = GF.DataSourceApi and GF.DataSourceApi() or nil
+    local api = GF.MergeSourceApis(questie, data)
+    if not api then return learn end   -- neither source is ready (or installed): try again next time, cache nothing
+    if data and GF.WatchDataAddon then GF.WatchDataAddon() end
     local ok, res = pcall(GF.PickRecipeSource, api, learn.item, UnitFactionGroup and UnitFactionGroup("player") or nil)
     src = (ok and res) or false
-    if ok then cache[learn.item] = src end   -- a genuine "no source" is cached; a transient error is not
+    -- a genuine "no source" is cached; a transient error is not; without QuestieDB nothing is cached because it may
+    -- still be loading and would change the answer
+    if ok and questie then cache[learn.item] = src end
   end
   if src then
     learn.zone, learn.npc, learn.x, learn.y = src.zone, src.name, src.x, src.y

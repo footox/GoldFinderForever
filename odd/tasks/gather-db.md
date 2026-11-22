@@ -25,7 +25,8 @@ Branch / repository: a NEW addon with its own project and versions (name to deci
 - [x] T1 (S3, pure part) skeleton and pure core: model, merge, protocol parse/encode, deltas, rate limiter, queries; 348 checks pass (reviewed 2026-11-22) | route: delegated to a peer session | commit: POI-2..POI-7 in J:\Repository\poi-db
 - [ ] T2 (S5,S10) public API, the player's query command and their tests | route: inline | commit: -
 - [ ] T3 (S4) sharing over the `share-prices` channel, with deltas and limits | route: inline | commit: -
-- [ ] T4 (S7) GoldFinder reads the API and shows the found places in the guide | route: inline | commit: -
+- [x] T4a (S7) GoldFinder reads the API and shows where recipe items are sold or dropped (adapters/gfdata.lua, GF.MergeSourceApis; QuestieDB first for creature details, the data addon fills the gaps) | route: inline | commit: GF-121 (needs the in-game check)
+- [ ] T4b (S7) fishing spots and trainers recorded by players in the guide steps | route: inline | commit: -
 - [ ] T5 (S8) in-game validation with two clients | route: inline | commit: -
 
 Order: this starts after GoldFinder's current in-game validation and after `share-prices` is built and tested, because T3 reuses its channel and limits.
@@ -47,4 +48,4 @@ Risk: item 3 (a public API others would depend on, and a message format between 
 - L11 (2026-11-22, user): "Supongo despues lo vamos absorver,no?" -> yes, as submodules of the suite (S12), not as merged code; "GoldFinderData" -> S13: rename now, before the first run. Rename assigned to the peer session; the installed copies will be replaced after it is verified.
 - L12 (2026-11-22): rename to GoldFinderData / GoldFinderDataRecorder / GoldFinderDataSync done by the peer session (POI-20, POI-21) and re-verified: 965 PASS, 0 FAIL, luac clean, TOCs consistent, only HANDOFF.md history mentions the old names. The old installed folders (never run, no saved data) were removed and GoldFinderData + GoldFinderDataRecorder installed in the game AddOns folder, identical to the repo. Sync not installed. First in-game run pending.
 - L13 (2026-11-22, user): "gfdata" -> `/poi` dropped, `/gfdata` is the only slash command (POI-22, POI-23). Re-verified: 975 PASS, 0 FAIL, luac clean; the installed folders were replaced and are identical to the repo. If /gfdata is already taken by another addon the data addon still loads, says so once in chat and keeps working through the API.
-
+- L15 (2026-11-22): the first in-game run of the data addon worked (7 real points in Orgrimmar, /gff data near vendor answered). T4 split: T4a recipe sources done offline; T4b (fishing places, trainers) later. Item ids up to 6 digits exist in Forever (252783).

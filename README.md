@@ -22,7 +22,7 @@ GoldFinder Forever reads your bags and the auction prices and tells you, item by
 - **Mailbox** (off by default): send what should be auctioned to your banker character, with a checkbox per item.
 - **Bags**: an X button hides an item from the list (per character) and a Show button brings it back.
 - **Shopping**: what you are missing for each profession, with a List button that sends it (exact names and quantities) to an Auctionator shopping list, plus one list per profession.
-- **Professions**: Route and Craft tabs in the professions window, skill-up chance and cost per point on each recipe, and a 1-300 guide with your own prices. It includes Fishing and, with QuestieDB, where to get the recipes that are taught by an item.
+- **Professions**: Route and Craft tabs in the professions window, skill-up chance and cost per point on each recipe, and a 1-300 guide with your own prices. It includes Fishing and, with QuestieDB or the data addon, where to get the recipes that are taught by an item.
 - **Tracking**: your next profession step in the objective tracker, with the icon of each material, the cost of what you are missing and the skill-up chance per craft.
 - **Welcome window**: opens once the first time you log in and lists what the addon does and which features are on.
 
@@ -32,7 +32,7 @@ GoldFinder Forever reads your bags and the auction prices and tells you, item by
 |---|---|
 | Client | WoW: Forever (Interface `16001`) |
 | Required | [Auctionator](https://www.curseforge.com/wow/addons/auctionator) for auction prices |
-| Optional | QuestieDB (quest items and recipe sources), TradeSkillMaster (market prices) |
+| Optional | QuestieDB (quest items and recipe sources), TradeSkillMaster (market prices), GoldFinderForeverData (vendors, trainers and recipe sources recorded by players) |
 
 Install it from [CurseForge](https://www.curseforge.com/wow/addons/goldfinder-forever), or copy the folder **`GoldFinderForever`** (the one that contains `GoldFinderForever.toc`) into `Interface/AddOns`.
 
@@ -65,6 +65,12 @@ The Spanish aliases (`ajustes`, `guia`, `ruta`, `tope`, `bienvenida`) work too.
 
 <!-- changelog:start -->
 
+### Unreleased
+
+**Features**
+- Optional data addon support: if GoldFinderForeverData is installed, the guide also says where to get a recipe item from the vendors and drops its players recorded, next to what QuestieDB knows (it fills the gaps, for example recipes QuestieDB does not list).
+- /gff data <command> runs a command of the data addon (for example /gff data help or /gff data near vendor).
+
 ### 2.3.0
 
 **Features**
@@ -76,6 +82,9 @@ The Spanish aliases (`ajustes`, `guia`, `ruta`, `tope`, `bienvenida`) work too.
 - On by default now: the next profession step in the objective tracker, the Shopping tab with its List button, and the warning about materials your other characters need. All can be turned off in the options; the mailbox panel stays off by default.
 - The main command is now /gff. /gf keeps working only while no other addon uses it.
 - The minimap button and the option entries have their own names, so they no longer share them with other addons.
+
+<details>
+<summary>Older versions (2.2.1 to 2.0)</summary>
 
 ### 2.2.1
 
@@ -99,9 +108,6 @@ The Spanish aliases (`ajustes`, `guia`, `ruta`, `tope`, `bienvenida`) work too.
 - Wide state buttons no longer overlap the price column.
 - The scan indicator no longer reports a failed scan just because it was quiet for a while.
 - A recipe source that could not be read at login is looked up again later.
-
-<details>
-<summary>Older versions (2.2.0 to 2.0)</summary>
 
 ### 2.2.0
 
