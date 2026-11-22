@@ -173,7 +173,7 @@ function GF.InitMail(d)
     local row = {}
     row.cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     row.cb:SetSize(22, 22)
-    row.cb:SetPoint("TOPLEFT", 12, -(52 + (i - 1) * ROW_H))
+    row.cb:SetPoint("TOPLEFT", 12, -(52 + i * ROW_H))
     row.cb:SetScript("OnClick", function(self)
       if self:GetChecked() then excluded[row.id] = nil else excluded[row.id] = true end
       pcall(RefreshMail)
@@ -184,11 +184,32 @@ function GF.InitMail(d)
       GameTooltip:Show()
     end)
     row.cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    row.icon = f:CreateTexture(nil, "ARTWORK")
+    row.icon:SetSize(18, 18)
+    row.icon:SetPoint("LEFT", row.cb, "RIGHT", 2, 0)
     row.text = Text(f, 12, PAL.text)
-    row.text:SetPoint("LEFT", row.cb, "RIGHT", 2, 0)
-    row.text:SetWidth(250)
+    row.text:SetPoint("LEFT", row.icon, "RIGHT", 5, 0)
+    row.text:SetWidth(228)
     row.text:SetJustifyH("LEFT")
     return row
+  end
+
+  -- casilla "seleccionar todo": si todo esta marcado la accion es desmarcar todo, si no, marcar todo
+  local function NewSelectAll(f)
+    local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    cb:SetSize(22, 22)
+    cb:SetPoint("TOPLEFT", 12, -52)
+    cb:SetScript("OnClick", function(self)
+      local on = self:GetChecked() and true or false
+      for _, r in ipairs(f.allRows or {}) do
+        if on then excluded[r.id] = nil else excluded[r.id] = true end
+      end
+      pcall(RefreshMail)
+    end)
+    cb.text = Text(f, 12, PAL.dim)
+    cb.text:SetPoint("LEFT", cb, "RIGHT", 2, 0)
+    cb.text:SetText(L["mail.selectAll"])
+    return cb
   end
 
   function RefreshMail()
@@ -213,6 +234,7 @@ function GF.InitMail(d)
       f.title = Text(f, 12, PAL.text)
       f.title:SetPoint("TOPLEFT", 18, -36)
       f.rows = {}
+      f.all = NewSelectAll(f)
       f.more = Text(f, 12, PAL.dim)
       f.foot = Text(f, 12, PAL.dim)
       f.foot:SetPoint("BOTTOMLEFT", 18, 44)
@@ -228,22 +250,29 @@ function GF.InitMail(d)
     end
     f.title:SetText(format(L["mail.panel.title"], banker))
     local shown = math.min(n, MAIL_LINES)
+    f.allRows = rows
+    local allOn = true
+    for _, r in ipairs(rows) do if excluded[r.id] then allOn = false; break end end
+    f.all:SetChecked(allOn)
     for i = 1, shown do
       local r = rows[i]
       local row = f.rows[i]
       if not row then row = NewRow(f, i); f.rows[i] = row end
       row.id = r.id
       row.cb:SetChecked(not excluded[r.id])
+      row.icon:SetTexture((C_Item.GetItemIconByID and C_Item.GetItemIconByID(r.id)) or 134400)
+      row.icon:SetDesaturated(excluded[r.id] and true or false)
       row.text:SetText(format("%s  |cffffffffx%d|r  |cffb3b3b3%s|r", ItemLink(r.id), r.sellQty, ShortMoney(r.unit * r.sellQty)))
       row.text:SetAlpha(excluded[r.id] and 0.4 or 1)
       row.cb:Show()
+      row.icon:Show()
       row.text:Show()
     end
-    for i = shown + 1, #f.rows do f.rows[i].cb:Hide(); f.rows[i].text:Hide() end
+    for i = shown + 1, #f.rows do f.rows[i].cb:Hide(); f.rows[i].icon:Hide(); f.rows[i].text:Hide() end
     if n > MAIL_LINES then
       f.more:SetText(format(L["mail.more"], n - MAIL_LINES))
       f.more:ClearAllPoints()
-      f.more:SetPoint("TOPLEFT", 18, -(58 + shown * ROW_H))
+      f.more:SetPoint("TOPLEFT", 18, -(58 + (shown + 1) * ROW_H))
       f.more:Show()
     else
       f.more:Hide()
@@ -253,7 +282,7 @@ function GF.InitMail(d)
     local mails = #plan.attach > 0 and (1 + plan.remaining) or 0
     if mails > 0 and MailOpen() then f.send:Enable() else f.send:Disable() end
     f.mails:SetText(mails > 0 and format(L["mail.panel.mails"], mails) or L["mail.panel.none"])
-    f:SetHeight(56 + shown * ROW_H + (n > MAIL_LINES and 16 or 0) + 66)
+    f:SetHeight(56 + (shown + 1) * ROW_H + (n > MAIL_LINES and 16 or 0) + 66)
     f:Show()
   end
 
