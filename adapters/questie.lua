@@ -46,10 +46,10 @@ function GF.WithRecipeSource(learn)
   local src = cache[learn.item]
   if src == nil then
     local api = Api()
-    local ok, res = false, nil
-    if api then ok, res = pcall(GF.PickRecipeSource, api, learn.item, UnitFactionGroup and UnitFactionGroup("player") or nil) end
+    if not api then return learn end   -- QuestieDB not ready (or not installed): try again next time, cache nothing
+    local ok, res = pcall(GF.PickRecipeSource, api, learn.item, UnitFactionGroup and UnitFactionGroup("player") or nil)
     src = (ok and res) or false
-    cache[learn.item] = src
+    if ok then cache[learn.item] = src end   -- a genuine "no source" is cached; a transient error is not
   end
   if src then
     learn.zone, learn.npc, learn.x, learn.y = src.zone, src.name, src.x, src.y

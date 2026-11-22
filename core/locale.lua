@@ -51,7 +51,7 @@ end
 -- A list of zones in the data reads "Durotar, Mulgore o Tirisfal Glades": in English the Spanish " o " becomes " or ".
 function GF.ZoneText(text)
   if type(text) ~= "string" or active ~= "enUS" then return text end
-  return (text:gsub(" o ", " or "))
+  return (text:gsub(" o (%u)", " or %1"))
 end
 
 -- Until the saved setting is read (ADDON_LOADED), follow the client.

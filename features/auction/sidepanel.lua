@@ -124,6 +124,7 @@ function GF.SidePanel.Attach(ui, header, inset, cfg)
     shut = not shut
     if GoldFinderDB then GoldFinderDB.sideShut = shut or nil end
     apply()
+    pcall(ui.refresh)   -- the list width changed: lay the columns out again
   end)
   toggle:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")

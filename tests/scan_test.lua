@@ -27,6 +27,7 @@ s = GF.ScanNext({ on = true, pct = 0.5 }, "failed")
 check("failed: stopped and flagged", s.on == false and s.failed == true and GF.ScanPercent(s) == 0)
 s = GF.ScanNext(nil, "progress", 0.3)
 check("progress without a start still shows the scan", s.on and GF.ScanPercent(s) == 30)
+check("stop clears the indicator without claiming a failure", (function() local x = GF.ScanNext({ on = true, pct = 0.4 }, "stop"); return x.on == false and x.pct == 0 and x.failed == nil end)())
 check("unknown event leaves the state alone", GF.ScanNext({ on = true, pct = 0.2 }, "nope").pct == 0.2)
 check("nil state gives 0", GF.ScanPercent(nil) == 0)
 

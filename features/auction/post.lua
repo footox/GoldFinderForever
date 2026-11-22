@@ -48,13 +48,16 @@ function GF.InitAuction(d)
   local LIVE_TTL, CHECK_WAIT = 120, 8
   local live = {}      -- [id] = { price, at }
   local check          -- consulta en curso: { id, commodity, key, at }
-  local function LiveLowest(id)
+  local function LiveFresh(id)
     local e = live[id]
-    if e and (GetTime() - e.at) < LIVE_TTL then return e.price end
-    return nil
+    return e and (GetTime() - e.at) < LIVE_TTL and e or nil
+  end
+  local function LiveLowest(id)
+    local e = LiveFresh(id)
+    return e and e.price or nil   -- a failed check has no price: the saved one stays
   end
   local function NeedsCheck(id)
-    if LiveLowest(id) then return false end
+    if LiveFresh(id) then return false end   -- checked already (with or without a result): never loop
     return GF.AuctionNeedsLive(ScanAgeMin and ScanAgeMin() or nil, Cfg("postRefreshMin"))
   end
 
@@ -164,7 +167,11 @@ function GF.InitAuction(d)
     end)
     if not (okK and key) then return false end
     local commodity = IsCommodity(loc)
-    local ok = pcall(CA.SendSearchQuery, key, {}, true)
+    local sorts = {}
+    if Enum and Enum.AuctionHouseSortOrder and Enum.AuctionHouseSortOrder.Price then
+      sorts = { { sortOrder = Enum.AuctionHouseSortOrder.Price, reverseSort = false } }
+    end
+    local ok = pcall(CA.SendSearchQuery, key, sorts, true)
     if not ok then return false end
     check = { id = id, commodity = commodity, key = key, at = GetTime() }
     Print(L["auction.checking"])
@@ -173,6 +180,7 @@ function GF.InitAuction(d)
     C_Timer.After(CHECK_WAIT, function()
       if check == mine then
         check = nil
+        live[id] = { price = nil, at = GetTime() }   -- no answer: the next click uses the saved price instead of asking again
         Print(L["auction.checkTimeout"])
         RefreshShown()
       end
@@ -184,13 +192,13 @@ function GF.InitAuction(d)
     local CA, rows = C_AuctionHouse, {}
     if c.commodity then
       local n = (CA.GetNumCommoditySearchResults and CA.GetNumCommoditySearchResults(c.id)) or 0
-      for i = 1, math.min(n, 8) do
+      for i = 1, math.min(n, 30) do
         local info = CA.GetCommoditySearchResultInfo and CA.GetCommoditySearchResultInfo(c.id, i)
         if info then rows[#rows + 1] = { price = info.unitPrice, mine = info.containsOwnerItem } end
       end
     else
       local n = (CA.GetNumItemSearchResults and CA.GetNumItemSearchResults(c.key)) or 0
-      for i = 1, math.min(n, 8) do
+      for i = 1, math.min(n, 30) do
         local info = CA.GetItemSearchResultInfo and CA.GetItemSearchResultInfo(c.key, i)
         if info then rows[#rows + 1] = { price = info.buyoutAmount, mine = info.containsOwnerItem } end
       end
@@ -214,6 +222,7 @@ function GF.InitAuction(d)
       Print(dr and format(L["auction.checked"], name, Money(price), string.format("%+.0f%%", dr))
         or format(L["auction.checkedNoRef"], name, Money(price)))
     else
+      live[c.id] = { price = nil, at = GetTime() }   -- no listing or unreadable: the next click uses the saved price
       Print(L["auction.checkFailed"])
     end
     RefreshShown()

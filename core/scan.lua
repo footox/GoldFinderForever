@@ -14,6 +14,7 @@ function GF.ScanNext(state, kind, value)
   end
   if kind == "complete" then return { on = false, pct = 1 } end
   if kind == "failed" then return { on = false, pct = 0, failed = true } end
+  if kind == "stop" then return { on = false, pct = 0 } end   -- no news for a long time: clear the indicator, do not claim a failure
   return state
 end
 

@@ -37,7 +37,7 @@ function GF.ScanProgress.Start(onChange)
       if state.on and C_Timer and C_Timer.After then
         C_Timer.After(STALE, function()
           if serial == mine and state.on then
-            state = GF.ScanNext(state, "failed")
+            state = GF.ScanNext(state, "stop")
             pcall(onChange, state)
           end
         end)

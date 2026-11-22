@@ -1188,10 +1188,9 @@ local function ScanAgeMinutes()
 end
 
 local function ScanAgeText()
-  local st = Auctionator and Auctionator.SavedState
-  local t = st and math.max(st.TimeOfLastReplicateScan or 0, st.TimeOfLastBrowseScan or 0) or 0
-  if t == 0 then return L["scan.none"] end
-  return format(L["scan.last"], floor((time() - t) / 60))
+  local age = ScanAgeMinutes()
+  if not age then return L["scan.none"] end
+  return format(L["scan.last"], floor(age))
 end
 
 -- Prepara el objeto en la pestana Selling de Auctionator; publicas tu
@@ -1520,12 +1519,17 @@ local function MakeList(parent)
     end
     for i = n + 1, #rowFrames do rowFrames[i]:Hide() end
     -- sin botones en la lista: ese espacio se devuelve a las columnas
-    local anyAct, anyHide = false, false
+    local anyAct, anyHide, anyWide = false, false, false
     for i = 1, n do
-      if data[i].actions and #data[i].actions > 0 then anyAct = true end
+      local acts = data[i].actions
+      if acts and #acts > 0 then
+        anyAct = true
+        -- the first action button grows (see the row renderer) when its label is long: keep room for it
+        if #acts[1][1] > 6 then anyWide = true end
+      end
       if data[i].hide then anyHide = true end
     end
-    curAct = anyAct and (ACT_W + (anyHide and 26 or 0)) or 8
+    curAct = anyAct and (ACT_W + (anyHide and 26 or 0) + (anyWide and 18 or 0)) or 8
     relayout()
     content:SetHeight(math.max(n * ROW_H, 1))
     if n == 0 then empty:SetText(emptyMsg or ""); empty:Show() else empty:Hide() end
