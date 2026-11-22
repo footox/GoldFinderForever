@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.2.0
 
 - English (enUS) and Spanish (esES) interface; it follows the game language, with a language selector in the options.
 - The "Fijar" button is now "Guardar" (Keep) and its reasons say "lo guardaste tú".

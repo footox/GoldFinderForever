@@ -11,16 +11,20 @@ professions cheaply. Nothing is sold, posted or mailed without your click. The i
 - **Consejo en cada objeto**: vender, subastar o guardar, con el motivo (lo usa tu profesión, un alt o una misión).
 - **Panel del vendedor**: lo que conviene venderle, con botones Vender y Guardar.
 - **Casa de subastas**: pestaña GoldFinder con Subastar en un clic (precio y cantidad calculados al estilo TSM).
-- **Correo**: Enviar al banquero manda lo que hay que subastar a tu personaje banquero.
+- **Correo**: Enviar al banquero manda lo que hay que subastar a tu personaje banquero; cada línea tiene una
+  casilla (y "Seleccionar todo") para dejar objetos fuera de ese correo.
+- **Bolsas**: botón X para ocultar un objeto de la lista (por personaje) y botón Ver para recuperarlo.
 - **Profesiones**: pestañas Ruta y Fabricar en la ventana de profesiones, chance de subir y coste por punto en cada
   receta, y una guía 1-300 (`/gf guia`) con tus precios.
-- **Seguimiento**: tu siguiente paso de profesión en el seguimiento de objetivos.
+- **Seguimiento**: tu siguiente paso de profesión en el seguimiento de objetivos, con el icono de cada material,
+  lo que cuesta lo que te falta, la probabilidad de subir por fabricación y un aviso cuando la guía propone otra receta.
 - **Opciones** en Opciones > AddOns > GoldFinder Forever.
 
 ## Requisitos
 
-- Obligatorios: **Auctionator** (precios de subasta) y **QuestieDB** (objetos de misiones y cadenas).
-- Opcional: **TradeSkillMaster** (precios de mercado).
+- Obligatorio: **Auctionator** (precios de subasta).
+- Opcionales: **QuestieDB** (objetos de misiones y cadenas; sin él esas necesidades se omiten) y
+  **TradeSkillMaster** (precios de mercado).
 
 ## Comandos
 
