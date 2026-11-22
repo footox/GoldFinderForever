@@ -23,8 +23,8 @@ professions cheaply. Nothing is sold, posted or mailed without your click. The i
 ## Requisitos
 
 - Obligatorio: **Auctionator** (precios de subasta).
-- Opcionales: **QuestieDB** (objetos de misiones y cadenas; sin él esas necesidades se omiten) y
-  **TradeSkillMaster** (precios de mercado).
+- Opcionales: **QuestieDB** (recomendado: objetos de misiones y cadenas, y dónde conseguir las recetas que se
+  aprenden con un objeto; sin él esas partes se omiten) y **TradeSkillMaster** (precios de mercado).
 
 ## Comandos
 
