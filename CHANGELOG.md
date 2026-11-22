@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Auction tab: a collapsible side panel on the right with the navigation between views and the posting options; the bottom tabs are replaced by it.
 - Auction: when the last scan is older than a set time (10 minutes by default, 0 = never), the first click on Post checks the live lowest price of that item and recalculates; the second click posts. Two clicks because posting needs a direct click.
 - Guide: recipes taught by an item (patterns, plans, formulas) now say where to get it, with the vendor or the creature that drops it, its zone and coordinates, read from QuestieDB when it is installed. Nothing changes without QuestieDB.
 - New option (off by default): show the Fishing and Skinning zone for your next skill range in the objective tracker, like Mining and Herbalism.

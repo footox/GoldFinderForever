@@ -34,6 +34,7 @@ ui/widgets.lua
 features/vendor/panel.lua
 features/mail/panel.lua
 features/auction/post.lua
+features/auction/sidepanel.lua
 features/auction/tab.lua
 features/professions/tabs.lua
 features/guide/hybrid.lua

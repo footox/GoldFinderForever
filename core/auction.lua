@@ -89,3 +89,13 @@ function GF.AuctionDrift(stored, live)
   if not (stored and live and stored > 0) then return nil end
   return (live - stored) / stored * 100
 end
+
+-- Funcion pura: valor de un campo numerico de opciones de subasta. text puede ser texto; se redondea y se limita a
+-- [lo, hi]; con isDuration solo vale 12 o 24. nil si no es un numero.
+function GF.AuctionClampOption(text, lo, hi, isDuration)
+  local v = tonumber(text)
+  if not v then return nil end
+  v = math.min(math.max(math.floor(v + 0.5), lo), hi)
+  if isDuration then v = (v <= 12) and 12 or 24 end
+  return v
+end

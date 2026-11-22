@@ -3218,6 +3218,12 @@ local function CreateUI(parent, opts)
     ui.ahKeys = AHViewKeys(shop, missing)
   end
   if auction then ui.ahUpdate() end
+  -- subasta: panel lateral derecho con la navegacion entre vistas y las opciones de publicacion; las pestanas de
+  -- abajo se ocultan porque la navegacion pasa al panel
+  if auction and GF.SidePanel then
+    local okSP, sp = pcall(GF.SidePanel.Attach, ui, header, inset, function(k) return Cfg(k) end)
+    if okSP then ui.side = sp else Print(format(L["side.fail"], tostring(sp))) end
+  end
 
   function ui.layoutNav()
     local prev
@@ -3226,7 +3232,7 @@ local function CreateUI(parent, opts)
       local b = ui.nav[def[1]]
       local hide
       if auction then
-        hide = not ahAllowed(def[1])
+        hide = (not ahAllowed(def[1])) or ui.side ~= nil
       else
         hide = (def[1] == "compras" and not Cfg("shopping")) or (def[1] == "fabricar" and not Cfg("craftTab"))
           or (def[1] == "ruta" and not Cfg("routeTab"))
@@ -3663,6 +3669,7 @@ local function CreateUI(parent, opts)
       if not allowed then key = opts.only[1] end
     end
     ui.current = key
+    if ui.side then pcall(ui.side.update) end
     for k, b in pairs(ui.nav) do
       local on = (k == key)
       if b.gfTab then
@@ -3693,6 +3700,7 @@ local function CreateUI(parent, opts)
     ui.status:SetText(table.concat(parts, "   |   "))
     -- en la subasta, Compras aparece o desaparece segun lo que falte para el paso actual
     if auction then pcall(ui.layoutNav) end
+    if ui.side then pcall(ui.side.update) end
     ui.open(ui.current)
   end
 

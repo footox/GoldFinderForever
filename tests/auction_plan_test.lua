@@ -85,5 +85,10 @@ check("drift: live above and below the stored price",
   math.abs(GF.AuctionDrift(100, 120) - 20) < 1e-9 and math.abs(GF.AuctionDrift(200, 150) + 25) < 1e-9)
 check("drift: missing data gives nil", GF.AuctionDrift(nil, 100) == nil and GF.AuctionDrift(0, 100) == nil)
 
+-- side panel option clamp
+check("clamp: text is rounded and limited", GF.AuctionClampOption("7.6", 1, 14) == 8 and GF.AuctionClampOption("99", 1, 14) == 14 and GF.AuctionClampOption("-5", 0, 120) == 0)
+check("clamp: duration is 12 or 24", GF.AuctionClampOption("18", 12, 24, true) == 24 and GF.AuctionClampOption("13", 12, 24, true) == 24 and GF.AuctionClampOption("12", 12, 24, true) == 12)
+check("clamp: not a number gives nil", GF.AuctionClampOption("abc", 1, 14) == nil and GF.AuctionClampOption(nil, 1, 14) == nil)
+
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")
