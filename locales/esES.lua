@@ -42,6 +42,7 @@ GF.locales.esES = {
   ["mail.panel.foot"] = "%d objeto(s) - valor aprox. %s",
   ["mail.panel.mails"] = "%d correo(s)",
   ["mail.panel.none"] = "nada enviable",
+  ["mail.check.tip"] = "Desmarca para dejar este objeto fuera de este correo. Sigue en tus bolsas; usa Guardar para una regla permanente.",
   ["vendor.sub"] = "Para vender",
   ["vendor.empty"] = "Nada que venderle a este vendedor",
   ["vendor.sold"] = "Vendidas %d unidades; quedan pilas que superan lo que conviene vender (lo demas esta reservado).",

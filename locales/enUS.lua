@@ -42,6 +42,7 @@ GF.locales.enUS = {
   ["mail.panel.foot"] = "%d item(s) - approx. value %s",
   ["mail.panel.mails"] = "%d mail(s)",
   ["mail.panel.none"] = "nothing to send",
+  ["mail.check.tip"] = "Uncheck to keep this item out of this mail. It stays in your bags; use Keep for a permanent rule.",
   ["vendor.sub"] = "To sell",
   ["vendor.empty"] = "Nothing to sell to this vendor",
   ["vendor.sold"] = "Sold %d units; stacks remain that exceed what is worth selling (the rest is reserved).",

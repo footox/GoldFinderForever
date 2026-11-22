@@ -68,5 +68,19 @@ for i = 1, 13 do slots[#slots + 1] = S(1, i, 300, 1) end
 p = MailPlan(slots, { [300] = 13 })
 check("default max is 12", #p.attach == 12 and p.remaining == 1)
 
+-- MailSelect: unchecked items leave the surplus, the count and the value
+local MailSelect = GF.MailSelect
+local rows = { { id = 1, sellQty = 5, unit = 100 }, { id = 2, sellQty = 2, unit = 50 } }
+local sel = MailSelect(rows, {})
+check("select: all checked", sel.n == 2 and sel.total == 600 and sel.surplus[1] == 5 and sel.surplus[2] == 2)
+sel = MailSelect(rows, { [1] = true })
+check("select: unchecked item leaves surplus, count and value", sel.n == 1 and sel.total == 100 and sel.surplus[1] == nil)
+sel = MailSelect(rows, { [1] = true, [2] = true })
+check("select: all unchecked is empty", sel.n == 0 and sel.total == 0 and next(sel.surplus) == nil)
+sel = MailSelect(nil, nil)
+check("select: nil input is empty", sel.n == 0)
+p = MailPlan({ S(0, 1, 1, 5), S(0, 2, 2, 2) }, MailSelect(rows, { [1] = true }).surplus, 12)
+check("plan after unchecking: only the checked item is attached", #p.attach == 1 and p.attach[1].id == 2 and #p.skipped == 0)
+
 print(failures == 0 and "ALL PASS" or (failures .. " FAILED"))
 if failures > 0 then os.exit(1) end

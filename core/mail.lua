@@ -41,4 +41,20 @@ local function MailPlan(slots, surplus, maxAttach)
   return p
 end
 
+-- Funcion pura. rows = filas que lista el panel ({ id, sellQty, unit }); excluded = { [id] = true } de lo que el
+-- jugador desmarco. Devuelve { surplus (solo lo marcado, para MailPlan), n (objetos marcados), total (valor marcado) }.
+local function MailSelect(rows, excluded)
+  excluded = excluded or {}
+  local sel = { surplus = {}, n = 0, total = 0 }
+  for _, r in ipairs(rows or {}) do
+    if not excluded[r.id] and (r.sellQty or 0) > 0 then
+      sel.surplus[r.id] = r.sellQty
+      sel.n = sel.n + 1
+      sel.total = sel.total + (r.unit or 0) * r.sellQty
+    end
+  end
+  return sel
+end
+
 GF.MailPlan = MailPlan
+GF.MailSelect = MailSelect

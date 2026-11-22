@@ -4,6 +4,7 @@
 
 - English (enUS) and Spanish (esES) interface; it follows the game language, with a language selector in the options.
 - The "Fijar" button is now "Guardar" (Keep) and its reasons say "lo guardaste tú".
+- Mailbox panel: a checkbox per item to leave it out of this mail (count, mails and value update; resets when the mailbox closes).
 - Internal refactor: code split into core, adapters, features and ui folders; no behavior change.
 
 ## 2.1.2
