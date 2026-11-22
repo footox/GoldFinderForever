@@ -1689,6 +1689,22 @@ local function SearchMaterials(e)
   if not ok then Print(format(L["search.failed"], tostring(err))) end
 end
 
+-- Lista de compras de Auctionator: manda lo que falta (nombre exacto y cantidad) a una lista propia, "GoldFinder",
+-- que se reemplaza cada vez y no toca las listas del jugador. Funciona sin la subasta abierta; la lista queda guardada.
+local function SendShoppingList(mats)
+  local function nameOf(id)
+    local nm = C_Item.GetItemInfo(id)
+    if not nm and C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(id) end
+    return nm
+  end
+  local ok, a, b = GF.ShoppingSync(AHApi(), CALLER, "GoldFinder", mats, nameOf)
+  if ok then
+    Print(format(L["list.sent"], a) .. ((b or 0) > 0 and (" " .. format(L["list.skipped"], b)) or ""))
+  elseif a == "noapi" then Print(L["list.noapi"])
+  elseif a == "none" then Print((b or 0) > 0 and L["list.loading"] or L["list.none"])
+  else Print(format(L["list.failed"], tostring(a))) end
+end
+
 -- AYUDAS DE RUTA: textos y calculos que comparten la guia, las compras, el aviso de receta aprendida y Fabricar.
 -- Quedan en Skin.Route (sin nuevos locales en el bloque principal).
 GF.InitRouteHelpers(setmetatable({
@@ -3444,7 +3460,9 @@ local function CreateUI(parent, opts)
         final[1] = {
           name = L["win.totalBuy"], c1 = format(L["win.matShort"], #out), c2 = "",
           c3 = Money(total) .. (unknown and "+" or ""),
-          actions = { { L["win.btnSearchAll"], function() SearchMaterials({ mats = allMats }) end } },
+          actions = { { L["win.btnSearchAll"], function() SearchMaterials({ mats = allMats }) end },
+            { L["win.btnList"], function() SendShoppingList(allMats) end,
+              tip = function(tt) tt:AddLine(L["win.tipList"], 1, 1, 1, true) end } },
         }
         for _, r in ipairs(out) do final[#final + 1] = r end
       end
