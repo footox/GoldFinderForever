@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Lua 5.1
+        run: sudo apt-get update && sudo apt-get install -y lua5.1
+
+      - name: Syntax check (luac)
+        run: |
+          set -e
+          find . -name '*.lua' -not -path './tools/wago_data/*' -print0 | xargs -0 -n1 luac5.1 -p
+
+      - name: Offline test suites
+        run: |
+          set -e
+          fail=0
+          for t in tests/*.lua; do
+            out=$(lua5.1 "$t" 2>&1) || { echo "::error::$t failed"; echo "$out" | tail -20; fail=1; continue; }
+            if echo "$out" | grep -q '^FAIL'; then echo "::error::$t has failing checks"; echo "$out" | grep '^FAIL' | head; fail=1; fi
+          done
+          exit $fail
