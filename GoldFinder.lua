@@ -166,9 +166,9 @@ do
     c.prof, c.keep, c.off = c.prof or {}, c.keep or {}, c.off or {}
 
     -- Datos de versiones antiguas (comunes a la cuenta): se unen a la ficha de su personaje (nombre de pila exacto).
-    local L = GoldFinderDB.legacy
-    if L and LEGACY_OWNER and name == LEGACY_OWNER then
-      for k, v in pairs(L.prof or {}) do
+    local legacy = GoldFinderDB.legacy
+    if legacy and LEGACY_OWNER and name == LEGACY_OWNER then
+      for k, v in pairs(legacy.prof or {}) do
         local cur = c.prof[k]
         if not cur then
           c.prof[k] = v
@@ -178,8 +178,8 @@ do
           c.prof[k] = v
         end
       end
-      for k, v in pairs(L.keep or {}) do c.keep[k] = v end
-      if L.session and not c.session then c.session = L.session end
+      for k, v in pairs(legacy.keep or {}) do c.keep[k] = v end
+      if legacy.session and not c.session then c.session = legacy.session end
       GoldFinderDB.legacy = nil
     end
     return c
