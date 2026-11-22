@@ -1150,7 +1150,7 @@ end)
 ---------------------------------------------------------------------------
 local function StartFullScan()
   if not (Auctionator and Auctionator.State and Auctionator.Config) then
-    Print("Auctionator no esta listo.")
+    Print(L["scan.notReady"])
     return
   end
   local ok, err = pcall(function()
@@ -1160,20 +1160,20 @@ local function StartFullScan()
       Auctionator.State.IncrementalScanFrameRef:InitiateScan()
     end
   end)
-  if ok then Print("Escaneo pedido a Auctionator. Al terminar, la ventana se actualiza sola.")
-  else Print("No pude iniciar el escaneo: " .. tostring(err)) end
+  if ok then Print(L["scan.requested"])
+  else Print(format(L["scan.failed"], tostring(err))) end
 end
 
 local function ScanAgeText()
   local st = Auctionator and Auctionator.SavedState
   local t = st and math.max(st.TimeOfLastReplicateScan or 0, st.TimeOfLastBrowseScan or 0) or 0
-  if t == 0 then return "Aun no hay un escaneo registrado." end
-  return format("Ultimo escaneo: hace %d min.", floor((time() - t) / 60))
+  if t == 0 then return L["scan.none"] end
+  return format(L["scan.last"], floor((time() - t) / 60))
 end
 
 -- Prepara el objeto en la pestana Selling de Auctionator; publicas tu
 local function SellItem(id)
-  if not (AuctionHouseFrame and AuctionHouseFrame:IsShown()) then Print("Abre la casa de subastas primero."); return end
+  if not (AuctionHouseFrame and AuctionHouseFrame:IsShown()) then Print(L["auction.openFirst"]); return end
   local loc
   for _, s in ipairs(GF.BagSlots()) do
     if s.id == id then
@@ -1182,7 +1182,7 @@ local function SellItem(id)
     end
   end
   if not loc or not loc:IsValid() or not C_AuctionHouse.IsSellItemValid(loc) then
-    Print("No puedo preparar ese objeto (esta ligado o ya no esta en la bolsa).")
+    Print(L["sell.cantPrepare"])
     return
   end
   local ok = pcall(function()
@@ -1210,14 +1210,14 @@ local function SellItem(id)
         apply()
         C_Timer.After(0.3, function() pcall(apply) end)
         if qty > 0 and qty < (info.count or qty) then
-          Print(format("Preparado para publicar %d de tus %d: el resto queda reservado para tus profesiones.", qty, info.count))
+          Print(format(L["sell.prepared"], qty, info.count))
         end
       end)
     end)
   end)
   if not ok then
     pcall(function() AuctionatorTabs_Selling:Click() end)
-    Print("Abri la pestana Selling pero no pude seleccionar el objeto: haz alt+clic sobre el en tu bolsa.")
+    Print(L["sell.tabOnly"])
   end
 end
 
@@ -1284,13 +1284,13 @@ local function LeatherRows()
         local d = Decide(id, bags, bank, false)
         local advice
         if d.verdict == "KEEP" then
-          if d.forOther then advice = "|cff6cb4ffGuarda: para " .. d.forOther .. "|r"
-          elseif d.manual then advice = "|cff6cb4ffGuarda: fijado|r"
-          elseif d.code == "lowprice" then advice = "|cff6cb4ffGuarda: barato|r"
-          else advice = "|cff6cb4ffGuarda: receta|r" end
-        elseif d.verdict == "VENDOR" then advice = "|cffffa640Al vendedor|r"
+          if d.forOther then advice = format(L["advice.keepFor"], d.forOther)
+          elseif d.manual then advice = L["advice.keepByHand"]
+          elseif d.code == "lowprice" then advice = L["advice.keepCheap"]
+          else advice = L["advice.keepRecipe"] end
+        elseif d.verdict == "VENDOR" then advice = L["advice.vendor"]
         elseif d.verdict == "AH" then
-          advice = (ref and entry.m >= ref * 1.15) and "|cff59eb8dSubasta ya|r" or "Subasta"
+          advice = (ref and entry.m >= ref * 1.15) and L["advice.auctionNow"] or L["advice.auction"]
         else advice = "-" end
         rows[#rows + 1] = {
           id = id, price = entry.m, region = region, advice = advice,
