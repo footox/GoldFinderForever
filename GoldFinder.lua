@@ -3144,6 +3144,25 @@ local function CreateUI(parent, opts)
   ui.status:SetPoint("RIGHT", header, "RIGHT", -240, 0)
   local bScan = Btn(header, L["win.scan"], 90, 22, nil, function() StartFullScan() end)
   bScan:SetPoint("RIGHT", header, "RIGHT", -(parent.gfPadRight or 4), 0)
+  -- progreso del escaneo: el boton muestra el porcentaje y una barra fina recorre la base de la cabecera
+  local scanBar = Flat(header, "OVERLAY", { 0.35, 0.9, 0.55, 0.9 })
+  scanBar:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 0, 0)
+  scanBar:SetHeight(3)
+  scanBar:Hide()
+  function ui.scanUpdate(st)
+    if st and st.on then
+      bScan.label:SetText(format(L["scan.progress"], GF.ScanPercent(st)))
+      bScan:Disable()
+      scanBar:SetWidth(math.max(1, (header:GetWidth() or 0) * (st.pct or 0)))
+      scanBar:Show()
+    else
+      bScan.label:SetText(L["win.scan"])
+      bScan:Enable()
+      scanBar:Hide()
+      if st and st.pct == 1 then pcall(ui.refresh) end   -- "Ultimo escaneo: hace 0 min"
+      if st and st.failed then Print(L["scan.failedProgress"]) end
+    end
+  end
 
   local inset = native and parent.Inset
   if not inset then
@@ -3804,6 +3823,13 @@ GF.InitProfTabs({
   ProfOn = function(...) return ProfOn(...) end,
   RouteFor = function(...) return RouteFor(...) end,
 })
+
+-- el progreso del escaneo se escucha una vez y se reparte a todas las ventanas
+pcall(GF.ScanProgress.Start, function(st)
+  for _, u in ipairs(uiInstances) do
+    if u.scanUpdate then pcall(u.scanUpdate, st) end
+  end
+end)
 
 GF.InitAuctionTab({
   CreateUI = function(...) return CreateUI(...) end,
