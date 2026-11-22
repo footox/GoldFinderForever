@@ -66,39 +66,18 @@ local function ObjectiveBlock(e, nameOf, learnText, iconOf, money)
   return { id = e.prof, header = ObjectiveHeader(e), lines = lines }, waiting
 end
 local function Pct(chance) return tostring(math.floor(chance * 100 + 0.5)) .. "%" end
--- Cuantas veces se puede fabricar una receta con lo que hay: el minimo de floor(tengo / necesito) entre sus reactivos.
--- reagents = { { itemId, qty }, ... } (el campo r de GoldFinderRecipes); count(itemId) -> unidades. nil si no hay datos
--- (sin reactivos o sin funcion de recuento): no se sabe, no se dice 0. Una entrada rota se ignora; un material que falta da 0.
-local function CraftableCount(reagents, count)
-  if type(reagents) ~= "table" or type(count) ~= "function" then return nil end
-  local best
-  for _, m in ipairs(reagents) do
-    local id, qty = type(m) == "table" and m[1], type(m) == "table" and m[2]
-    if type(id) == "number" and type(qty) == "number" and qty > 0 then
-      local ok, have = pcall(count, id)
-      have = (ok and type(have) == "number" and have > 0) and have or 0
-      local can = math.floor(have / qty)
-      best = best and math.min(best, can) or can
-    end
-  end
-  return best
-end
--- Nota de la fila de una receta: "100% · -2s" (coste por punto) o "100% · +2s" (ganancia por punto), y al final
--- "(4)" con las que puedes fabricar ahora (solo si hay alguna).
-local function RecipeNoteText(chance, eff, money, can)
+-- Nota de la fila de una receta: "100% · -2s" (coste por punto) o "100% · +2s" (ganancia por punto).
+local function RecipeNoteText(chance, eff, money)
   if not chance then return nil end
   local out = Pct(chance)
-  if eff == nil then
-    -- solo la probabilidad
-  elseif eff == false then out = out .. DOT .. L["note.noprice"]
-  elseif eff >= 0.5 then out = out .. DOT .. "|cffff8080-" .. money(math.floor(eff + 0.5)) .. "|r"
-  elseif eff <= -0.5 then out = out .. DOT .. "|cff80ff80+" .. money(math.floor(-eff + 0.5)) .. "|r"
-  else out = out .. DOT .. "0" end
-  if type(can) == "number" and can > 0 then out = out .. " (" .. can .. ")" end
-  return out
+  if eff == nil then return out end
+  if eff == false then return out .. DOT .. L["note.noprice"] end
+  if eff >= 0.5 then return out .. DOT .. "|cffff8080-" .. money(math.floor(eff + 0.5)) .. "|r" end
+  if eff <= -0.5 then return out .. DOT .. "|cff80ff80+" .. money(math.floor(-eff + 0.5)) .. "|r" end
+  return out .. DOT .. "0"
 end
 -- Las mismas cifras para el tooltip de la fila (cuando SkillUp ya escribe su texto en la fila).
-local function RecipeNoteLines(chance, eff, money, can)
+local function RecipeNoteLines(chance, eff, money)
   if not chance then return {} end
   local lines = { string.format(L["note.chance"], Pct(chance)) }
   if eff == false then
@@ -107,9 +86,7 @@ local function RecipeNoteLines(chance, eff, money, can)
     if eff <= -0.5 then lines[2] = string.format(L["note.gain"], money(math.floor(-eff + 0.5)))
     else lines[2] = string.format(L["note.cost"], money(math.max(0, math.floor(eff + 0.5)))) end
   end
-  if type(can) == "number" and can > 0 then lines[#lines + 1] = string.format(L["note.canMake"], can) end
   return lines
 end
 
 GF.ObjectiveBlock, GF.RecipeNoteText, GF.RecipeNoteLines = ObjectiveBlock, RecipeNoteText, RecipeNoteLines
-GF.CraftableCount = CraftableCount

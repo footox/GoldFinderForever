@@ -162,7 +162,6 @@ GF.locales.esES = {
   ["note.nopriceTip"] = "Coste por punto: sin precio (escanea la subasta)",
   ["note.gain"] = "Ganancia por punto: %s",
   ["note.cost"] = "Coste por punto: %s",
-  ["note.canMake"] = "Puedes fabricar %d con lo que llevas en las bolsas",
   ["verdict.KEEP"] = "GUARDAR",
   ["verdict.AH"] = "SUBASTA",
   ["verdict.VENDOR"] = "VENDEDOR",

@@ -2568,7 +2568,6 @@ end
 GF.InitObjectives({
   Cfg = function(...) return Cfg(...) end,
   Char = function(...) return Char(...) end,
-  Counts = function(...) return Counts(...) end,
   LearnText = function(...) return LearnText(...) end,
   OpenGuide = function(...) return OpenGuide(...) end,
   ProfOn = function(...) return ProfOn(...) end,

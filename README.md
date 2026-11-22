@@ -22,7 +22,7 @@ GoldFinder Forever reads your bags and the auction prices and tells you, item by
 - **Mailbox** (off by default): send what should be auctioned to your banker character, with a checkbox per item.
 - **Bags**: an X button hides an item from the list (per character) and a Show button brings it back.
 - **Shopping**: what you are missing for each profession, with a List button that sends it (exact names and quantities) to an Auctionator shopping list, plus one list per profession.
-- **Professions**: Route and Craft tabs in the professions window, skill-up chance, cost per point and how many you can make on each recipe, and a 1-300 guide with your own prices. It includes Fishing and, with QuestieDB or the data addon, where to get the recipes that are taught by an item.
+- **Professions**: Route and Craft tabs in the professions window, skill-up chance and cost per point on each recipe, and a 1-300 guide with your own prices. It includes Fishing and, with QuestieDB or the data addon, where to get the recipes that are taught by an item.
 - **Tracking**: your next profession step in the objective tracker, with the icon of each material, the cost of what you are missing and the skill-up chance per craft.
 - **Welcome window**: opens once the first time you log in and lists what the addon does and which features are on.
 
@@ -70,9 +70,6 @@ Everything the addon knows stays in the saved variables on your PC: your own cha
 <!-- changelog:start -->
 
 ### Unreleased
-
-**Features**
-- Recipe list: next to the skill-up chance and the cost per point, the note shows how many of that recipe you can make with what is in your bags, for example "37% - 2s (4)". The row tooltip says it too.
 
 **Fixes**
 - Options that you never changed are no longer saved as if you had chosen them, so a default that changes in a later version reaches everyone. Only the values that differ from the default stay in your saved data. Nothing you chose is lost.
