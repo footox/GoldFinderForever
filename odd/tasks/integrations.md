@@ -32,3 +32,4 @@ Branch: feat/guide-integrations (stacked on feat/materials-tab so the game loads
 - L1 (2026-11-22, user): "Hay que ajustar nuestra licencia?" -> goal: "E integrar esas funcionalidades? que realmente aporten valor?" -> value evaluation done by a read-only analyst, checked by the parent: no candidate needs GPL, licence stays MIT.
 - L2 (2026-11-22, user): "Ok, hay que implementarlos como feature."
 - L3 (2026-11-22, user): about EllesmereUI becoming a popular interface manager: "quizas podamos dar soporte para integrarnos a el" and "Pero es como opcion de feature" -> candidate T7: optional support for that interface manager, switchable by an option; to be evaluated (its extension points and licence) before any work.
+- L4 (2026-11-22, user): T2, T4 and T7 stay in the backlog: "No esas dejalas en el backlog" (about T7: "No el T7 no"). Nothing built for them in this phase.
