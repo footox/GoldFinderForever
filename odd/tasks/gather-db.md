@@ -18,8 +18,8 @@ Branch / repository: a NEW addon with its own project and versions (name to deci
 
 ## Tasks
 
-- [ ] T0 write the API contract (S5) and the sync message format (S4) before any code | route: inline | commit: -
-- [ ] T1 (S3) addon skeleton, node recorder and merge (`core/` pure + tests) | route: inline | commit: -
+- [x] T0 write the API contract (S5) and the sync message format (S4) before any code | route: delegated to a peer session | commit: POI-1 (J:\Repository\poi-db)
+- [x] T1 (S3, pure part) skeleton and pure core: model, merge, protocol parse/encode, deltas, rate limiter, queries; 348 checks pass (reviewed 2026-11-22) | route: delegated to a peer session | commit: POI-2..POI-7 in J:\Repository\poi-db
 - [ ] T2 (S5,S10) public API, the player's query command and their tests | route: inline | commit: -
 - [ ] T3 (S4) sharing over the `share-prices` channel, with deltas and limits | route: inline | commit: -
 - [ ] T4 (S7) GoldFinder reads the API and shows the found places in the guide | route: inline | commit: -
@@ -37,3 +37,4 @@ Risk: item 3 (a public API others would depend on, and a message format between 
 - L4 (2026-11-22, user): "Sí, anótala y seguimos con la validación" -> registered as a spec; work starts after the current validation and share-prices.
 - L5 (2026-11-22, user): "Pero seria bueno tener un addon solo para la bd" -> kept as a separate addon; scope set by S9 so it adds what GatherMate2 does not and reads its nodes instead of duplicating them.
 - L6 (2026-11-22, user): "Y poder utilizarla." -> added S10: usable by other addons through the API and by the player through a simple in-game query command; pins later.
+- L7 (2026-11-22): T0 and the pure part of T1 delivered by a peer session in J:\Repository\poi-db, independently re-run: 348 PASS, 0 FAIL, luac clean, GoldFinder untouched. T2a (SavedVariables, global API table, /poi command, with fakes) assigned; event recorders (T2b) and sharing (T3) not started.
