@@ -13,6 +13,7 @@ Branch / repository: a NEW addon with its own project and versions (name to deci
 - S6 Data origin and licence: only points recorded by the players of this addon (and shared by them). Nothing is copied from GatherMate2, Questie or any other database. Reading another installed addon's data through its public API may be offered later as an option.
 - S7 Use in GoldFinder: the guide's gathering steps show "places you or your friends have found" next to the zone text. Map pins are a separate, later piece of work and are NOT part of the first version.
 - S8 Verification: offline tests for merging, distance threshold, delta building, validation of received points and API results; in-game tests with two clients following a checklist under `odd/validation/`.
+- S9 Scope against existing addons (2026-11-22): GatherMate2 already covers herb, mining and timber nodes for WoW Forever, with a separate GatherMate2_Data addon (user reports and the project pages; coverage may still be thin). This addon does NOT record those nodes a second time: when GatherMate2 is installed it reads them through its public interface (to verify: which functions it offers and that its data is readable in Forever); without it, node recording stays off. What this addon records and shares itself are the point types nobody else offers: trainers and vendors, where recipe items are sold or dropped, fishing spots and any point GoldFinder's guide needs. The name "gather-db" is kept for this spec; the addon's own name should say "points of interest".
 
 ## Tasks
 
@@ -33,3 +34,4 @@ Risk: item 3 (a public API others would depend on, and a message format between 
 - L2 (2026-11-22, user): "Se crea un addon de bd y este comparte entre ellos,no?"
 - L3 (2026-11-22, user): "O seria un addon nuevo para no sobrecargar este." -> decision: a separate addon from the start (assistant had first suggested a module inside GoldFinder to extract later; the user's reason about load and optionality wins).
 - L4 (2026-11-22, user): "Sí, anótala y seguimos con la validación" -> registered as a spec; work starts after the current validation and share-prices.
+- L5 (2026-11-22, user): "Pero seria bueno tener un addon solo para la bd" -> kept as a separate addon; scope set by S9 so it adds what GatherMate2 does not and reads its nodes instead of duplicating them.
