@@ -90,4 +90,18 @@ GoldFinderRoutes = {
       },
     },
   },
+  -- Pesca: solo zonas por tramo. Fuentes: guias de WoW Forever de wow-professions.com y warcrafttavern.com
+  -- (22-nov-2026); donde difieren se usa la de wow-professions.com. Hechos sueltos (zonas y tramos), sin texto copiado.
+  fishing = {
+    {
+      name = "Forever guides",
+      steps = {},
+      zones = {
+        { from = 1, to = 75, zone = "Durotar, Mulgore, Tirisfal Glades, Elwynn Forest o Dun Morogh", note = "cualquier lago, rio o costa; Fishing Pole y Shiny Bauble" },
+        { from = 75, to = 150, zone = "The Barrens, Darkshore, Loch Modan, Silverpine Forest o Westfall", note = "tambien sirven las ciudades principales (no Undercity); Nightcrawlers si se escapan" },
+        { from = 150, to = 225, zone = "Dustwallow Marsh, Desolace, Arathi Highlands o Stranglethorn Vale", note = "Bright Baubles; el libro de Experto se compra en Booty Bay" },
+        { from = 225, to = 300, zone = "Feralas, Tanaris o Un'Goro Crater", note = "Bright Baubles; Artesano: mision de Nat Pagle en Dustwallow Marsh (habilidad 225)" },
+      },
+    },
+  },
 }

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fishing: guide by skill range with zones (from the WoW Forever fishing guides of wow-professions.com and warcrafttavern.com).
+
 ## 2.2.0
 
 - English (enUS) and Spanish (esES) interface; it follows the game language, with a language selector in the options.

@@ -162,4 +162,10 @@ GoldFinderGuides = {
     { 250, 275, "Un'Goro Crater o Felwood", "ravasaurios" },
     { 275, 300, "Western Plaguelands o Winterspring", "lobos, osos y felinos" },
   } },
+  ["fishing"] = { name = "Fishing", line = 356, zones = {
+    { 1, 75, "Durotar, Mulgore, Tirisfal Glades, Elwynn Forest o Dun Morogh", "cualquier lago, rio o costa; Fishing Pole y Shiny Bauble" },
+    { 75, 150, "The Barrens, Darkshore, Loch Modan, Silverpine Forest o Westfall", "tambien sirven las ciudades principales (no Undercity); Nightcrawlers si se escapan" },
+    { 150, 225, "Dustwallow Marsh, Desolace, Arathi Highlands o Stranglethorn Vale", "Bright Baubles; el libro de Experto se compra en Booty Bay" },
+    { 225, 300, "Feralas, Tanaris o Un'Goro Crater", "Bright Baubles; Artesano: mision de Nat Pagle en Dustwallow Marsh (habilidad 225)" },
+  } },
 }
