@@ -2769,6 +2769,7 @@ local function MakeSettings(parent)
     { "crossChars", L["set.crossChars"] },
     { "questItems", L["set.questItems"] },
     { "gamePlan", L["set.gamePlan"] },
+    { "trackerGather", L["set.trackerGather"] },
     { "shopping", L["set.shopping"] },
     { "readyAlert", L["set.readyAlert"] },
     { "mailPanel", L["set.mailPanel"] },
@@ -4111,7 +4112,7 @@ local function RegisterOptions()
 
   -- los mismos efectos que tenia la pagina de Ajustes (y los comandos /gf ruta y /gf tope)
   local function applied(key)
-    if key == "nextSteps" or key == "gamePlan" or key == "trackerMode" then tracker() end
+    if key == "nextSteps" or key == "gamePlan" or key == "trackerMode" or key == "trackerGather" then tracker() end
     if key == "recipeNotes" and Skin.RecipeNotes then pcall(Skin.RecipeNotes.refresh) end
     if key == "shopping" or key == "craftTab" or key == "routeTab" or key == "profTabs" then
       if Skin.ProfTabs then pcall(Skin.ProfTabs.later) end
@@ -4211,6 +4212,7 @@ local function RegisterOptions()
   end, L["opt.mode.t"])
   check("gamePlan", L["opt.gamePlan.l"],
     L["opt.gamePlan.t"])
+  check("trackerGather", L["opt.trackerGather.l"], L["opt.trackerGather.t"])
   check("readyAlert", L["opt.readyAlert.l"], L["opt.readyAlert.t"])
   check("shopping", L["opt.shopping.l"], L["opt.shopping.t"])
   check("mailPanel", L["opt.mailPanel.l"],

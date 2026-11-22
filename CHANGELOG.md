@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- New option (off by default): show the Fishing and Skinning zone for your next skill range in the objective tracker, like Mining and Herbalism.
 - Fishing: guide by skill range with zones (from the WoW Forever fishing guides of wow-professions.com and warcrafttavern.com).
 
 ## 2.2.0

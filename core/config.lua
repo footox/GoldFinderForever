@@ -14,6 +14,7 @@ GF.DEFAULTS = {
   crossChars = false, -- opcional: avisar de materiales que sirven a las profesiones de mis otros personajes
   questItems = true,  -- no recomendar vender, subastar ni enviar objetos que piden tus misiones (y su cadena)
   gamePlan = false,   -- opcional: siguiente paso segun mis recetas y los precios de la subasta (en vez de la guia)
+  trackerGather = false, -- opcional: Pesca y Desuello tambien dan su paso (zona por tramo) en el seguimiento
   shopping = false,    -- opcional: pestana Compras (lista de materiales que faltan)
   readyAlert = false,   -- opcional: aviso (chat y sonido) al reunir los materiales de un paso
   mailPanel = false,    -- opcional: panel junto al correo con lo que conviene enviar al banquero

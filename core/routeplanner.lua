@@ -344,8 +344,24 @@ function GF.NewRoutePlanner(d)
     return first or text
   end
 
+  -- Pesca y Desuello: zonas por tramo de GoldFinderRoutes, solo si el jugador activo la opcion trackerGather
+  -- (GatherZones sigue siendo solo Mineria y Herboristeria: la guia y el resumen de rutas dependen de ello)
+  local function ExtraGatherZones(prof)
+    if not d.Cfg("trackerGather") then return nil end
+    local p = (prof or ""):lower()
+    if not (p:find("skin", 1, true) or p:find("fish", 1, true)) then return nil end
+    for k, routes in pairs(d.GoldFinderRoutes or {}) do
+      if p:find(k, 1, true) then
+        for _, rt in ipairs(routes) do
+          if rt.zones and #rt.zones > 0 then return rt.zones end
+        end
+      end
+    end
+    return nil
+  end
+
   local function GatherStepEntry(prof, pd)
-    local zones = GatherZones(prof)
+    local zones = GatherZones(prof) or ExtraGatherZones(prof)
     if not (zones and pd.rank) then return nil end
     for i, z in ipairs(zones) do
       if pd.rank < z.to then

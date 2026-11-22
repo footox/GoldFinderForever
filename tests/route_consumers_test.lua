@@ -14,12 +14,13 @@ end
 
 local prices, stock, suOwned, here = {}, {}, {}, nil
 local countsCalls = 0
+local cfg = { sellCap = 5, routeSpan = 25 }
 local env = setmetatable({
   CALLER = "GoldFinder", AH_CUT = 0.05,
   AHApi = function() return { GetAuctionPriceByItemID = function(_, id) return prices[id] end } end,
   VendorPrice = function() return nil end,
   Counts = function(id) countsCalls = countsCalls + 1; return stock[id] or 0, 0 end,
-  Cfg = function(k) return ({ sellCap = 5, routeSpan = 25 })[k] end,
+  Cfg = function(k) return cfg[k] end,
   C_Item = { GetItemInfo = function() return nil end },
   UnitFactionGroup = function() return "Horde" end,
   SuOwned = function(_, prof) return suOwned[prof] or false end,
@@ -30,6 +31,9 @@ local env = setmetatable({
     [2] = { n = "Cheap", s = 165, y = 110, g = 140, k = 1, r = { { 11, 1 } }, o = 21, q = 1 },
   } },
   GoldFinderRoutes = {
+    fishing = { { name = "Forever guides", steps = {}, zones = {
+      { from = 1, to = 75, zone = "Durotar o Mulgore", note = "cualquier agua" },
+    } } },
     mining = { { name = "Icy Veins", steps = {}, zones = {
       { from = 1, to = 65, zone = "Durotar, Mulgore o Tirisfal Glades", note = "cobre" },
       { from = 65, to = 125, zone = "Silverpine Forest o The Barrens", note = "estano" },
@@ -126,6 +130,15 @@ here = "The Barrens"
 e = M.GatherStepEntry("Mining", { rank = 10 })
 check("mining: current zone preferred, next band", e.zone == "Durotar" and e.nxt and e.nxt.zone == "The Barrens")
 check("skinning: no gathering step", M.GatherStepEntry("Skinning", { rank = 10 }) == nil)
+check("fishing: no gathering step by default", M.GatherStepEntry("Fishing", { rank = 10 }) == nil)
+cfg.trackerGather = true
+e = M.GatherStepEntry("Fishing", { rank = 10, skillLine = 356 })
+check("fishing: option on gives the zone band", e and e.gather and e.zone == "Durotar" and e.upto == 75)
+e = M.GatherStepEntry("Skinning", { rank = 10, skillLine = 393 })
+check("skinning: option on gives its zone band", e and e.gather and e.zone == "Durotar" and e.upto == 75)
+check("option on: crafting professions unaffected", M.GatherStepEntry("Leatherworking", { rank = 10 }) == nil)
+check("option on does not change GatherZones (guide stays as is)", M.GatherZones("Fishing") == nil)
+cfg.trackerGather = nil
 check("mining past last band: nil", M.GatherStepEntry("Mining", { rank = 200 }) == nil)
 
 os.exit(failures == 0 and 0 or 1)
