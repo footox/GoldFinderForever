@@ -7,8 +7,11 @@ local a = assert(src:find("local function IsLeather", 1, true), "start marker")
 local b = assert(src:find("-- Recetas (patrones, planos...)", 1, true), "end marker")
 local chunk = src:sub(a, b - 1) .. "\nreturn { RecordSources = RecordSources, SourceText = SourceText, FarmText = FarmText }"
 
+local GFL = {}
+for _, p in ipairs({ "core/locale.lua", "locales/enUS.lua" }) do assert(loadfile(p))("GoldFinder", GFL) end
 local loot = {}
 local env = setmetatable({
+  L = GFL.L,
   GoldFinderDB = {},
   GetRealZoneText = function() return "Arathi Highlands" end,
   UnitExists = function() return true end,
@@ -40,7 +43,7 @@ check("leather recorded although no profession needs it", s[4234] and s[4234]["A
 check("needed material still recorded", s[2589] and s[2589]["Arathi Highlands"].n == 3)
 check("unneeded non-leather not recorded", s[9999] == nil)
 
-check("farm text from own data", M.FarmText(4234) == "Lo has conseguido en: Arathi Highlands (2, Highland Raptor)")
+check("farm text from own data", M.FarmText(4234) == "You got it in: Arathi Highlands (2, Highland Raptor)")
 check("farm text empty without data", M.FarmText(4304) == nil)
 
 os.exit(failures == 0 and 0 or 1)

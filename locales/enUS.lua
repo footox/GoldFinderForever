@@ -529,4 +529,12 @@ GF.locales.enUS = {
   ["cmd.capUsage"] = "Usage: /gf cap 5 (units of each crafted item that the Route tab values at auction price, from 0 to 1000)",
   ["cmd.sessionReset"] = "Session reset.",
   ["cmd.help"] = "Commands: /gf (opens the window) | /gf options (options in Options > AddOns) | /gf guide [profession] (full guide) | /gf route N (points the Route tab plans, 5-100) | /gf cap N (units valued at auction price in the Route) | /gf minimap (shows or hides the minimap icon) | /gf session reset",
+  ["src.gotIn"] = "\nYou got it in: ",
+  ["win.recipeLater"] = "recipe of %s that you do not know yet: learn it if your level allows",
+  ["win.recipeCheck"] = "%s (%s): open their profession window once to confirm whether they already know it",
+  ["win.tipMats"] = "Materials (bags + bank)",
+  ["win.tipUnknown"] = "You do not know this recipe: %s",
+  ["win.tipClickMap"] = "Click: mark the destination on the map",
+  ["win.tipClickSearch"] = "Right click: search the materials at the auction house",
+  ["quest.chainNext"] = "next in chain: %s",
 }

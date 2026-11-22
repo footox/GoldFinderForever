@@ -20,6 +20,8 @@ local function loadCore(path, GF, env)
   fn("GoldFinder", GF)
 end
 local GF = {}
+loadCore("core/locale.lua", GF)
+loadCore("locales/enUS.lua", GF)
 loadCore("core/quest_need.lua", GF)
 local L = {}   -- stubbed quest log state
 local qenv = {
@@ -57,9 +59,9 @@ check("two item objectives matched by name", need[769] and need[769].n == 4 and 
 check("source item of active quest reserved (all)", need[5001] and need[5001].n == ALL
   and has(need[5001].quests, "Boar Stew"))
 check("next quest of the chain: item objective reserved", need[5003] and need[5003].n == ALL
-  and has(need[5003].quests, "siguiente de la cadena: More Cloth") and need[5003].chain == true)
+  and has(need[5003].quests, "next in chain: More Cloth") and need[5003].chain == true)
 check("next quest of the chain: source item reserved", need[5002] and has(need[5002].quests,
-  "siguiente de la cadena: More Cloth"))
+  "next in chain: More Cloth"))
 check("active objective is not marked as chain", need[2589].chain ~= true)
 
 -- two quests asking for the same item add up; the same quest is counted once
@@ -194,7 +196,7 @@ d = Decide(2589, 5, 0, false)
 check("route alone covers holdings: profession reason kept", d.verdict == "KEEP" and d.reason:find("Tailoring", 1, true))
 -- chain only
 reset(); S.ah[5003] = 100000; S.vendor[5003] = 10
-S.quest[5003] = { n = ALL, quests = { "siguiente de la cadena: More Cloth" }, chain = true, chainTitles = { "More Cloth" } }
+S.quest[5003] = { n = ALL, quests = { "next in chain: More Cloth" }, chain = true, chainTitles = { "More Cloth" } }
 d = Decide(5003, 4, 0, false)
 check("chain item: KEEP for the chain", d.verdict == "KEEP" and d.reason:find("for the chain: More Cloth", 1, true))
 S.bags[5003] = 4

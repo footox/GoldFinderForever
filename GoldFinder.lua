@@ -805,7 +805,7 @@ local function SourceText(id)
     local a = arr[i]
     parts[#parts + 1] = a.zone .. " (" .. a.n .. (a.mob and (", " .. a.mob) or "") .. ")"
   end
-  return "\nLo has conseguido en: " .. table.concat(parts, "; ")
+  return L["src.gotIn"] .. table.concat(parts, "; ")
 end
 
 -- Donde farmear un material, con tus propios datos de botin (sustituye a la tabla de farmeo de Zygor): nil si
@@ -840,7 +840,7 @@ local function RecipeToLearn(id)
       for k in pairs(data.learned) do
         if NormRecipe(k) == target then return nil end   -- ya la sabes
       end
-      return format("receta de %s que aun no sabes: aprendela si tu nivel lo permite", prof)
+      return format(L["win.recipeLater"], prof)
     end
   end
   return nil
@@ -907,7 +907,7 @@ local function RecipeForOthers(id, includeMine, all)
           -- version): no se sabe si ya la tiene, se avisa igual para que lo compruebe
           out[#out + 1] = {
             who = ckey:match("^([^-]+)") or ckey, prof = prof, rank = data.rank, req = req, ready = true, unknown = true,
-            note = format("%s (%s): abre su ventana de profesion una vez para confirmar si ya la sabe",
+            note = format(L["win.recipeCheck"],
               ckey:match("^([^-]+)") or ckey, prof),
           }
         end
@@ -2121,7 +2121,7 @@ local function GuideRow(content, i)
     if not dest and not mats and not it.unknown then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     if mats then
-      GameTooltip:AddLine("Materiales (bolsas + banco)", 0.7, 0.7, 0.7)
+      GameTooltip:AddLine(L["win.tipMats"], 0.7, 0.7, 0.7)
       for _, m in ipairs(it.mats) do
         local nm = C_Item.GetItemInfo(m.id) or ("item:" .. m.id)
         local ok = m.have >= m.need
@@ -2134,10 +2134,10 @@ local function GuideRow(content, i)
       GameTooltip:AddLine(" ")
     end
     if it.unknown then
-      GameTooltip:AddLine("No sabes esta receta: " .. LearnText({ learn = it.learn }), 1, 0.4, 0.4, true)
+      GameTooltip:AddLine(format(L["win.tipUnknown"], LearnText({ learn = it.learn })), 1, 0.4, 0.4, true)
     end
-    if dest then GameTooltip:AddLine("Clic: marcar el destino en el mapa", 0.7, 0.7, 0.7) end
-    if mats then GameTooltip:AddLine("Clic derecho: buscar los materiales en la subasta", 0.7, 0.7, 0.7) end
+    if dest then GameTooltip:AddLine(L["win.tipClickMap"], 0.7, 0.7, 0.7) end
+    if mats then GameTooltip:AddLine(L["win.tipClickSearch"], 0.7, 0.7, 0.7) end
     GameTooltip:Show()
   end)
   r:SetScript("OnLeave", function() GameTooltip:Hide() end)

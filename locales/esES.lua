@@ -529,4 +529,12 @@ GF.locales.esES = {
   ["cmd.capUsage"] = "Uso: /gf tope 5 (unidades de cada objeto fabricado que la pestana Ruta valora a precio de subasta, de 0 a 1000)",
   ["cmd.sessionReset"] = "Sesion reiniciada.",
   ["cmd.help"] = "Comandos: /gf (abre la ventana) | /gf ajustes (opciones en Opciones > AddOns) | /gf guia [profesion] (guia completa) | /gf ruta N (puntos que planifica la pestana Ruta, 5-100) | /gf tope N (unidades valoradas a precio de subasta en la Ruta) | /gf icono (muestra u oculta el icono del minimapa) | /gf session reset",
+  ["src.gotIn"] = "\nLo has conseguido en: ",
+  ["win.recipeLater"] = "receta de %s que aun no sabes: aprendela si tu nivel lo permite",
+  ["win.recipeCheck"] = "%s (%s): abre su ventana de profesion una vez para confirmar si ya la sabe",
+  ["win.tipMats"] = "Materiales (bolsas + banco)",
+  ["win.tipUnknown"] = "No sabes esta receta: %s",
+  ["win.tipClickMap"] = "Clic: marcar el destino en el mapa",
+  ["win.tipClickSearch"] = "Clic derecho: buscar los materiales en la subasta",
+  ["quest.chainNext"] = "siguiente de la cadena: %s",
 }

@@ -10,7 +10,7 @@ function GF.InitProfTabs(d)
   local Cfg, Char, CreateUI, ProfOn, RouteFor =
     d.Cfg, d.Char, d.CreateUI, d.ProfOn, d.RouteFor
 
-  local P = { tabs = {}, hooked = {}, order = { "ruta", "fabricar" }, labels = { ruta = "Ruta", fabricar = "Fabricar" } }
+  local P = { tabs = {}, hooked = {}, order = { "ruta", "fabricar" }, labels = { ruta = "tab.route", fabricar = "tab.craft" } }
   Skin.ProfTabs = P   -- los ajustes (profTabs, craftTab, routeTab) recolocan las pestanas con P.later
 
   -- profesion abierta en la ventana, con la misma clave con la que CacheProfession la guarda
@@ -193,10 +193,10 @@ function GF.InitProfTabs(d)
       local b = NewFrame("Button", "GoldFinderProfTab_" .. k, win, "PanelTabButtonTemplate")
       if b then
         b.gfPanel = true
-        b:SetText(P.labels[k])
+        b:SetText(GF.L[P.labels[k]])
         if PanelTemplates_TabResize then pcall(PanelTemplates_TabResize, b, 0) end
       else
-        b = Btn(win, P.labels[k], 90, 22)
+        b = Btn(win, GF.L[P.labels[k]], 90, 22)
       end
       b.gfProfTab = true
       b:SetScript("OnClick", function()

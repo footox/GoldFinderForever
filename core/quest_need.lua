@@ -44,7 +44,7 @@ local function BuildQuestNeed(entries, api)
     x.n = math.min(QUEST_ALL, x.n + (n or QUEST_ALL))
     if chain then
       x.chainTitles[#x.chainTitles + 1] = title
-      x.quests[#x.quests + 1] = "siguiente de la cadena: " .. title
+      x.quests[#x.quests + 1] = string.format(GF.L["quest.chainNext"], title)
     else
       x.chain = false
       x.titles[#x.titles + 1] = title

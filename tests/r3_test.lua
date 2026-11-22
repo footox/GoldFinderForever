@@ -5,6 +5,8 @@
 -- ("-- RECETAS DEL INSTRUCTOR" .. "local trainerEvents"), with stubbed WoW APIs.
 
 local src = assert(io.open((arg and arg[1]) or "GoldFinder.lua")):read("*a")
+local GFL = {}
+for _, p in ipairs({ "core/locale.lua", "locales/enUS.lua" }) do assert(loadfile(p))("GoldFinder", GFL) end
 local function block(from, to, tail)
   local a = assert(src:find(from, 1, true), "start marker " .. from)
   local b = assert(src:find(to, a, true), "end marker " .. to)
@@ -236,6 +238,7 @@ local items = {
 local curItem
 local function recipeEnv(db, me)
   return load(recipeChunk, {
+    L = GFL.L,
     GoldFinderDB = db, format = string.format,
     Char = function() return db.chars[me] end,
     ProfOn = function() return true end,
@@ -280,7 +283,7 @@ do
   end
   check("4 alt without recipe list gets a hint", bob ~= nil and bob.unknown == true)
   check("4 hint text", bob and bob.note ==
-    "Bob Smith (Tailoring): abre su ventana de profesion una vez para confirmar si ya la sabe")
+    "Bob Smith (Tailoring): open their profession window once to confirm whether they already know it")
   check("4 alt below the requirement gets no hint", low == nil)
   check("4 alt that knows it gets no hint", ann == nil)
   db.chars["Cy New"] = { prof = { Tailoring = { rank = 140, learned = { ["Something"] = true } } } }
