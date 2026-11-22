@@ -83,7 +83,9 @@ check("zip folder and file names follow the new name", build:find('"GoldFinderFo
 -- the texts the player reads
 local en, es, readme = read("locales/enUS.lua") or "", read("locales/esES.lua") or "", read("README.md") or ""
 check("no leftover migration texts", not en:find("migrate.", 1, true) and not es:find("migrate.", 1, true))
-check("player-facing texts do not tell to type /gf", not en:find("/gf[^f]") and not es:find("/gf[^f]") and not readme:find("/gf[^f]"))
+-- the README changelog legitimately quotes old versions, and one line explains that /gf still works when free
+local readmeBody = readme:gsub("<!%-%- changelog:start %-%->.*<!%-%- changelog:end %-%->", ""):gsub("`/gf` also works", "")
+check("player-facing texts do not tell to type /gf", not en:find("/gf[^f]") and not es:find("/gf[^f]") and not readmeBody:find("/gf[^f]"))
 
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")
