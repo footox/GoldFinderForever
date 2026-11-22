@@ -5,6 +5,7 @@
 ### Changes
 - The addon folder is now GoldFinderForever (it was GoldFinder). Delete the old GoldFinder folder after updating.
 - Saved data starts fresh: nothing is imported from the old version. Professions are read again by themselves; the keep and hide lists and the options have to be set again.
+- On by default now: the next profession step in the objective tracker, the Shopping tab with its List button, and the warning about materials your other characters need. All can be turned off in the options; the mailbox panel stays off by default.
 - The main command is now /gff. /gf keeps working only while no other addon uses it.
 - The minimap button and the option entries have their own names, so they no longer share them with other addons.
 
