@@ -20,6 +20,8 @@ local function loadCore(path, GF, env)
 end
 local GF = {}
 loadCore("core/config.lua", GF)
+loadCore("core/locale.lua", GF)
+loadCore("locales/enUS.lua", GF)
 loadCore("core/quest_need.lua", GF)
 loadCore("core/decision.lua", GF, { GoldFinderDB = {} })
 
@@ -66,18 +68,18 @@ local f
 for _, id in ipairs({ 2901, 7005, 5956, 6219, 6218, 6339, 11130, 11145, 16207 }) do
   reset(); S.vendor[id] = 20; S.quality[id] = 1
   local d = Decide(id, 1, 0, false)
-  check("tool " .. id .. " is KEEP (herramienta de profesion)", d.verdict == "KEEP" and d.reason == "herramienta de profesion")
+  check("tool " .. id .. " is KEEP (herramienta de profesion)", d.verdict == "KEEP" and d.code == "tool")
 end
 reset(); S.vendor[6256] = 5; S.quality[6256] = 1; S.class[6256] = { 2, 20 }
 check("fishing pole (weapon subclass 20) is KEEP", Decide(6256, 1, 0, false).verdict == "KEEP")
 reset(); S.vendor[777] = 5; S.quality[777] = 1; S.class[777] = { 2, 20 }
-check("any fishing pole by class is KEEP", Decide(777, 1, 0, false).reason == "herramienta de profesion")
+check("any fishing pole by class is KEEP", Decide(777, 1, 0, false).code == "tool")
 check("tool: nothing to sell", SellQty(777) == 0)
 
 -- 1b. no Auctionator price
 reset(); S.vendor[100] = 50; S.quality[100] = 1
 local d = Decide(100, 3, 0, false)
-check("unknown white item: NONE, not VENDOR", d.verdict == "NONE" and d.reason == "sin datos de subasta: escanea")
+check("unknown white item: NONE, not VENDOR", d.verdict == "NONE" and d.code == "scan")
 reset(); S.vendor[100] = 50; S.quality[100] = 0
 check("unknown gray junk: still VENDOR", Decide(100, 3, 0, false).verdict == "VENDOR")
 reset(); S.vendor[100] = 50; S.quality[100] = 1
@@ -97,11 +99,11 @@ d = Decide(300, 5, 0, false)
 check("no vendor, no AH, TSM worth it: AH at TSM net", d.verdict == "AH" and d.unit == 9500 and d.ahNet == 9500)
 reset(); S.quality[300] = 1
 d = Decide(300, 5, 0, false)
-check("no vendor, no AH, no TSM: NONE escanea", d.verdict == "NONE" and d.reason == "sin datos de subasta: escanea")
+check("no vendor, no AH, no TSM: NONE escanea", d.verdict == "NONE" and d.code == "scan")
 reset(); S.quality[300] = 1; S.tsm["DBMarket:300"] = 100
 d = Decide(300, 1, 0, false)
 check("no vendor, no AH, TSM below min gain: NONE escanea",
-  d.verdict == "NONE" and d.reason == "sin datos de subasta: escanea")
+  d.verdict == "NONE" and d.code == "scan")
 reset(); S.quality[300] = 0
 check("no vendor gray without data: not VENDOR", Decide(300, 1, 0, false).verdict == "NONE")
 reset(); S.quality[300] = 1; S.tsm["DBMarket:300"] = 10000
@@ -138,7 +140,7 @@ reserves(); S.cfg.crossChars = false; S.bags[200] = 18
 check("crossChars off: only own reserve (8 to sell)", SellQty(200) == 8 and Decide(200, 18, 0, false).reserve == 10)
 reserves()
 d = Decide(200, 10, 0, false)
-check("own max not summed: 10 held is KEEP for own route", d.verdict == "KEEP" and d.reason:find("ruta", 1, true))
+check("own max not summed: 10 held is KEEP for own route", d.verdict == "KEEP" and d.reason:find("route", 1, true))
 reserves()
 d = Decide(200, 12, 0, false)
 check("12 held: KEEP for the alts", d.verdict == "KEEP" and d.forOther ~= nil)
@@ -226,8 +228,6 @@ check("nothing known: vendor x4 estimate", p5 == 40 and est == true)
 ---------------------------------------------------------------------------
 -- AuctionPlan: one-click refused for variant gear and without a market reference
 ---------------------------------------------------------------------------
-loadCore("core/locale.lua", GF)
-loadCore("locales/enUS.lua", GF)
 loadCore("core/auction.lua", GF)
 local AuctionPlan = GF.AuctionPlan
 local p = AuctionPlan({ lowest = 900, market = 1000, vendor = 0, available = 3, variant = true })
@@ -251,13 +251,13 @@ b = assert(src:find("-- FIN DE FILTRO DE BOLSAS", 1, true), "bag filter end mark
 f = assert(loadstring(src:sub(a, b - 1) .. "\nreturn BagListed"))
 setfenv(f, setmetatable({}, { __index = _G }))
 local BagListed = f()
-local scan = { id = 9, verdict = "NONE", reason = "sin datos de subasta: escanea", vendor = 0, count = 2 }
+local scan = { id = 9, verdict = "NONE", code = "scan", vendor = 0, count = 2 }
 check("escanea row is listed in Bolsas", BagListed(scan) == true)
 check("plain NONE row stays hidden", BagListed({ verdict = "NONE" }) == false)
 check("AH/VENDOR/KEEP rows listed", BagListed({ verdict = "AH" }) and BagListed({ verdict = "VENDOR" })
   and BagListed({ verdict = "KEEP" }))
 loadCore("core/vendor.lua", GF)
-local scanV = { id = 9, verdict = "NONE", reason = "sin datos de subasta: escanea", vendor = 50, count = 2 }
+local scanV = { id = 9, verdict = "NONE", code = "scan", vendor = 50, count = 2 }
 check("escanea row not in the merchant panel", #GF.VendorSellRows({ scanV }) == 0)
 
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end

@@ -1285,7 +1285,7 @@ local function LeatherRows()
         if d.verdict == "KEEP" then
           if d.forOther then advice = "|cff6cb4ffGuarda: para " .. d.forOther .. "|r"
           elseif d.manual then advice = "|cff6cb4ffGuarda: fijado|r"
-          elseif d.reason and d.reason:find("precio bajo", 1, true) then advice = "|cff6cb4ffGuarda: barato|r"
+          elseif d.code == "lowprice" then advice = "|cff6cb4ffGuarda: barato|r"
           else advice = "|cff6cb4ffGuarda: receta|r" end
         elseif d.verdict == "VENDOR" then advice = "|cffffa640Al vendedor|r"
         elseif d.verdict == "AH" then
@@ -3396,7 +3396,7 @@ local function CreateUI(parent, opts)
   -- Fila visible en Bolsas: todo menos los objetos sin precio (ligados, de mision...); los que piden escanear la
   -- subasta se listan con su motivo. Solo filtra la lista: el vendedor y el correo siguen sin verlos (no son AH/VENDOR).
   local function BagListed(r)
-    return r.verdict ~= "NONE" or r.reason == "sin datos de subasta: escanea"
+    return r.verdict ~= "NONE" or r.code == "scan"
   end
   -- FIN DE FILTRO DE BOLSAS
   local verdictText = {

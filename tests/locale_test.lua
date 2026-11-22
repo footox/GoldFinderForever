@@ -88,7 +88,7 @@ check("every key used in the source exists in English" .. (#unknown > 0 and ("\n
   #unknown == 0)
 
 -- keys built at run time (prefix .. code) must exist for every code the core can return
-local dynamic = { "mail.skip.reserve", "mail.skip.bound", "mail.skip.locked" }
+local dynamic = { "mail.skip.reserve", "mail.skip.bound", "mail.skip.locked", "decision.tsm", "decision.scan" }
 local missingDyn = {}
 for _, k in ipairs(dynamic) do if en[k] == nil or es[k] == nil then missingDyn[#missingDyn + 1] = k end end
 check("run-time keys exist in both languages" .. (#missingDyn > 0 and (": " .. table.concat(missingDyn, ", ")) or ""),

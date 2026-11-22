@@ -133,6 +133,8 @@ check("no quest API: empty log", #ReadQuestLog() == 0)
 -- 2. reserve integration (Decide / SellQty)
 ---------------------------------------------------------------------------
 loadCore("core/config.lua", GF)
+loadCore("core/locale.lua", GF)
+loadCore("locales/enUS.lua", GF)
 loadCore("core/decision.lua", GF, { GoldFinderDB = {} })
 local S
 local function reset()
@@ -169,8 +171,8 @@ local function cloth()
 end
 cloth()
 local d = Decide(2589, 10, 0, false)
-check("held = quest need: KEEP para la mision", d.verdict == "KEEP" and d.reason
-  and d.reason:find("para la mision Bring Cloth", 1, true) ~= nil)
+check("held = quest need: KEEP for the quest", d.verdict == "KEEP" and d.reason
+  and d.reason:find("for the quest Bring Cloth", 1, true) ~= nil)
 check("KEEP reserve counts the quest", d.reserve == 10)
 cloth()
 d = Decide(2589, 13, 0, false)
@@ -194,7 +196,7 @@ check("route alone covers holdings: profession reason kept", d.verdict == "KEEP"
 reset(); S.ah[5003] = 100000; S.vendor[5003] = 10
 S.quest[5003] = { n = ALL, quests = { "siguiente de la cadena: More Cloth" }, chain = true, chainTitles = { "More Cloth" } }
 d = Decide(5003, 4, 0, false)
-check("chain item: KEEP para la cadena", d.verdict == "KEEP" and d.reason:find("para la cadena: More Cloth", 1, true))
+check("chain item: KEEP for the chain", d.verdict == "KEEP" and d.reason:find("for the chain: More Cloth", 1, true))
 S.bags[5003] = 4
 check("chain item: nothing to sell", SellQty(5003) == 0)
 -- setting off
