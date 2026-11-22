@@ -4449,7 +4449,7 @@ end
 local f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
 f:RegisterEvent("PLAYER_LOGIN")
-for _, ev in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_DATA_SOURCE_CHANGED", "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "BAG_UPDATE_DELAYED", "LOOT_OPENED", "ZONE_CHANGED_NEW_AREA", "NEW_RECIPE_LEARNED", "MAIL_SHOW" }) do
+for _, ev in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_DATA_SOURCE_CHANGED", "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "BAG_UPDATE_DELAYED", "LOOT_OPENED", "ZONE_CHANGED_NEW_AREA", "NEW_RECIPE_LEARNED", "MAIL_SHOW", "PLAYER_LOGOUT" }) do
   pcall(f.RegisterEvent, f, ev)
 end
 f:SetScript("OnEvent", function(_, event, arg1)
@@ -4501,6 +4501,9 @@ f:SetScript("OnEvent", function(_, event, arg1)
         xpcall(UpdateTracker, geterrorhandler())
       end)
     end
+  elseif event == "PLAYER_LOGOUT" then
+    -- also fires on /reload, just before the game writes the saved variables: keep only what the player changed
+    pcall(GF.StripDefaults, GoldFinderForeverDB)
   elseif event == "MAIL_SHOW" then
     C_Timer.After(0.2, function() pcall(Mail.Refresh) end)
   elseif event == "BAG_UPDATE_DELAYED" then
@@ -4560,7 +4563,7 @@ SlashCmdList["GOLDFINDERFOREVER"] = function(msg)
     local n = tonumber(rest)
     if n and n >= 5 and n <= 100 then
       SetOption("routeSpan", math.floor(n))
-      Print(format(L["cmd.routeSet"], GoldFinderForeverDB.routeSpan))
+      Print(format(L["cmd.routeSet"], Cfg("routeSpan")))
     else
       Print(L["cmd.routeUsage"])
     end
@@ -4568,7 +4571,7 @@ SlashCmdList["GOLDFINDERFOREVER"] = function(msg)
     local n = tonumber(rest)
     if n and n >= 0 and n <= 1000 then
       SetOption("sellCap", math.floor(n))
-      Print(format(L["cmd.capSet"], GoldFinderForeverDB.sellCap))
+      Print(format(L["cmd.capSet"], Cfg("sellCap")))
     else
       Print(L["cmd.capUsage"])
     end

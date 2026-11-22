@@ -46,3 +46,22 @@ function GF.Cfg(k)
   if db and db[k] ~= nil then return db[k] end
   return GF.DEFAULTS[k]
 end
+
+-- The Blizzard Settings registration writes every option into the saved table, defaults included, so a default that
+-- changes in a later version would never reach players who already ran the addon (their table holds the old default as
+-- if it were their choice). Called at logout and on /reload: it removes every key of GF.DEFAULTS whose saved value is
+-- exactly its default, so only what the player really changed stays saved. A value that differs from its default (for
+-- example an explicit false against a default true) is never touched, nor is any key that is not an option (characters,
+-- positions, welcomeSeen...). Returns how many keys it removed.
+function GF.StripDefaults(db)
+  if type(db) ~= "table" then return 0 end
+  local removed = 0
+  for key, default in pairs(GF.DEFAULTS) do
+    local v = db[key]
+    if v ~= nil and v == default then   -- == does not convert types: "25" is not 25
+      db[key] = nil
+      removed = removed + 1
+    end
+  end
+  return removed
+end
