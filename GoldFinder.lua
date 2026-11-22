@@ -250,6 +250,7 @@ local nameMissing = false   -- se activa si algun nombre de objeto aun no esta c
 -- si los pregunta al servidor, asi que se lee el nombre de un tooltip oculto.
 local scanTip
 local nameCache = {}
+local linkCache = {}   -- links the client has given us once: it sometimes forgets them, and a name must not flicker back to item:123
 local function TooltipName(id)
   if nameCache[id] then return nameCache[id] end
   if not scanTip then
@@ -270,7 +271,8 @@ end
 
 local function ItemLink(id)
   local _, link = C_Item.GetItemInfo(id)
-  if link then return link end
+  if link then linkCache[id] = link; return link end
+  if linkCache[id] then return linkCache[id] end
   local nm = TooltipName(id)
   if nm then return nm end
   nameMissing = true
@@ -3786,6 +3788,11 @@ local function CreateUI(parent, opts)
   end
 
   function ui.refresh()
+    if GF.redrawProbe then   -- diagnostic: /gff redraws counts who asks for each redraw
+      local s = debugstack and debugstack(2, 3, 0) or "?"
+      s = s:gsub("Interface\\AddOns\\GoldFinderForever\\", ""):gsub("%s*\n%s*", " <- "):sub(1, 160)
+      GF.redrawProbe[s] = (GF.redrawProbe[s] or 0) + 1
+    end
     local parts = { ScanAgeText(), TSM_API and L["win.tsmOn"] or L["win.tsmOff"] }
     ui.status:SetText(table.concat(parts, "   |   "))
     -- en la subasta, Compras aparece o desaparece segun lo que falte para el paso actual
@@ -4682,6 +4689,20 @@ SlashCmdList["GOLDFINDERFOREVER"] = function(msg)
       end
     end
     if not OpenOptions(inWindow) then inWindow() end
+  elseif cmd == "redraws" then
+    -- diagnostic: the first call starts counting what asks the windows to redraw, the second one reports it
+    if GF.redrawProbe then
+      local rows = {}
+      for k, n in pairs(GF.redrawProbe) do rows[#rows + 1] = { k, n } end
+      table.sort(rows, function(a, b) return a[2] > b[2] end)
+      GF.redrawProbe = nil
+      Print(L["dbg.redrawsReport"])
+      if #rows == 0 then Print(L["dbg.redrawsNone"]) end
+      for i = 1, math.min(6, #rows) do Print(format("%d x %s", rows[i][2], rows[i][1])) end
+    else
+      GF.redrawProbe = {}
+      Print(L["dbg.redrawsOn"])
+    end
   elseif cmd == "bienvenida" or cmd == "welcome" then
     GF.ShowWelcome()
   elseif cmd == "data" or cmd == "datos" then

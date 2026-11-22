@@ -157,5 +157,14 @@ check("the event handler reads the second argument", main:find('f:SetScript("OnE
 check("ItemLink records which ids are missing", main:find("missingNow[id] = true", 1, true) ~= nil
   and main:find("    missingNow = {}", 1, true) ~= nil and main:find("ui.namesMissing, ui.missingIds = nameMissing, missingNow", 1, true) ~= nil)
 
+-- the redraw probe (diagnostic): counts who asks a window to redraw
+check("ui.refresh records its caller only while the probe is on", main:find("if GF.redrawProbe then", 1, true) ~= nil
+  and main:find("GF.redrawProbe[s] = (GF.redrawProbe[s] or 0) + 1", 1, true) ~= nil)
+check("/gff redraws starts and stops the count", main:find('cmd == "redraws"', 1, true) ~= nil and main:find("GF.redrawProbe = {}", 1, true) ~= nil
+  and main:find("GF.redrawProbe = nil", 1, true) ~= nil)
+for _, k in ipairs({ "dbg.redrawsOn", "dbg.redrawsReport", "dbg.redrawsNone" }) do
+  check("both languages have " .. k, read("locales/enUS.lua"):find('["' .. k .. '"]', 1, true) ~= nil and read("locales/esES.lua"):find('["' .. k .. '"]', 1, true) ~= nil)
+end
+
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")
