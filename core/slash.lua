@@ -38,3 +38,20 @@ function GF.CommandTaken(slashCmdList, globals, ownKey, cmd)
 
 end
 
+-- Runs "/gff data <rest>" through the public API of the data addon (the global table GoldFinderForeverData).
+-- Returns an array of chat lines, or nil and a reason: "missing" (addon or its Command function is not there) or
+-- "failed" (it raised or returned something that is not a list). Only strings are kept, and at most MAX_LINES.
+GF.DATA_MAX_LINES = 30
+function GF.RunDataCommand(api, rest)
+  if type(api) ~= "table" or type(api.Command) ~= "function" then return nil, "missing" end
+  local ok, lines = pcall(api.Command, type(rest) == "string" and rest or "")
+  if not ok or type(lines) ~= "table" then return nil, "failed" end
+  local out = {}
+  for _, line in ipairs(lines) do
+    if type(line) == "string" then
+      out[#out + 1] = line
+      if #out >= GF.DATA_MAX_LINES then break end
+    end
+  end
+  return out
+end

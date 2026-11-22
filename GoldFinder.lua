@@ -4583,6 +4583,14 @@ SlashCmdList["GOLDFINDERFOREVER"] = function(msg)
     if not OpenOptions(inWindow) then inWindow() end
   elseif cmd == "bienvenida" or cmd == "welcome" then
     GF.ShowWelcome()
+  elseif cmd == "data" or cmd == "datos" then
+    -- the shared database lives in its own addon; its commands are reached through its public API
+    local lines, why = GF.RunDataCommand(_G.GoldFinderForeverData, rest)
+    if lines then
+      for _, line in ipairs(lines) do Print(line) end
+    else
+      Print(L[why == "failed" and "cmd.dataFailed" or "cmd.dataMissing"])
+    end
   elseif cmd == "guia" or cmd == "guide" then
     OpenGuide(rest)
   elseif cmd == "icono" or cmd == "minimap" then

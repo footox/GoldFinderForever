@@ -49,6 +49,7 @@ Coming from 2.2.x? The folder was renamed, so delete the old `GoldFinder` folder
 | `/gff cap N` | Units of each crafted item valued at auction price in the Route |
 | `/gff welcome` | Opens the welcome window again |
 | `/gff minimap` | Shows or hides the minimap icon |
+| `/gff data <command>` | Runs a command of the optional data addon, GoldFinderForeverData (for example `/gff data help`) |
 
 The Spanish aliases (`ajustes`, `guia`, `ruta`, `tope`, `bienvenida`) work too.
 
