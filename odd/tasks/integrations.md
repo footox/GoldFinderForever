@@ -13,18 +13,22 @@ Branch: feat/guide-integrations (stacked on feat/materials-tab so the game loads
 - S6 Who already knows a recipe (T5). Among the player's own characters only: say which of them already know the recipe. No messages are sent (the README promises it).
 - S7 Search by material in the guide (T6). "What do I use this material for": a search box in the guide that lists the recipes using a material.
 - S8 Out of scope: the gold-per-Favor ranking, guild crafters (needs messages), a recipe-browser window, buffs and crafted-gear tabs.
+- S10 Optional interface-manager support (T7). User, 2026-11-22: it is "como opcion de feature": something the player can switch on, never imposed. What it covers (skin, registration, frame positions) depends on the manager's extension points and licence, to be evaluated before building anything.
 - S9 Verification. Offline tests for every pure part; the pieces that touch Blizzard frames or functions marked "not verified" in the evaluation (trainer frame names, BuyMerchantItem signature, crate tooltip, Favor as a currency) are verified IN GAME with a screenshot before they count as done.
 
 ## Tasks
 
-- [ ] T1 (S2) trainer marks | route: inline | commit: -
+- [x] T1 (S2) trainer marks: a panel next to the trainer window (not marks on Blizzard's rows: the frame structure is not verified); core/trainer_marks.lua, features/trainer/marks.lua | route: inline | commit: GF-129 (offline done; IN-GAME check pending: where the panel falls, that it wraps, that the trainer is recognised)
 - [ ] T2 (S3) buy what the route needs | route: inline | commit: - | Risk: item 1 (spends the player's gold: an irreversible effect), so it gets an independent verification before release
 - [ ] T3 (S4) Waylaid Crates | route: inline | commit: -
 - [ ] T4 (S5) recipe sources table | route: inline | commit: -
 - [ ] T5 (S6) who already knows a recipe | route: inline | commit: -
 - [ ] T6 (S7) search by material in the guide | route: inline | commit: -
 
+- [ ] T7 (S10) optional support for a popular interface manager (EllesmereUI): to evaluate first | route: inline | commit: -
+
 ## Log
 
 - L1 (2026-11-22, user): "Hay que ajustar nuestra licencia?" -> goal: "E integrar esas funcionalidades? que realmente aporten valor?" -> value evaluation done by a read-only analyst, checked by the parent: no candidate needs GPL, licence stays MIT.
 - L2 (2026-11-22, user): "Ok, hay que implementarlos como feature."
+- L3 (2026-11-22, user): about EllesmereUI becoming a popular interface manager: "quizas podamos dar soporte para integrarnos a el" and "Pero es como opcion de feature" -> candidate T7: optional support for that interface manager, switchable by an option; to be evaluated (its extension points and licence) before any work.

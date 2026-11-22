@@ -14,6 +14,7 @@ core/config.lua
 core/slash.lua
 core/welcome.lua
 core/materials.lua
+core/trainer_marks.lua
 core/locale.lua
 locales/enUS.lua
 locales/esES.lua
@@ -45,6 +46,7 @@ features/auction/sidepanel.lua
 features/auction/scanprogress.lua
 features/auction/tab.lua
 features/auction/materials.lua
+features/trainer/marks.lua
 features/professions/tabs.lua
 features/guide/hybrid.lua
 features/route/helpers.lua

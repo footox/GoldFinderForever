@@ -2819,6 +2819,7 @@ local function MakeSettings(parent)
     { "profTabs", L["set.profTabs"] },
     { "recipeNotes", L["set.recipeNotes"] },
     { "auctionMaterials", L["set.auctionMaterials"] },
+    { "trainerMarks", L["set.trainerMarks"] },
     -- eleccion de dos valores como casilla: marcada = seguimiento de objetivos, sin marcar = ventana flotante
     { "trackerMode", L["set.trackerMode"],
       get = function() return Cfg("trackerMode") ~= "flotante" end,
@@ -3857,6 +3858,11 @@ GF.InitAuctionTab({
   CreateUI = function(...) return CreateUI(...) end,
   Print = function(...) return Print(...) end,
 })
+GF.InitTrainerMarks({
+  Sections = function(...) return TrainerSections(...) end,
+  Cfg = function(...) return Cfg(...) end,
+  Money = function(...) return ShortMoney(...) end,
+})
 GF.InitAuctionMaterials({
   CreateUI = function(...) return CreateUI(...) end,
   Cfg = function(...) return Cfg(...) end,
@@ -4177,6 +4183,30 @@ do
   end
 end
 
+-- What the open trainer teaches, per profession of yours with a guide: the recipes recorded for this trainer, the
+-- ones your guide still needs and the ones you already know (the panel of features/trainer/marks.lua).
+local function TrainerSections()
+  local npc = UnitName("npc")
+  local byFaction = GoldFinderForeverDB and GoldFinderForeverDB.trainerRecipes
+  byFaction = byFaction and byFaction[UnitFactionGroup("player") or "?"]
+  if not (npc and byFaction) then return {} end
+  local c, out = Char(), {}
+  for skill, recs in pairs(byFaction) do
+    local pd = c.prof and c.prof[skill]
+    local list = {}
+    for _, r in pairs(recs) do if type(r) == "table" and r.npc == npc then list[#list + 1] = r end end
+    if pd and pd.rank and #list > 0 then
+      local known = {}
+      for n in pairs(pd.crafts or {}) do known[n:lower()] = true end
+      for n in pairs(pd.learned or {}) do known[n:lower()] = true end
+      local okG, items = pcall(BuildGuide, skill, pd)
+      out[#out + 1] = { prof = skill, recs = list, known = known, wanted = GF.WantedRecipes(okG and items or nil) }
+    end
+  end
+  table.sort(out, function(a, b) return a.prof < b.prof end)
+  return out
+end
+
 local trainerEvents = CreateFrame("Frame")
 pcall(trainerEvents.RegisterEvent, trainerEvents, "TRAINER_SHOW")
 trainerEvents:SetScript("OnEvent", function()
@@ -4329,6 +4359,7 @@ local function RegisterOptions()
   check("recipeNotes", L["opt.recipeNotes.l"],
     L["opt.recipeNotes.t"])
   check("auctionMaterials", L["opt.auctionMaterials.l"], L["opt.auctionMaterials.t"])
+  check("trainerMarks", L["opt.trainerMarks.l"], L["opt.trainerMarks.t"])
   number("routeSpan", L["opt.routeSpan.l"], 5, 100, 1,
     L["opt.routeSpan.t"])
   number("sellCap", L["opt.sellCap.l"], 0, 1000, 1,
