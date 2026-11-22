@@ -2818,6 +2818,7 @@ local function MakeSettings(parent)
     { "routeTab", L["set.routeTab"] },
     { "profTabs", L["set.profTabs"] },
     { "recipeNotes", L["set.recipeNotes"] },
+    { "auctionMaterials", L["set.auctionMaterials"] },
     -- eleccion de dos valores como casilla: marcada = seguimiento de objetivos, sin marcar = ventana flotante
     { "trackerMode", L["set.trackerMode"],
       get = function() return Cfg("trackerMode") ~= "flotante" end,
@@ -3100,7 +3101,8 @@ local function CreateUI(parent, opts)
   local function AHViewKeys(shoppingOn, missing)
     local keys = { "bolsas" }
     if shoppingOn or missing then keys[#keys + 1] = "compras" end
-    keys[#keys + 1] = "cuero"
+    -- with the extra Materials window next to the auction house, Materials does not take a view here
+    if not Cfg("auctionMaterials") then keys[#keys + 1] = "cuero" end
     return keys
   end
   -- filas de Bolsas con lo que se subasta aqui primero; luego subasta via banquero o ligado, vendedor, guardar.
@@ -3855,6 +3857,11 @@ GF.InitAuctionTab({
   CreateUI = function(...) return CreateUI(...) end,
   Print = function(...) return Print(...) end,
 })
+GF.InitAuctionMaterials({
+  CreateUI = function(...) return CreateUI(...) end,
+  Cfg = function(...) return Cfg(...) end,
+  Print = function(...) return Print(...) end,
+})
 
 ---------------------------------------------------------------------------
 -- EVENTOS Y COMANDOS
@@ -4321,6 +4328,7 @@ local function RegisterOptions()
     L["opt.profTabs.t"])
   check("recipeNotes", L["opt.recipeNotes.l"],
     L["opt.recipeNotes.t"])
+  check("auctionMaterials", L["opt.auctionMaterials.l"], L["opt.auctionMaterials.t"])
   number("routeSpan", L["opt.routeSpan.l"], 5, 100, 1,
     L["opt.routeSpan.t"])
   number("sellCap", L["opt.sellCap.l"], 0, 1000, 1,

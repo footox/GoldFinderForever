@@ -7,7 +7,8 @@ local a = assert(src:find("-- VISTAS DE LA CASA DE SUBASTAS", 1, true), "start m
 local b = assert(src:find("-- FIN DE VISTAS DE LA CASA DE SUBASTAS", 1, true), "end marker")
 local chunk = src:sub(a, b - 1) .. "\nreturn AHViewKeys, AHBagOrder"
 local f = assert(loadstring(chunk))
-setfenv(f, setmetatable({}, { __index = _G }))
+local OPT = { auctionMaterials = false }   -- false: Materials stays inside the tab (the case these checks were written for)
+setfenv(f, setmetatable({ Cfg = function(k) return OPT[k] end }, { __index = _G }))
 local AHViewKeys, AHBagOrder = f()
 
 local failures = 0
@@ -19,6 +20,13 @@ local function keys(...) return table.concat(AHViewKeys(...), ",") end
 check("shopping on: Bolsas, Compras, Cuero", keys(true, false) == "bolsas,compras,cuero")
 check("shopping off but materials missing: Compras still shown", keys(false, true) == "bolsas,compras,cuero")
 check("shopping off and nothing missing: no Compras", keys(false, false) == "bolsas,cuero")
+-- with the extra Materials window next to the auction house, the tab does not take a Materials view
+OPT.auctionMaterials = true
+check("extra window on: Bolsas and Compras only", keys(true, false) == "bolsas,compras" and keys(false, false) == "bolsas")
+check("extra window on: never a Materials view", not keys(true, true):find("cuero") and not keys(false, true):find("cuero"))
+OPT.auctionMaterials = nil
+check("an unset option counts as off: Materials stays in the tab", keys(false, false) == "bolsas,cuero")
+OPT.auctionMaterials = false
 check("never Resumen, Fabricar, Ruta, Sesion or Ajustes", not keys(true, true):find("resumen")
   and not keys(true, true):find("fabricar") and not keys(true, true):find("ruta")
   and not keys(true, true):find("sesion") and not keys(true, true):find("ajustes"))

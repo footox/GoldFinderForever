@@ -44,6 +44,7 @@ features/auction/post.lua
 features/auction/sidepanel.lua
 features/auction/scanprogress.lua
 features/auction/tab.lua
+features/auction/materials.lua
 features/professions/tabs.lua
 features/guide/hybrid.lua
 features/route/helpers.lua

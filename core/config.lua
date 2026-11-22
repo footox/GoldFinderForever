@@ -29,6 +29,7 @@ GF.DEFAULTS = {
   sellCap = 5,          -- ruta: unidades de cada objeto fabricado que se valoran a precio de subasta (el resto, a precio del vendedor)
   banker = "",        -- nombre del personaje banquero al que se envia lo que hay que subastar
   trackerMode = "objetivos", -- siguiente paso: "objetivos" (bloque en el seguimiento de objetivos) o "flotante"
+  auctionMaterials = true, -- ventana adicional de Materiales junto a la subasta (apagada: Materiales va dentro de la pestana)
   recipeNotes = true,   -- probabilidad de subir y coste o ganancia por punto en la lista de recetas de profesiones
   -- boton Subastar (precio y cantidad como una operacion de TSM)
   postMinPct = 60,      -- precio minimo: % del valor de mercado (nunca por debajo de lo que paga el vendedor)

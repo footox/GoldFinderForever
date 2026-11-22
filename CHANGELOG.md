@@ -6,6 +6,7 @@
 - Options that you never changed are no longer saved as if you had chosen them, so a default that changes in a later version reaches everyone. Only the values that differ from the default stay in your saved data. Nothing you chose is lost.
 
 ### Features
+- In the auction house, Materials opens in a window of its own next to it and closes with it, so the GoldFinder tab keeps its space. You can drag it, and it remembers where you left it. Option: Materials window at the auction house.
 - The Leather tab is now the Materials tab: leather, cloth, ore and herbs, with their auction price, the value of a stack and the advice. A selector at the top (< and >) changes the category, and it opens on the one of your professions (the one with the highest skill; leather if none).
 - Optional data addon support: if GoldFinderForeverData is installed, the guide also says where to get a recipe item from the vendors and drops its players recorded, next to what QuestieDB knows (it fills the gaps, for example recipes QuestieDB does not list).
 - /gff data <command> runs a command of the data addon (for example /gff data help or /gff data near vendor).
