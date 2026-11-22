@@ -4,7 +4,7 @@ Addon para WoW Forever que te dice qué hacer con lo que llevas (vender al vende
 subir profesiones gastando lo menos posible. Nada se vende, se publica ni se envía sin tu clic.
 
 *An addon for WoW Forever that tells you what to do with what you carry (vendor, auction or keep) and helps you level
-professions cheaply. Nothing is sold, posted or mailed without your click. The interface is in Spanish.*
+professions cheaply. Nothing is sold, posted or mailed without your click. The interface is available in English and Spanish (it follows your game language; change it in Options > AddOns > GoldFinder).*
 
 ## Funciones
 
@@ -23,6 +23,8 @@ professions cheaply. Nothing is sold, posted or mailed without your click. The i
 - Opcional: **TradeSkillMaster** (precios de mercado).
 
 ## Comandos
+
+La interfaz está en español e inglés: sigue el idioma del juego y se cambia en las opciones.
 
 `/gf` abre la ventana, `/gf guia [profesion]` la guía, `/gf ajustes` las opciones, `/gf ruta N` y `/gf tope N`.
 

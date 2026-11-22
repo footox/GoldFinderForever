@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- English (enUS) and Spanish (esES) interface; it follows the game language, with a language selector in the options.
+- The "Fijar" button is now "Guardar" (Keep) and its reasons say "lo guardaste tú".
+- Internal refactor: code split into core, adapters, features and ui folders; no behavior change.
+
 ## 2.1.1
 
 - Merchant prices are read through a compatibility helper that falls back to C_MerchantFrame.GetItemInfo if
