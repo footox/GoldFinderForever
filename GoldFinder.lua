@@ -1364,7 +1364,8 @@ local ROW_H, ACT_W = 30, 112
 local function PlaceCols(owner, name, c1, c2, c3, hasIcon, w, act)
   act = act or ACT_W   -- espacio de los botones (poco si la lista no tiene botones)
   local narrow = (w or 900) < 720
-  local w3, w2, w1 = narrow and 110 or 150, narrow and 110 or 150, narrow and 90 or 110
+  -- estrecho (por ejemplo la pestana de la subasta con su panel lateral): columnas cortas para que el nombre quepa
+  local w3, w2, w1 = narrow and 96 or 150, narrow and 78 or 150, narrow and 46 or 110
   c3:ClearAllPoints(); c3:SetPoint("RIGHT", owner, "RIGHT", -act, 0); c3:SetWidth(w3); c3:SetJustifyH("RIGHT")
   c2:ClearAllPoints(); c2:SetPoint("RIGHT", owner, "RIGHT", -(act + w3 + 8), 0); c2:SetWidth(w2); c2:SetJustifyH("RIGHT")
   c1:ClearAllPoints(); c1:SetPoint("RIGHT", owner, "RIGHT", -(act + w3 + w2 + 16), 0); c1:SetWidth(w1); c1:SetJustifyH("RIGHT")

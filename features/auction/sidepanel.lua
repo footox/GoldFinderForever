@@ -136,7 +136,10 @@ function GF.SidePanel.Attach(ui, header, inset, cfg)
   function api.update()
     layout()
     for _, b in ipairs(navBtns) do
-      if b.gfKey == ui.current then b:LockHighlight() else b:UnlockHighlight() end
+      local on = b.gfKey == ui.current
+      if on then b:LockHighlight() else b:UnlockHighlight() end
+      -- la vista actual se distingue por el texto dorado (los botones rojos se ven iguales con o sin resaltado)
+      if on then b.label:SetTextColor(1, 0.82, 0.25) else b.label:SetTextColor(0.75, 0.7, 0.62) end
     end
     for _, e in ipairs(boxes) do e.show() end
   end
