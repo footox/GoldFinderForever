@@ -92,6 +92,11 @@ function GF.NewDecision(d)
       d.verdict, d.code, d.reason = "KEEP", "tool", L["decision.tool"]
       return d
     end
+    -- a Waylaid Crate serves Favor: it is never advised to sell, whatever it would fetch
+    if GF.IsWaylaidCrate(id) then
+      d.verdict, d.code, d.reason = "KEEP", "crate", L["decision.crate"]
+      return d
+    end
     local r = Reserve(id)
     d.reserve, d.reserveFor, d.reserveOther = r.total, r.label, r.otherLabel
     if r.q then d.quest = r.q end
@@ -196,7 +201,7 @@ function GF.NewDecision(d)
     local bags, bank = Counts(id)
     if withBank then bags, bank = bags + bank, 0 end
     if bags <= 0 then return 0 end
-    if Char().keep[id] or IsProfessionTool(id) then return 0 end
+    if Char().keep[id] or IsProfessionTool(id) or GF.IsWaylaidCrate(id) then return 0 end
     local r = Reserve(id)
     return math.max(0, math.min(bags, bags + bank - r.total))
   end

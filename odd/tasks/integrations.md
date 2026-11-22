@@ -20,7 +20,7 @@ Branch: feat/guide-integrations (stacked on feat/materials-tab so the game loads
 
 - [x] T1 (S2) trainer marks: a panel next to the trainer window (not marks on Blizzard's rows: the frame structure is not verified); core/trainer_marks.lua, features/trainer/marks.lua | route: inline | commit: GF-129 (offline done; IN-GAME check pending: where the panel falls, that it wraps, that the trainer is recognised)
 - [ ] T2 (S3) buy what the route needs | route: inline | commit: - | Risk: item 1 (spends the player's gold: an irreversible effect), so it gets an independent verification before release
-- [ ] T3 (S4) Waylaid Crates | route: inline | commit: -
+- [x] T3 (S4) Waylaid Crates | route: inline | core/crates.lua (30 ids seen in game), rule in core/decision.lua | in-game check pending; the materials that fill a crate are NOT reserved yet: no verified data on what each crate holds
 - [ ] T4 (S5) recipe sources table | route: inline | commit: -
 - [ ] T5 (S6) who already knows a recipe | route: inline | commit: -
 - [x] T6 (S7) search by material in the guide | route: inline | core/guide_search.lua, search box in the guide window | in-game check pending
