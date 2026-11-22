@@ -6,6 +6,11 @@
 - The "Fijar" button is now "Guardar" (Keep) and its reasons say "lo guardaste tú".
 - Internal refactor: code split into core, adapters, features and ui folders; no behavior change.
 
+## 2.1.2
+
+- QuestieDB is now an optional dependency: the addon loads on characters where Questie is disabled
+  (quest-based item needs are simply skipped there).
+
 ## 2.1.1
 
 - Merchant prices are read through a compatibility helper that falls back to C_MerchantFrame.GetItemInfo if
