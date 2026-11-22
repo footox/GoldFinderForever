@@ -42,7 +42,8 @@ check("command opens it again", main:find('cmd == "welcome"', 1, true) ~= nil an
 local win = read("features/welcome/window.lua")
 check("the paragraphs wrap (Text() defaults to one line)", win:find("fs:SetWordWrap(true)", 1, true) ~= nil
   and win:find("{ f.intro, f.body, f.foot }", 1, true) ~= nil)
-check("the window marks itself as seen", win:find("welcomeSeen = true", 1, true) ~= nil)
+local seenAt, showAt = win:find("welcomeSeen = true", 1, true), win:find("f:Show()", 1, true)
+check("the window is marked as seen before it is built", seenAt ~= nil and showAt ~= nil and seenAt < showAt)
 local en, es = read("locales/enUS.lua"), read("locales/esES.lua")
 for _, it in ipairs(GF.WELCOME_ITEMS) do
   for _, k in ipairs({ ".n", ".d" }) do

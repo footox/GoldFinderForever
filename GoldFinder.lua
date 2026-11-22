@@ -2078,7 +2078,7 @@ end
 
 ---------------------------------------------------------------------------
 -- GUIA DE PROFESION: todos los pasos a la vista (hechos, actual y proximos), con materiales,
--- recetas por aprender e instructores. Se abre con /gf guia, el boton "G" o Ctrl+clic en la
+-- recetas por aprender e instructores. Se abre con /gff guia, el boton "G" o Ctrl+clic en la
 -- ventana flotante. Clic en un paso: marca su destino; clic derecho: busca sus materiales.
 ---------------------------------------------------------------------------
 local guideRows = {}
@@ -3364,7 +3364,7 @@ local function CreateUI(parent, opts)
     bolsas = function()
       ui.list.setHeaders(L["win.hItem"], L["win.hQty"], L["win.hDecision"], L["win.hValue"])
       local allRows = BagRows()
-      -- en la subasta lo que se puede subastar alli va arriba (en /gf queda el orden de siempre)
+      -- en la subasta lo que se puede subastar alli va arriba (en /gff queda el orden de siempre)
       if auction then allRows = AHBagOrder(allRows) end
       local rows, hidden = {}, 0
       for _, r in ipairs(allRows) do
@@ -4167,7 +4167,7 @@ end)
 -- OPCIONES en Opciones > AddOns > GoldFinder, con la API nativa Settings (casillas, secciones, Predeterminados
 -- y busqueda del juego). Cada fila entra por Settings.RegisterInitializer, que la inserta desde el codigo seguro
 -- de Blizzard: asi la busqueda de opciones no se contamina con el codigo del addon. Sin la API (u otro cliente)
--- no se registra nada y la pestana Ajustes de /gf sigue mostrando su pagina propia (MakeSettings).
+-- no se registra nada y la pestana Ajustes de /gff sigue mostrando su pagina propia (MakeSettings).
 ---------------------------------------------------------------------------
 local optionsCategory
 
@@ -4186,7 +4186,7 @@ local function RegisterOptions()
   local function refreshShown() for _, u in ipairs(uiInstances) do if u:IsVisible() then pcall(u.refresh) end end end
   local function tracker() xpcall(UpdateTracker, geterrorhandler()) end
 
-  -- los mismos efectos que tenia la pagina de Ajustes (y los comandos /gf ruta y /gf tope)
+  -- los mismos efectos que tenia la pagina de Ajustes (y los comandos /gff ruta y /gff tope)
   local function applied(key)
     if key == "nextSteps" or key == "gamePlan" or key == "trackerMode" or key == "trackerGather" then tracker() end
     if key == "recipeNotes" and Skin.RecipeNotes then pcall(Skin.RecipeNotes.refresh) end
@@ -4245,7 +4245,7 @@ local function RegisterOptions()
 
   header(L["opt.hLang"])
   local LANGS = { "auto", "enUS", "esES" }
-  local langSetting = S.RegisterProxySetting(cat, "GoldFinder_language", NUM, L["opt.language.l"], 1,
+  local langSetting = S.RegisterProxySetting(cat, "GoldFinderForever_language", NUM, L["opt.language.l"], 1,
     function()
       for i, k in ipairs(LANGS) do if k == Cfg("language") then return i end end
       return 1
@@ -4277,7 +4277,7 @@ local function RegisterOptions()
   check("nextSteps", L["opt.nextSteps.l"], L["opt.nextSteps.t"])
   -- donde va el siguiente paso: deslizador con pasos (el desplegable nativo falla en el cliente Forever)
   local MODES = { "objetivos", "flotante" }
-  local mode = S.RegisterProxySetting(cat, "GoldFinder_trackerMode", NUM, L["opt.mode.l"], 1,
+  local mode = S.RegisterProxySetting(cat, "GoldFinderForever_trackerMode", NUM, L["opt.mode.l"], 1,
     function() return Cfg("trackerMode") == "flotante" and 2 or 1 end,
     function(i)
       GoldFinderForeverDB.trackerMode = MODES[floor((tonumber(i) or 1) + 0.5)] or "objetivos"
@@ -4322,7 +4322,7 @@ local function RegisterOptions()
     table.sort(profs)
     for _, prof in ipairs(profs) do
       profSeen[prof] = true
-      local setting = S.RegisterProxySetting(cat, "GoldFinder_prof_" .. (prof:gsub("[^%w]", "_")), BOOL,
+      local setting = S.RegisterProxySetting(cat, "GoldFinderForever_prof_" .. (prof:gsub("[^%w]", "_")), BOOL,
         format(L["opt.profCount.l"], prof), true,
         function() return not Char().off[prof] end,
         function(on)
@@ -4337,7 +4337,7 @@ local function RegisterOptions()
   addProfs()
 
   header(L["opt.hAuction"])
-  local gain = S.RegisterProxySetting(cat, "GoldFinder_minGain", NUM, L["opt.minGain.l"],
+  local gain = S.RegisterProxySetting(cat, "GoldFinderForever_minGain", NUM, L["opt.minGain.l"],
     floor(DEFAULTS.minGain / 100),
     function() return floor((tonumber(Cfg("minGain")) or 0) / 100 + 0.5) end,
     function(silver)
@@ -4385,7 +4385,7 @@ local function RegisterOptions()
     end
     return 1
   end
-  local banker = S.RegisterProxySetting(cat, "GoldFinder_banker", NUM, L["opt.banker.l"], 1, bankerIndex,
+  local banker = S.RegisterProxySetting(cat, "GoldFinderForever_banker", NUM, L["opt.banker.l"], 1, bankerIndex,
     function(i)
       GoldFinderForeverDB.banker = ResolveFullName(names[floor((tonumber(i) or 1) + 0.5)] or "") or ""
       refreshAll()
@@ -4467,6 +4467,9 @@ f:SetScript("OnEvent", function(_, event, arg1)
     GoldFinderForeverDB.log, GoldFinderForeverDB.items, GoldFinderForeverDB.lastScan = nil, nil, nil
   elseif event == "PLAYER_LOGIN" then
     pcall(MarkSessionBaseline)
+    -- /gf is kept only when no other addon has registered it (checked now, after every addon has loaded): a name
+    -- that is already taken is never overridden
+    if not GF.CommandTaken(SlashCmdList, _G, "GOLDFINDERFOREVER", "/gf") then SLASH_GOLDFINDERFOREVER2 = "/gf" end
     -- first run: a short window that lists what the addon does (shown once, a few seconds after login)
     C_Timer.After(6, function()
       if GF.WelcomeDue(GoldFinderForeverDB) then pcall(GF.ShowWelcome) end
@@ -4483,7 +4486,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
       C_Timer.After(d, function() suCache.t = -10; pcall(SkillUpData) end)
     end
     C_Timer.NewTicker(4, function()
-      if GoldFinderForeverDB and GoldFinderForeverDB.nextSteps then
+      if GoldFinderForeverDB and Cfg("nextSteps") then
         pcall(ReadSkills)
         xpcall(function() UpdateTracker(nil, true) end, geterrorhandler())
       end
@@ -4547,8 +4550,6 @@ f:SetScript("OnEvent", function(_, event, arg1)
 end)
 
 SLASH_GOLDFINDERFOREVER1 = "/gff"
--- /gf is kept only when no other addon has registered it: a name that is already taken is never overridden
-if not GF.CommandTaken(SlashCmdList, _G, "GOLDFINDERFOREVER", "/gf") then SLASH_GOLDFINDERFOREVER2 = "/gf" end
 SlashCmdList["GOLDFINDERFOREVER"] = function(msg)
   if not GoldFinderForeverDB then return end
   local cmd, rest = msg:match("^(%S*)%s*(.-)$")

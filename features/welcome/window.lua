@@ -8,6 +8,8 @@ function GF.ShowWelcome()
   local UI, L = GF.UI, GF.L
   if not (UI and UI.Skin and UI.Text and UI.Btn) then return end
   local Text, Btn, PAL, Skin = UI.Text, UI.Btn, UI.PAL, UI.Skin
+  -- seen as soon as it is requested: a failure halfway must not bring it back at every login
+  if GoldFinderForeverDB then GoldFinderForeverDB.welcomeSeen = true end
   local W = 480
 
   local f = GoldFinderWelcome
@@ -57,5 +59,4 @@ function GF.ShowWelcome()
     + (f.foot:GetStringHeight() or 0) + 14 + 24 + 16
   f:SetHeight(math.max(h, 240))
   f:Show()
-  if GoldFinderForeverDB then GoldFinderForeverDB.welcomeSeen = true end
 end

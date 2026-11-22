@@ -68,7 +68,12 @@ check("/gf is registered only when free", main:find('GF.CommandTaken(SlashCmdLis
 check("the old slash key is not registered", main:find('SlashCmdList["GOLDFINDER"]', 1, true) == nil)
 check("minimap broker object has its own name", main:find('NewDataObject("GoldFinderForever"', 1, true) ~= nil
   and main:find('NewDataObject("GoldFinder"', 1, true) == nil)
-check("option registry names have the new prefix", main:find('"GoldFinder_"', 1, true) == nil)
+check("option registry names have the new prefix", main:find('"GoldFinder_', 1, true) == nil)
+check("the tracker ticker reads the option through Cfg", main:find('GoldFinderForeverDB and Cfg("nextSteps")', 1, true) ~= nil
+  and main:find("GoldFinderForeverDB.nextSteps then", 1, true) == nil)
+local login = main:find('event == "PLAYER_LOGIN"', 1, true) or 0
+local claim = main:find('SLASH_GOLDFINDERFOREVER2 = "/gf"', 1, true) or 0
+check("/gf is claimed at login, after every addon loaded", login > 0 and claim > login)
 
 -- build script
 local build = read("tools/build_zip.py") or ""
