@@ -189,7 +189,7 @@ function GF.InitMail(d)
     row.icon:SetPoint("LEFT", row.cb, "RIGHT", 2, 0)
     row.text = Text(f, 12, PAL.text)
     row.text:SetPoint("LEFT", row.icon, "RIGHT", 5, 0)
-    row.text:SetWidth(228)
+    row.text:SetWidth(278)
     row.text:SetJustifyH("LEFT")
     return row
   end
@@ -228,7 +228,7 @@ function GF.InitMail(d)
     if not f then
       -- dialogo clasico (como el panel de venta): titulo "GoldFinder Forever" y debajo el subtitulo
       f = Skin.Panel("GoldFinderMail", MailFrame or UIParent, "dialog")
-      f:SetWidth(310)
+      f:SetWidth(360)
       f:SetFrameStrata("HIGH")
       f.head = Skin.Head(f, "GoldFinder Forever")
       f.title = Text(f, 12, PAL.text)
