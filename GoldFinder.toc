@@ -20,6 +20,7 @@ core/decision.lua
 core/vendor.lua
 core/mail.lua
 core/hidden.lua
+core/recipe_source.lua
 core/auction.lua
 core/proftabs.lua
 core/guide.lua
@@ -28,6 +29,7 @@ core/routeplanner.lua
 adapters/wow.lua
 adapters/bags.lua
 adapters/quests.lua
+adapters/questie.lua
 ui/widgets.lua
 features/vendor/panel.lua
 features/mail/panel.lua

@@ -1786,7 +1786,11 @@ local function LearnText(e)
   if l.item then
     local nm = C_Item.GetItemInfo(l.item)
     if not nm and C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(l.item) end
-    return format(L["learn.buy"], nm or L["learn.theRecipe"], at, l.npc and (" (" .. l.npc .. ")") or "")
+    local more = (l.others and l.others > 0) and format(L["learn.more"], l.others) or ""
+    if l.drop then
+      return format(L["learn.drop"], nm or L["learn.theRecipe"], l.npc or "?", l.level and format(L["learn.level"], l.level) or "", at) .. more
+    end
+    return format(L["learn.buy"], nm or L["learn.theRecipe"], at, l.npc and (" (" .. l.npc .. ")") or "") .. more
   end
   if l.trainer then
     return format(L["learn.trainer"], l.npc or L["learn.instructor"]) .. at

@@ -78,7 +78,7 @@ function GF.InitGuide(d)
             end
           end
         elseif row.learn == "i" then
-          learn = { item = row.item }
+          learn = GF.WithRecipeSource({ item = row.item })
         end
         items[#items + 1] = { kind = "craft", band = row, done = row.done, from = row.from, mats = row.mats,
           st = { upto = row.to, qty = row.left or row.crafts, what = row.name },
