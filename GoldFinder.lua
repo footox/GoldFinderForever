@@ -2272,16 +2272,16 @@ local function PlanText(rows)
     end
     local act
     if r.verdict == "buy" then
-      act = "|cff59eb8dcomprar|r ~" .. Money(r.buy or 0)
-        .. (r.low and " (precio bajo: buen momento)" or "")
-        .. (r.farmH and format(" (farmear: ~%.1f h)", r.farmH) or "")
+      act = format(L["plan.buy"], Money(r.buy or 0))
+        .. (r.low and L["plan.lowPrice"] or "")
+        .. (r.farmH and format(L["plan.farmOpt"], r.farmH) or "")
     elseif r.verdict == "farm" then
-      act = format("|cffffa640farmear|r ~%.1f h", r.farmH)
-        .. (r.buy and (" (comprar: " .. Money(r.buy) .. (r.high and ", precio alto" or "") .. ")") or "")
+      act = format(L["plan.farm"], r.farmH)
+        .. (r.buy and format(L["plan.buyOpt"], Money(r.buy), r.high and L["plan.highPrice"] or "") or "")
     else
-      act = "sin precio ni datos de farmeo"
+      act = L["plan.noData"]
     end
-    lines[#lines + 1] = format("   %s: faltan %d -> %s", nm, r.miss, act)
+    lines[#lines + 1] = format(L["plan.line"], nm, r.miss, act)
   end
   return lines
 end
@@ -2297,7 +2297,7 @@ local function RouteSummary(prof, key, pd)
   for _, r in ipairs(routes) do
     for _, z in ipairs(r.zones or {}) do
       if pd.rank < z.to then
-        out[#out + 1] = format("|cff6bb5ff%s, tramo %d-%d:|r %s%s", r.name, z.from, z.to, AnnotateZones(z.zone),
+        out[#out + 1] = format(L["plan.zones"], r.name, z.from, z.to, AnnotateZones(z.zone),
           z.note and (" (" .. z.note .. ")") or "")
         break
       end
@@ -2317,30 +2317,30 @@ local function RouteSummary(prof, key, pd)
     -- profesion de fabricacion: tu ruta (coste del plan con BuyPrice y lo que cuesta aprender) contra las otras guias
     if not own then
       local why = Skin.Route.NoRouteReason(pd)
-      if why then out[#out + 1] = "|cff6bb5ffTu ruta:|r " .. why .. "." end
+      if why then out[#out + 1] = format(L["plan.yourRoute"], why) end
       for _, o in ipairs(others) do
         if #o.rows > 0 then
-          out[#out + 1] = format("|cff6bb5ff%s hasta %d:|r comprar ~%s%s", o.name, cap, Money(o.cost),
-            o.unknown > 0 and (" (+" .. o.unknown .. " materiales sin precio)") or "")
+          out[#out + 1] = format(L["plan.buyHead"], o.name, cap, Money(o.cost),
+            o.unknown > 0 and format(L["plan.unpricedMats"], o.unknown) or "")
           for _, l in ipairs(PlanText(o.rows)) do out[#out + 1] = l end
         end
       end
     elseif #others > 0 then
-      local mine = { name = "Tu ruta", rows = RoutePlan(OwnRouteNeed(prof, cap)), cost = own.cost, unknown = own.unknown,
+      local mine = { name = L["plan.yourName"], rows = RoutePlan(OwnRouteNeed(prof, cap)), cost = own.cost, unknown = own.unknown,
         sell = own.sell, truncated = own.truncated, to = own.to }
       local lines, best = Skin.Route.RouteVerdict(mine, others, cap)
       for _, l in ipairs(lines) do out[#out + 1] = l end
       if best then
         for _, l in ipairs(PlanText(best.rows)) do out[#out + 1] = l end
-        if #best.rows == 0 then out[#out + 1] = "   Ya tienes todos los materiales de esa ruta." end
+        if #best.rows == 0 then out[#out + 1] = L["plan.haveAll"] end
       end
     end
   else
     -- profesion de recoleccion: la otra guia ofrece una alternativa comprando
     for _, o in ipairs(others) do
       if #o.rows > 0 then
-        out[#out + 1] = format("|cff6bb5ffAlternativa %s en vez de recolectar:|r comprar ~%s%s", o.name, Money(o.cost),
-          o.unknown > 0 and (" (+" .. o.unknown .. " materiales sin precio)") or "")
+        out[#out + 1] = format(L["plan.alt"], o.name, Money(o.cost),
+          o.unknown > 0 and format(L["plan.unpricedMats"], o.unknown) or "")
         for _, l in ipairs(PlanText(o.rows)) do out[#out + 1] = l end
       end
     end
@@ -2436,8 +2436,8 @@ function RefreshGuide()
             local g = combos[ci]
             table.insert(items, idx + ci, {
               kind = "tip",
-              text = format("|cff6bb5ffFarmeo combinado:|r %s (%s%s)%s\n%s", g.mob or "zona", g.zone, ZoneTag(g.zone),
-                g.zone == zoneNow and "  |cff59eb8d(estas aqui)|r" or "", table.concat(g.list, ", ")),
+              text = format(L["farm.head"], g.mob or L["farm.zone"], g.zone, ZoneTag(g.zone),
+                g.zone == zoneNow and L["farm.here"] or "", table.concat(g.list, ", ")),
             })
           end
           break
@@ -2446,7 +2446,7 @@ function RefreshGuide()
     end
   end
   if not items then
-    f.title:SetText("Guia de profesion: no hay guia para tus profesiones")
+    f.title:SetText(L["gwin.none"])
     for _, r in ipairs(guideRows) do r:Hide() end
     f.content:SetHeight(1)
     return
@@ -2463,8 +2463,8 @@ function RefreshGuide()
     if it.kind == "tip" then
       lines[1] = it.text
     elseif it.kind == "section" then
-      lines[1] = format("|cffffd100%s Comparar rutas|r  |cff8a8a96(%s)|r", it.open and "[-]" or "[+]",
-        it.open and "clic para plegar" or "tu ruta frente a Icy Veins con tus precios; clic para abrir")
+      lines[1] = format(L["gwin.compare"], it.open and "[-]" or "[+]",
+        it.open and L["gwin.fold"] or L["gwin.unfold"])
     elseif it.band then
       local head, sl, miss = Skin.GuideBand(it)
       lines[1], sub = head, sl
@@ -2473,17 +2473,17 @@ function RefreshGuide()
       local d = it.d
       local rq = TrainReq(guideProf, d.max)
       local ready = (not it.done) and rq and (pd.rank or 0) >= rq.skill and UnitLevel("player") >= rq.lvl
-      lines[1] = (ready and "|cff59eb8dYa puedes: |r" or "")
-        .. format("Entrena %s%s en %s", d.name, d.npc and (" con " .. d.npc) or "", WhereText(d))
-        .. ((rq and rq.skill > 0) and format(" |cffb3b3b3(pide habilidad %d y nivel %d)|r", rq.skill, rq.lvl) or "")
+      lines[1] = (ready and L["gwin.canNow"] or "")
+        .. format(L["gwin.train"], d.name, d.npc and format(L["obj.with"], d.npc) or "", WhereText(d))
+        .. ((rq and rq.skill > 0) and format(L["gwin.requires"], rq.skill, rq.lvl) or "")
     elseif it.kind == "gather" then
       lines[1] = (grey and "" or "|cffffd100") .. it.st.upto .. (grey and "  " or "|r  ") .. StepText(it.e)
     else
       lines[1] = (grey and "" or "|cffffd100") .. it.st.upto .. (grey and "  " or "|r  ")
-        .. format("Crea %d %s", it.st.qty, it.st.what)
+        .. format(L["gwin.make"], it.st.qty, it.st.what)
     end
     if not grey and not it.current and it.unknown and not it.band then
-      lines[1] = lines[1] .. "  |cffff6666(receta pendiente)|r"
+      lines[1] = lines[1] .. L["gwin.pending"]
     end
     if it.current and it.mats and #it.mats > 0 and not it.band then
       local parts, ready = {}, true
@@ -2497,10 +2497,10 @@ function RefreshGuide()
         if m.have < m.need then ready = false end
         parts[#parts + 1] = format("%s%s %d/%d|r", m.have >= m.need and "|cff59eb8d" or "|cffffa640", nm, m.have, m.need)
       end
-      lines[#lines + 1] = (ready and "|cff59eb8dListo:|r " or "") .. table.concat(parts, "  ")
+      lines[#lines + 1] = (ready and L["gwin.ready"] or "") .. table.concat(parts, "  ")
     end
     if it.current and it.unknown and not it.band then
-      lines[#lines + 1] = "|cffff6666No sabes esta receta:|r " .. LearnText({ learn = it.learn })
+      lines[#lines + 1] = format(L["gwin.unknown"], LearnText({ learn = it.learn }))
     end
     if it.current and it.kind == "gather" then
       local alt = AltZoneText(guideProf, pd.rank or 0, it.st.zone)
@@ -2758,7 +2758,7 @@ function UpdateTracker(retry, tick)
       GoldFinderDB.trackerPos = { point, relPoint, x, y }
     end)
     f.title = Text(f, 12, PAL.gold); f.title:SetPoint("TOPLEFT", 12, -9)
-    f.title:SetText("GoldFinder Forever: siguiente paso")
+    f.title:SetText(L["ft.title"])
     local close = Skin.Close(f, function()
       GoldFinderDB.nextSteps = false
       UpdateTracker()
@@ -2766,13 +2766,13 @@ function UpdateTracker(retry, tick)
     end, 22)
     close:SetPoint("TOPRIGHT", -1, -1)
     local fold = Skin.Icon(f, 14, GoldFinderDB.trackerCollapsed and Skin.PLUS or Skin.MINUS,
-      GoldFinderDB.trackerCollapsed and "+" or "-", "Plegar o desplegar", function(self)
+      GoldFinderDB.trackerCollapsed and "+" or "-", L["ft.fold"], function(self)
       GoldFinderDB.trackerCollapsed = (not GoldFinderDB.trackerCollapsed) or nil
       Skin.Fold(self, GoldFinderDB.trackerCollapsed)
       UpdateTracker()
     end)
     fold:SetPoint("RIGHT", close, "LEFT", -2, 0)
-    local gbtn = Skin.Icon(f, 16, Skin.BOOK, "G", "Guia de profesion", function() OpenGuide() end)
+    local gbtn = Skin.Icon(f, 16, Skin.BOOK, "G", L["ft.guide"], function() OpenGuide() end)
     gbtn:SetPoint("RIGHT", fold, "LEFT", -4, 0)
     local pos = GoldFinderDB.trackerPos
     if pos then f:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4])
@@ -2805,7 +2805,7 @@ function UpdateTracker(retry, tick)
       end
       local key = e.prof .. "|" .. (e.upto or 0) .. "|" .. (e.what or e.recipe or "")
       if ready and readyState[key] == false and Cfg("readyAlert") and not e.unknown then
-        Print(format("%s: ya tienes los materiales para %s.", e.prof, StepText(e)))
+        Print(format(L["ft.readyAlert"], e.prof, StepText(e)))
         pcall(PlaySound, SOUNDKIT and SOUNDKIT.IG_QUEST_LIST_COMPLETE or 878)
         r:Flash()
       end
@@ -2835,7 +2835,7 @@ function UpdateTracker(retry, tick)
         if alt then txt = txt .. "\n|cffffa640" .. alt .. "|r" end
       end
       if e.unknown then
-        txt = txt .. "\n|cffff6666No sabes esta receta:|r " .. LearnText(e)
+        txt = txt .. "\n" .. format(L["gwin.unknown"], LearnText(e))
         if e.learn and e.learn.item and not C_Item.GetItemInfo(e.learn.item) then missing = true end
       end
       if #mats > 0 then
@@ -2843,7 +2843,7 @@ function UpdateTracker(retry, tick)
         for _, m in ipairs(e.mats) do
           if m.have < m.need then ready = false; break end
         end
-        txt = txt .. "\n" .. (ready and "|cff59eb8dListo:|r " or "") .. table.concat(mats, "  ")
+        txt = txt .. "\n" .. (ready and L["gwin.ready"] or "") .. table.concat(mats, "  ")
       end
       local here = {}
       for _, m in ipairs(e.mats) do
@@ -2853,12 +2853,12 @@ function UpdateTracker(retry, tick)
           here[#here + 1] = nm .. (z.mob and (" (" .. z.mob .. ")") or "")
         end
       end
-      if #here > 0 then txt = txt .. "\n|cff6bb5ffAqui: " .. table.concat(here, ", ") .. "|r" end
+      if #here > 0 then txt = txt .. "\n" .. format(L["ft.here"], table.concat(here, ", ")) end
       local sl = SessionLine(e)
       if sl ~= "" then txt = txt .. "\n" .. sl end
     end
     if ss and ss.done and now - ss.done < 10 then
-      txt = "|cff59eb8d¡Tramo completado!|r  " .. txt
+      txt = format(L["ft.bandDone"], txt)
       if ss.doneTimer ~= ss.done then
         ss.doneTimer = ss.done
         C_Timer.After(10.5, function() xpcall(UpdateTracker, geterrorhandler()) end)
