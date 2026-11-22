@@ -1693,15 +1693,16 @@ end
 
 -- Lista de compras de Auctionator: manda lo que falta (nombre exacto y cantidad) a una lista propia, "GoldFinder",
 -- que se reemplaza cada vez y no toca las listas del jugador. Funciona sin la subasta abierta; la lista queda guardada.
-local function SendShoppingList(mats)
+local function SendShoppingList(mats, listName)
+  listName = listName or "GoldFinder"
   local function nameOf(id)
     local nm = C_Item.GetItemInfo(id)
     if not nm and C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(id) end
     return nm
   end
-  local ok, a, b = GF.ShoppingSync(AHApi(), CALLER, "GoldFinder", mats, nameOf)
+  local ok, a, b = GF.ShoppingSync(AHApi(), CALLER, listName, mats, nameOf)
   if ok then
-    Print(format(L["list.sent"], a) .. ((b or 0) > 0 and (" " .. format(L["list.skipped"], b)) or ""))
+    Print(format(L["list.sent"], a, listName) .. ((b or 0) > 0 and (" " .. format(L["list.skipped"], b)) or ""))
   elseif a == "noapi" then Print(L["list.noapi"])
   elseif a == "none" then Print((b or 0) > 0 and L["list.loading"] or L["list.none"])
   else Print(format(L["list.failed"], tostring(a))) end
@@ -3501,7 +3502,9 @@ local function CreateUI(parent, opts)
                 c.n, c.unknown > 0 and format(L["win.capUnknown"], c.unknown) or ""),
               c1 = format(L["win.matShort"], c.n), c2 = "",
               c3 = Money(c.cost) .. (c.unknown > 0 and "+" or ""),
-              actions = { { L["win.btnSearchAll"], function() SearchMaterials({ mats = c.mats }) end } },
+              actions = { { L["win.btnSearchAll"], function() SearchMaterials({ mats = c.mats }) end },
+                { L["win.btnList"], function() SendShoppingList(c.mats, "GoldFinder - " .. prof) end,
+                  tip = function(tt) tt:AddLine(format(L["win.tipListProf"], prof, prof), 1, 1, 1, true) end } },
             }
           end
         end
