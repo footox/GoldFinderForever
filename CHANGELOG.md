@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Features
+- Recipe list: next to the skill-up chance and the cost per point, the note shows how many of that recipe you can make with what is in your bags, for example "37% - 2s (4)". The row tooltip says it too.
+
 ### Fixes
 - Options that you never changed are no longer saved as if you had chosen them, so a default that changes in a later version reaches everyone. Only the values that differ from the default stay in your saved data. Nothing you chose is lost.
 

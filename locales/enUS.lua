@@ -162,6 +162,7 @@ GF.locales.enUS = {
   ["note.nopriceTip"] = "Cost per point: no price (scan the auction house)",
   ["note.gain"] = "Gain per point: %s",
   ["note.cost"] = "Cost per point: %s",
+  ["note.canMake"] = "You can make %d with what is in your bags",
   ["verdict.KEEP"] = "KEEP",
   ["verdict.AH"] = "AUCTION",
   ["verdict.VENDOR"] = "VENDOR",

@@ -96,6 +96,46 @@ lines = RecipeNoteLines(0.5, 300, money)
 check("tooltip lines (cost)", lines[2] == "Cost per point: 300c" and #lines == 2)
 check("tooltip lines (no price)", #RecipeNoteLines(0.5, nil, money) == 1)
 
+-- 7b. How many of the recipe the bags can make: "(4)" after the cost, and a tooltip line
+check("count next to the chance", RecipeNoteText(1, nil, money, 4) == "100% (4)")
+check("count after the cost", RecipeNoteText(0.5, 200, money, 3) == "50%" .. DOT .. "|cffff8080-200c|r (3)")
+check("count after the gain", RecipeNoteText(1, -200.4, money, 12) == "100%" .. DOT .. "|cff80ff80+200c|r (12)")
+check("count after 'no price'", RecipeNoteText(0.5, false, money, 2) == "50%" .. DOT .. "no price (2)")
+check("zero, nil, negative and non-number counts add nothing", RecipeNoteText(1, nil, money, 0) == "100%"
+  and RecipeNoteText(1, nil, money, nil) == "100%" and RecipeNoteText(1, nil, money, -3) == "100%"
+  and RecipeNoteText(1, nil, money, "4") == "100%")
+check("no chance: still no note, even with a count", RecipeNoteText(nil, 5, money, 4) == nil)
+lines = RecipeNoteLines(1, -200, money, 4)
+check("tooltip: the count is the last line", #lines == 3 and lines[3] == "You can make 4 with what is in your bags")
+check("tooltip: no count line for zero or nil", #RecipeNoteLines(1, -200, money, 0) == 2 and #RecipeNoteLines(1, -200, money, nil) == 2)
+
+local Craft = GF.CraftableCount
+local have = { [1] = 7, [2] = 2, [3] = 100 }
+local function count(id) return have[id] or 0 end
+check("craftable: the scarcest reagent decides", Craft({ { 1, 2 }, { 2, 1 }, { 3, 5 } }, count) == 2)
+check("craftable: a missing reagent gives 0", Craft({ { 1, 2 }, { 99, 1 } }, count) == 0)
+check("craftable: whole crafts only", Craft({ { 1, 2 } }, count) == 3)
+check("craftable: a single reagent", Craft({ { 3, 4 } }, count) == 25)
+check("craftable: broken entries are ignored", Craft({ {}, "x", { 1 }, { 1, 0 }, { "a", 1 }, { 3, 10 } }, count) == 10)
+check("craftable: nothing usable means unknown, not zero", Craft({ {}, "x" }, count) == nil and Craft({}, count) == nil)
+check("craftable: no reagents or no counter is unknown", Craft(nil, count) == nil and Craft({ { 1, 1 } }, nil) == nil
+  and Craft({ { 1, 1 } }, "x") == nil)
+check("craftable: a counter that raises counts as none", Craft({ { 1, 1 } }, function() error("boom") end) == 0)
+check("craftable: a counter that returns junk counts as none", Craft({ { 1, 1 } }, function() return "lots" end) == 0
+  and Craft({ { 1, 1 } }, function() return -5 end) == 0 and Craft({ { 1, 1 } }, function() return nil end) == 0)
+
+-- 7c. the wiring: the row notes pass the recipe and a fresh count, and the main file hands Counts over
+local function read(p) local f = io.open(p, "rb"); if not f then return "" end local s = f:read("*a"); f:close(); return (s:gsub("\13", "")) end
+local tr, main = read("features/tracker/objectives.lua"), read("GoldFinder.lua")
+check("the row note asks for the count of the recipe", tr:find("GF.RecipeNoteText(chance, eff, ShortMoney, CanMake(recipe))", 1, true) ~= nil)
+check("the row tooltip asks for it too", tr:find("GF.RecipeNoteLines(chance, eff, ShortMoney, CanMake(recipe))", 1, true) ~= nil)
+check("the recipe is kept in the cache but the count is not", tr:find("recipe = x }", 1, true) ~= nil
+  and tr:find("count = ", 1, true) == nil)
+check("the main file gives the tracker feature Counts", main:find("Counts = function(...) return Counts(...) end,\n  Char", 1, true) ~= nil
+  or main:find("Char = function(...) return Char(...) end,\n  Counts = function(...) return Counts(...) end,", 1, true) ~= nil)
+check("both languages have the new text", read("locales/enUS.lua"):find('["note.canMake"]', 1, true) ~= nil
+  and read("locales/esES.lua"):find('["note.canMake"]', 1, true) ~= nil)
+
 -- 8. PlanRoute records each recipe's cost per point at the current skill (plan.eff), from its own model.
 -- the planner lives in core/routeplanner.lua and gets its dependencies from the stubbed env below
 local GF = {}

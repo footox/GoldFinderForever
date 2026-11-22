@@ -5,7 +5,7 @@
 
 local _, GF = ...
 
--- d: Cfg, Char, LearnText, OpenGuide, ProfOn, RecipeLookup, RouteFor, ShortMoney, SkillUpChance, UpdateTracker
+-- d: Cfg, Char, Counts, LearnText, OpenGuide, ProfOn, RecipeLookup, RouteFor, ShortMoney, SkillUpChance, UpdateTracker
 function GF.InitObjectives(d)
   local UI = GF.UI
   local Skin = UI.Skin
@@ -283,11 +283,16 @@ function GF.InitObjectives(d)
       -- eff false = algun material sin precio (la nota dice "sin precio")
       local eff
       if plan and plan.eff then eff = plan.eff[key] end
-      n = x and { chance = SkillUpChance(x, pd.rank), eff = eff } or false
+      n = x and { chance = SkillUpChance(x, pd.rank), eff = eff, recipe = x } or false
       pc.notes[key] = n
     end
     if not n then return nil end
-    return n.chance, n.eff
+    return n.chance, n.eff, n.recipe
+  end
+  -- how many of this recipe the bags can make right now (never cached: the bags change); nil when unknown
+  local function CanMake(recipe)
+    if not (recipe and d.Counts) then return nil end
+    return GF.CraftableCount(recipe.r, function(id) return (d.Counts(id)) end)
   end
   local function Leave(self)
     if GameTooltip:GetOwner() == self and self.gfNoteTip then GameTooltip:Hide() end
@@ -299,8 +304,8 @@ function GF.InitObjectives(d)
     local fs = RN.texts[row]
     local text
     if info and not SkillUpRowText() then
-      local chance, eff = Note(info)
-      text = GF.RecipeNoteText(chance, eff, ShortMoney)
+      local chance, eff, recipe = Note(info)
+      text = GF.RecipeNoteText(chance, eff, ShortMoney, CanMake(recipe))
     end
     if not text then
       if fs then fs:Hide() end
@@ -326,9 +331,9 @@ function GF.InitObjectives(d)
   function RN.enter(_, row, data)
     if not (row and SkillUpRowText()) then return end
     local info = data and data.recipeInfo
-    local chance, eff = Note(info)
+    local chance, eff, recipe = Note(info)
     if not chance then return end
-    local lines = GF.RecipeNoteLines(chance, eff, ShortMoney)
+    local lines = GF.RecipeNoteLines(chance, eff, ShortMoney, CanMake(recipe))
     C_Timer.After(0, function()
       if not (row:IsVisible() and row:IsMouseOver()) then return end
       local tip = GameTooltip
