@@ -96,14 +96,16 @@ p = P.PlanRoute("Leatherworking", pdU, 105)
 check("7 unpriced recipe eff is false", p and p.eff.cheap == false)
 check("7 priced recipe eff is a number", p and type(p.eff.known) == "number" and p.eff.known < 1e6)
 env.GoldFinderRecipes.spells[2].r = { { 11, 1 } }
-local nf = assert(loadfile("core/objective_text.lua"))
-setfenv(nf, setmetatable({}, { __index = _G }))
 local NG = {}
-nf("GoldFinder", NG)
+for _, path in ipairs({ "core/locale.lua", "locales/enUS.lua", "core/objective_text.lua" }) do
+  local nf = assert(loadfile(path))
+  setfenv(nf, setmetatable({}, { __index = _G }))
+  nf("GoldFinder", NG)
+end
 local notes = { text = NG.RecipeNoteText, lines = NG.RecipeNoteLines }
 local money = function(c) return c .. "c" end
-check("7 note text says sin precio", (notes.text(1, false, money) or ""):find("sin precio", 1, true) ~= nil)
-check("7 note tooltip says sin precio", (notes.lines(1, false, money)[2] or ""):find("sin precio", 1, true) ~= nil)
+check("7 note text says sin precio", (notes.text(1, false, money) or ""):find("no price", 1, true) ~= nil)
+check("7 note tooltip says sin precio", (notes.lines(1, false, money)[2] or ""):find("no price", 1, true) ~= nil)
 check("7 note text without plan unchanged", notes.text(1, nil, money) == "100%")
 
 -- 8. sellCap counts units: a recipe giving 5 items sells only 5 units at AH price in total.

@@ -5,9 +5,11 @@
 -- PlanRoute's plan.eff holds the planner's own cost per point of each recipe at the current skill.
 
 local GF = {}
-local f = assert(loadfile("core/objective_text.lua"))
-setfenv(f, setmetatable({}, { __index = _G }))
-f("GoldFinder", GF)
+for _, path in ipairs({ "core/locale.lua", "locales/enUS.lua", "core/objective_text.lua" }) do
+  local f = assert(loadfile(path))
+  setfenv(f, setmetatable({}, { __index = _G }))
+  f("GoldFinder", GF)
+end
 local ObjectiveBlock, RecipeNoteText, RecipeNoteLines = GF.ObjectiveBlock, GF.RecipeNoteText, GF.RecipeNoteLines
 
 local failures = 0
@@ -35,12 +37,12 @@ check("all names known: not waiting", waiting == false)
 -- 2. All materials in hand: one ready line.
 e.mats[1].have = 24
 block = ObjectiveBlock(e, nameOf)
-check("ready line", texts(block) == "Materiales listos" and block.lines[1].kind == "ready")
+check("ready line", texts(block) == "Materials ready" and block.lines[1].kind == "ready")
 
 -- 3. Unknown name: placeholder and waiting.
 e.mats[1] = { id = 99, need = 2, have = 1 }
 block, waiting = ObjectiveBlock(e, nameOf)
-check("unknown name placeholder and waiting", texts(block) == "1/2 objeto 99" and waiting == true)
+check("unknown name placeholder and waiting", texts(block) == "1/2 item 99" and waiting == true)
 
 -- 4. A trainer recipe to learn comes first, then the rank trainer when due.
 local learnText = function() return "aprendela con el instructor de la profesion: Craig (5)" end
@@ -49,9 +51,9 @@ e = { prof = "Cooking", rank = 176, from = 176, upto = 201, what = "Jungle Stew"
   train = { name = "Artisan", npc = "Ironforge Cook", zone = "Ironforge" }, trainState = "ready" }
 block = ObjectiveBlock(e, nameOf, learnText)
 check("learn line", block.lines[1].kind == "learn"
-  and block.lines[1].text == "Aprende: aprendela con el instructor de la profesion: Craig (5)")
+  and block.lines[1].text == "Learn: aprendela con el instructor de la profesion: Craig (5)")
 check("train line", block.lines[2].kind == "train"
-  and block.lines[2].text == "Entrena Artisan con Ironforge Cook (Ironforge)")
+  and block.lines[2].text == "Train Artisan with Ironforge Cook (Ironforge)")
 check("no ready line without materials", #block.lines == 2)
 e.trainState = "blocked"
 block = ObjectiveBlock(e, nameOf, learnText)
@@ -59,15 +61,15 @@ check("blocked rank (below the cap) is not due", #block.lines == 1)
 e.trainState = "capblocked"
 block = ObjectiveBlock(e, nameOf, learnText)
 check("cap reached without requirements", block.lines[2].text
-  == "Entrena Artisan con Ironforge Cook (Ironforge) cuando cumplas los requisitos")
+  == "Train Artisan with Ironforge Cook (Ironforge) when you meet the requirements")
 
 -- 5. Gathering, train-only and auction-plan headers.
 block = ObjectiveBlock({ gather = true, prof = "Mining", rank = 80, from = 65, upto = 125, zone = "Durotar", mats = {} }, nameOf)
 check("gather header", block.header == "Mining 80 > 125: Durotar" and #block.lines == 0)
 block = ObjectiveBlock({ trainOnly = true, prof = "Cooking", rank = 225, from = 225, upto = 225, mats = {},
   train = { name = "Artisan" }, trainState = "cap" }, nameOf)
-check("train-only header", block.header == "Cooking 225: entrena el siguiente rango"
-  and texts(block) == "Entrena Artisan")
+check("train-only header", block.header == "Cooking 225: train the next rank"
+  and texts(block) == "Train Artisan")
 block = ObjectiveBlock({ game = true, prof = "Cooking", rank = 176, recipe = "Jungle Stew",
   mats = { { id = 10, need = 1, have = 0 } } }, nameOf)
 check("auction plan header", block.header == "Cooking 176: Jungle Stew" and texts(block) == "0/1 Tiger Meat")
@@ -88,10 +90,10 @@ check("even", RecipeNoteText(0.25, 0.2, money) == "25%" .. DOT .. "0")
 check("no chance: no note", RecipeNoteText(nil, 5, money) == nil)
 check("grey recipe", RecipeNoteText(0, nil, money) == "0%")
 local lines = RecipeNoteLines(1, -200, money)
-check("tooltip lines (gain)", lines[1] == "GoldFinder Forever: 100% de subir un punto"
-  and lines[2] == "Ganancia por punto: 200c")
+check("tooltip lines (gain)", lines[1] == "GoldFinder Forever: 100% chance to gain a point"
+  and lines[2] == "Gain per point: 200c")
 lines = RecipeNoteLines(0.5, 300, money)
-check("tooltip lines (cost)", lines[2] == "Coste por punto: 300c" and #lines == 2)
+check("tooltip lines (cost)", lines[2] == "Cost per point: 300c" and #lines == 2)
 check("tooltip lines (no price)", #RecipeNoteLines(0.5, nil, money) == 1)
 
 -- 8. PlanRoute records each recipe's cost per point at the current skill (plan.eff), from its own model.
