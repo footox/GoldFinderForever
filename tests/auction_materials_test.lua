@@ -99,7 +99,7 @@ check("it hosts the Materials view alone, embedded", #S.createCalls == 1 and S.c
 check("the window exists, is called GoldFinderMaterials and is shown", S.win() and S.win().name == "GoldFinderMaterials" and S.win().shown)
 check("it is placed to the right of the auction house, as tall as it is",
   S.win().points[1][1] == "TOPLEFT" and S.win().points[1][2] == S.env.AuctionHouseFrame and S.win().points[1][3] == "TOPRIGHT"
-  and S.win().size[1] == 560 and S.win().size[2] == 600)
+  and S.win().size[1] == 600 and S.win().size[2] == 600)
 check("the list is refreshed when it appears", S.refreshes == 1)
 check("it leaves room for the close button", S.win().gfPadRight == 30)
 check("it hides with the auction house frame, however that closes", type(S.env.AuctionHouseFrame.hooks.OnHide) == "function")

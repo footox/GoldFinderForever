@@ -1361,11 +1361,12 @@ GF.InitAuction({
 
 local ROW_H, ACT_W = 30, 112
 -- Las columnas se estrechan cuando hay poco ancho (por ejemplo dentro de la casa de subastas).
-local function PlaceCols(owner, name, c1, c2, c3, hasIcon, w, act)
+local function PlaceCols(owner, name, c1, c2, c3, hasIcon, w, act, c1w)
   act = act or ACT_W   -- espacio de los botones (poco si la lista no tiene botones)
   local narrow = (w or 900) < 720
   -- estrecho (por ejemplo la pestana de la subasta con su panel lateral): columnas cortas para que el nombre quepa
   local w3, w2, w1 = narrow and 96 or 150, narrow and 78 or 150, narrow and 46 or 110
+  if c1w then w1 = c1w end   -- a view that needs a wider first column (prices per unit) asks for it
   c3:ClearAllPoints(); c3:SetPoint("RIGHT", owner, "RIGHT", -act, 0); c3:SetWidth(w3); c3:SetJustifyH("RIGHT")
   c2:ClearAllPoints(); c2:SetPoint("RIGHT", owner, "RIGHT", -(act + w3 + 8), 0); c2:SetWidth(w2); c2:SetJustifyH("RIGHT")
   c1:ClearAllPoints(); c1:SetPoint("RIGHT", owner, "RIGHT", -(act + w3 + w2 + 16), 0); c1:SetWidth(w1); c1:SetJustifyH("RIGHT")
@@ -1394,9 +1395,10 @@ local function MakeList(parent)
   local rowFrames = {}
   local curW = 700
   local curAct = ACT_W
+  local curC1   -- width asked for the first number column by the current view (nil: the default)
   local function relayout()
-    PlaceCols(head, hName, h1, h2, h3, true, curW, curAct)
-    for _, r in ipairs(rowFrames) do PlaceCols(r, r.name, r.c1, r.c2, r.c3, true, curW, curAct) end
+    PlaceCols(head, hName, h1, h2, h3, true, curW, curAct, curC1)
+    for _, r in ipairs(rowFrames) do PlaceCols(r, r.name, r.c1, r.c2, r.c3, true, curW, curAct, curC1) end
   end
   sf:SetScript("OnSizeChanged", function(_, w)
     if w and w > 0 then content:SetWidth(w); curW = w; relayout() end
@@ -1424,7 +1426,7 @@ local function MakeList(parent)
     row.icon:SetPoint("LEFT", row, "LEFT", 10, 0)
     row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     row.name, row.c1, row.c2, row.c3 = Text(row, 12), Text(row, 12), Text(row, 12), Text(row, 12)
-    PlaceCols(row, row.name, row.c1, row.c2, row.c3, true, curW, curAct)
+    PlaceCols(row, row.name, row.c1, row.c2, row.c3, true, curW, curAct, curC1)
     row.act = {}
     for k = 1, 2 do
       local b = Btn(row, "", 50, 20)
@@ -1455,7 +1457,13 @@ local function MakeList(parent)
     return row
   end
 
-  function v.setHeaders(a, b, c, d) hName:SetText(a or ""); h1:SetText(b or ""); h2:SetText(c or ""); h3:SetText(d or "") end
+  function v.setHeaders(a, b, c, d)
+    hName:SetText(a or ""); h1:SetText(b or ""); h2:SetText(c or ""); h3:SetText(d or "")
+    if curC1 then curC1 = nil; relayout() end
+  end
+  function v.setC1Width(px)
+    if curC1 ~= px then curC1 = px; relayout() end
+  end
 
   function v.setRows(data, emptyMsg)
     local n = math.min(#data, 200)
@@ -3678,6 +3686,7 @@ local function CreateUI(parent, opts)
       -- the Materials tab (its key stays "cuero"): one category at a time, opening on the one of your professions
       local cat = GF.CurrentMaterialCategory(Char())
       ui.list.setHeaders(L["mat." .. cat.id .. ".h"], L["win.hAuction"], L["win.hStack"], L["win.hAdvice"])
+      ui.list.setC1Width(80)   -- the price per unit needs more room than a quantity
       ui.catLabel:SetText(L["mat." .. cat.id])
       for _, c in ipairs(ui.catControls) do c:Show() end
       local out = {}
@@ -3763,6 +3772,7 @@ local function CreateUI(parent, opts)
     if key == "bolsas" then bExport:Show() else bExport:Hide() end
     nameMissing = false
     local ok, err = pcall(ui.loaders[key])
+    ui.namesMissing = nameMissing   -- the item-info event below redraws this view when the names arrive
     if not ok then Print(format(L["win.screenError"], key, tostring(err))) end
     -- si algun nombre aun no estaba cargado, se vuelve a dibujar una sola vez
     if nameMissing and (retry or 0) < 4 then
@@ -4512,10 +4522,11 @@ local function SetOption(key, value)
   for _, u in ipairs(uiInstances) do pcall(u.refresh) end
 end
 
+local namesPending = false   -- a redraw for arrived item names is already scheduled
 local f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
 f:RegisterEvent("PLAYER_LOGIN")
-for _, ev in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_DATA_SOURCE_CHANGED", "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "BAG_UPDATE_DELAYED", "LOOT_OPENED", "ZONE_CHANGED_NEW_AREA", "NEW_RECIPE_LEARNED", "MAIL_SHOW", "PLAYER_LOGOUT" }) do
+for _, ev in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_DATA_SOURCE_CHANGED", "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "BAG_UPDATE_DELAYED", "LOOT_OPENED", "ZONE_CHANGED_NEW_AREA", "NEW_RECIPE_LEARNED", "MAIL_SHOW", "PLAYER_LOGOUT", "GET_ITEM_INFO_RECEIVED" }) do
   pcall(f.RegisterEvent, f, ev)
 end
 f:SetScript("OnEvent", function(_, event, arg1)
@@ -4566,6 +4577,20 @@ f:SetScript("OnEvent", function(_, event, arg1)
         for _, u in ipairs(uiInstances) do pcall(u.refresh) end
         xpcall(UpdateTracker, geterrorhandler())
       end)
+    end
+  elseif event == "GET_ITEM_INFO_RECEIVED" then
+    -- an item name arrived: redraw the open windows that still show "item:123", once per half second at most
+    if not namesPending then
+      for _, u in ipairs(uiInstances) do
+        if u.namesMissing and u:IsShown() then
+          namesPending = true
+          C_Timer.After(0.5, function()
+            namesPending = false
+            for _, w in ipairs(uiInstances) do if w.namesMissing and w:IsShown() then pcall(w.refresh) end end
+          end)
+          break
+        end
+      end
     end
   elseif event == "PLAYER_LOGOUT" then
     -- also fires on /reload, just before the game writes the saved variables: keep only what the player changed

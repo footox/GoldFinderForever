@@ -91,5 +91,66 @@ end
 check("the old leather-only texts are gone", en:find('"tab.leather"', 1, true) == nil and en:find('"win.hLeather"', 1, true) == nil
   and en:find('"win.leatherEmpty"', 1, true) == nil)
 
+-- the columns of a list: PlaceCols is run for real (extracted from the main file) against fake regions
+local a2 = main:find("local ROW_H, ACT_W = 30, 112", 1, true)
+local b2 = a2 and main:find("local scrollCount = 0", a2, true)
+local cols = (a2 and b2) and assert(loadstring(main:sub(a2, b2 - 1) .. "\nreturn PlaceCols")) or nil
+check("PlaceCols can be extracted from the main file", cols ~= nil)
+if cols then
+  setfenv(cols, setmetatable({}, { __index = _G }))
+  local PlaceCols = cols()
+  local function region()
+    local r = { points = {} }
+    function r:ClearAllPoints() self.points = {} end
+    function r:SetPoint(...) self.points[#self.points + 1] = { ... } end
+    function r:SetWidth(w) self.width = w end
+    function r:SetJustifyH() end
+    return r
+  end
+  local function place(w, act, c1w)
+    local owner, name, c1, c2, c3 = region(), region(), region(), region(), region()
+    PlaceCols(owner, name, c1, c2, c3, true, w, act, c1w)
+    return name, c1, c2, c3
+  end
+  local name, c1, c2, c3 = place(560, 8)
+  check("narrow list: the default widths of the three number columns", c3.width == 96 and c2.width == 78 and c1.width == 46)
+  local name2, d1, d2, d3 = place(560, 8, 80)
+  check("a view can ask for a wider first number column", d1.width == 80 and d2.width == 78 and d3.width == 96)
+  check("the name column gives up exactly that room", name2.points[2][4] == -(8 + 96 + 78 + 80 + 24) and name.points[2][4] == -(8 + 96 + 78 + 46 + 24))
+  check("the wider column moves left as much as it grew", d1.points[1][4] == -(8 + 96 + 78 + 16))
+  local _, e1 = place(900, 8)
+  check("a wide list keeps its own wide default", e1.width == 110)
+  local _, f1 = place(900, 8, 80)
+  check("the request also applies to a wide list", f1.width == 80)
+  local _, g1, g2, g3 = place(nil, nil, nil)
+  check("no width and no reserve still lays out", g1.width == 110 and g2.width == 150 and g3.width == 150)
+end
+
+-- setHeaders starts every view from the default width; the Materials view asks for more after it
+local sh = main:find("function v.setHeaders(a, b, c, d)", 1, true)
+local shEnd = sh and main:find("function v.setC1Width(px)", sh, true)
+local shBody = (sh and shEnd) and main:sub(sh, shEnd) or ""
+check("setHeaders drops a width asked by the previous view", shBody:find("if curC1 then curC1 = nil; relayout() end", 1, true) ~= nil)
+check("a list view can ask for a column width", main:find("function v.setC1Width(px)", 1, true) ~= nil
+  and main:find("PlaceCols(head, hName, h1, h2, h3, true, curW, curAct, curC1)", 1, true) ~= nil
+  and main:find("PlaceCols(row, row.name, row.c1, row.c2, row.c3, true, curW, curAct, curC1)", 1, true) ~= nil)
+local l0 = main:find("    cuero = function()", 1, true)
+local l1 = l0 and main:find("    end,", l0, true)
+local ld = (l0 and l1) and main:sub(l0, l1) or ""
+check("Materials asks for the wider price column right after its headers", ld:find("setHeaders", 1, true) and ld:find("ui.list.setC1Width(80)", 1, true)
+  and ld:find("setHeaders", 1, true) < ld:find("setC1Width", 1, true))
+
+-- item names: redraw when the game says one arrived
+check("the item-info event is registered with the others", main:find('"MAIL_SHOW", "PLAYER_LOGOUT", "GET_ITEM_INFO_RECEIVED" })', 1, true) ~= nil)
+check("a view remembers that it still shows unloaded names", main:find("ui.namesMissing = nameMissing", 1, true) ~= nil)
+local e0 = main:find('elseif event == "GET_ITEM_INFO_RECEIVED" then', 1, true)
+local e1b = e0 and main:find('elseif event == "PLAYER_LOGOUT" then', e0, true)
+local eh = (e0 and e1b) and main:sub(e0, e1b) or ""
+check("the handler redraws only windows that are open and still miss names", eh:find("u.namesMissing and u:IsShown()", 1, true) ~= nil
+  and eh:find("w.namesMissing and w:IsShown()", 1, true) ~= nil)
+check("the handler is debounced to one redraw per half second", eh:find("if not namesPending then", 1, true) ~= nil
+  and eh:find("namesPending = true", 1, true) ~= nil and eh:find("C_Timer.After(0.5", 1, true) ~= nil and eh:find("namesPending = false", 1, true) ~= nil)
+check("a failing redraw does not stop the others", eh:find("pcall(w.refresh)", 1, true) ~= nil)
+
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")

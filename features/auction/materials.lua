@@ -5,7 +5,7 @@
 
 local _, GF = ...
 
-local W_DEFAULT, H_DEFAULT = 560, 520
+local W_DEFAULT, H_DEFAULT = 600, 520
 
 -- d: CreateUI(parent, opts), Cfg(key), Print(line)
 function GF.InitAuctionMaterials(d)
