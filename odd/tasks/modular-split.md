@@ -1,6 +1,6 @@
 # modular-split
 
-Objective: evaluate splitting GoldFinder into a small core plus optional modules, the way the EllesmereUI suite is built, so users load only what they use. This is an evaluation, not a committed change.
+Objective: evaluate splitting GoldFinder into a small core plus optional modules, the way the EllesmereUI suite is built, so users load only what they use. This started as an evaluation. Direction fixed on 2026-11-22: GoldFinder and the points-of-interest data become ONE suite in the submodule style (see gather-db.md S12). WHEN and HOW GoldFinder itself is split is still decided by measurement (T1).
 
 ## Specs
 
@@ -20,3 +20,4 @@ Objective: evaluate splitting GoldFinder into a small core plus optional modules
 
 - L1 (2026-11-22, user): "Por ejemplo, el addon de Ellesmere divide por subcategorias"
 - L2 (2026-11-22, user): "si" -> recorded as a separate evaluation; nothing changes now. The separate points-of-interest addon (gather-db) already follows this pattern.
+- L3 (2026-11-22, user): "Seguir el estilo de submodulos." -> the target is a single suite with a base and optional submodules (GoldFinder features and the data modules). The order of the GoldFinder split still depends on the in-game measurement (T1); the data modules are built as submodules from the start.
