@@ -142,15 +142,20 @@ check("Materials asks for the wider price column right after its headers", ld:fi
 
 -- item names: redraw when the game says one arrived
 check("the item-info event is registered with the others", main:find('"MAIL_SHOW", "PLAYER_LOGOUT", "GET_ITEM_INFO_RECEIVED" })', 1, true) ~= nil)
-check("a view remembers that it still shows unloaded names", main:find("ui.namesMissing = nameMissing", 1, true) ~= nil)
 local e0 = main:find('elseif event == "GET_ITEM_INFO_RECEIVED" then', 1, true)
 local e1b = e0 and main:find('elseif event == "PLAYER_LOGOUT" then', e0, true)
 local eh = (e0 and e1b) and main:sub(e0, e1b) or ""
-check("the handler redraws only windows that are open and still miss names", eh:find("u.namesMissing and u:IsShown()", 1, true) ~= nil
-  and eh:find("w.namesMissing and w:IsShown()", 1, true) ~= nil)
-check("the handler is debounced to one redraw per half second", eh:find("if not namesPending then", 1, true) ~= nil
+check("the handler ignores a load that failed", eh:find("arg2 ~= false", 1, true) ~= nil)
+check("it redraws only windows waiting for THIS item and still open", eh:find("u.missingIds and u.missingIds[arg1] and u:IsShown()", 1, true) ~= nil
+  and eh:find("w.missingIds and w.missingIds[arg1] and w:IsShown()", 1, true) ~= nil)
+check("an item can cause at most three redraws", eh:find("(nameTries[arg1] or 0) < 3", 1, true) ~= nil
+  and eh:find("nameTries[arg1] = (nameTries[arg1] or 0) + 1", 1, true) ~= nil)
+check("the handler is debounced to one redraw per half second", eh:find("not namesPending", 1, true) ~= nil
   and eh:find("namesPending = true", 1, true) ~= nil and eh:find("C_Timer.After(0.5", 1, true) ~= nil and eh:find("namesPending = false", 1, true) ~= nil)
 check("a failing redraw does not stop the others", eh:find("pcall(w.refresh)", 1, true) ~= nil)
+check("the event handler reads the second argument", main:find('f:SetScript("OnEvent", function(_, event, arg1, arg2)', 1, true) ~= nil)
+check("ItemLink records which ids are missing", main:find("missingNow[id] = true", 1, true) ~= nil
+  and main:find("    missingNow = {}", 1, true) ~= nil and main:find("ui.namesMissing, ui.missingIds = nameMissing, missingNow", 1, true) ~= nil)
 
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")

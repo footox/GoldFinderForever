@@ -244,6 +244,7 @@ local function ToBanker()
   return not IsMe(b)
 end
 
+local missingNow = {}   -- ids whose name was missing in the drawing in progress
 local nameMissing = false   -- se activa si algun nombre de objeto aun no esta cargado
 -- Respaldo para objetos que el cliente aun no conoce (GetItemInfo no devuelve nada): el tooltip
 -- si los pregunta al servidor, asi que se lee el nombre de un tooltip oculto.
@@ -273,6 +274,7 @@ local function ItemLink(id)
   local nm = TooltipName(id)
   if nm then return nm end
   nameMissing = true
+  missingNow[id] = true
   if C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(id) end
   return "item:" .. id
 end
@@ -3771,8 +3773,9 @@ local function CreateUI(parent, opts)
     for _, c in ipairs(ui.catControls) do c:Hide() end
     if key == "bolsas" then bExport:Show() else bExport:Hide() end
     nameMissing = false
+    missingNow = {}
     local ok, err = pcall(ui.loaders[key])
-    ui.namesMissing = nameMissing   -- the item-info event below redraws this view when the names arrive
+    ui.namesMissing, ui.missingIds = nameMissing, missingNow   -- the item-info event below redraws this view when one of them arrives
     if not ok then Print(format(L["win.screenError"], key, tostring(err))) end
     -- si algun nombre aun no estaba cargado, se vuelve a dibujar una sola vez
     if nameMissing and (retry or 0) < 4 then
@@ -4523,13 +4526,14 @@ local function SetOption(key, value)
 end
 
 local namesPending = false   -- a redraw for arrived item names is already scheduled
+local nameTries = {}         -- redraws already made per item id for its name
 local f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
 f:RegisterEvent("PLAYER_LOGIN")
 for _, ev in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_DATA_SOURCE_CHANGED", "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "BAG_UPDATE_DELAYED", "LOOT_OPENED", "ZONE_CHANGED_NEW_AREA", "NEW_RECIPE_LEARNED", "MAIL_SHOW", "PLAYER_LOGOUT", "GET_ITEM_INFO_RECEIVED" }) do
   pcall(f.RegisterEvent, f, ev)
 end
-f:SetScript("OnEvent", function(_, event, arg1)
+f:SetScript("OnEvent", function(_, event, arg1, arg2)
   if event == "ADDON_LOADED" and arg1 == ADDON then
     GoldFinderForeverDB = GoldFinderForeverDB or {}
     GoldFinderForeverDB.chars = GoldFinderForeverDB.chars or {}
@@ -4579,14 +4583,17 @@ f:SetScript("OnEvent", function(_, event, arg1)
       end)
     end
   elseif event == "GET_ITEM_INFO_RECEIVED" then
-    -- an item name arrived: redraw the open windows that still show "item:123", once per half second at most
-    if not namesPending then
+    -- arg1 = item id; arg2 = false when the client could not load it (those are never worth a redraw). Redraw only the open
+    -- windows that were waiting for THIS item, once per half second at most and at most 3 times per item, so a name that
+    -- never settles can never keep a window redrawing.
+    if arg2 ~= false and type(arg1) == "number" and not namesPending and (nameTries[arg1] or 0) < 3 then
       for _, u in ipairs(uiInstances) do
-        if u.namesMissing and u:IsShown() then
+        if u.missingIds and u.missingIds[arg1] and u:IsShown() then
+          nameTries[arg1] = (nameTries[arg1] or 0) + 1
           namesPending = true
           C_Timer.After(0.5, function()
             namesPending = false
-            for _, w in ipairs(uiInstances) do if w.namesMissing and w:IsShown() then pcall(w.refresh) end end
+            for _, w in ipairs(uiInstances) do if w.missingIds and w.missingIds[arg1] and w:IsShown() then pcall(w.refresh) end end
           end)
           break
         end
