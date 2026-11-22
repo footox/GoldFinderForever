@@ -1563,10 +1563,10 @@ end
 local function ZoneTag(zone)
   local lo, hi, state, lvl = ZoneInfo(zone)
   if not lo then return "" end
-  if state == "danger" then return format(" |cffff6666(nivel %d-%d: muy peligrosa para tu nivel %d)|r", lo, hi, lvl) end
-  if state == "hard" then return format(" |cffffa640(nivel %d-%d: exigente para tu nivel %d)|r", lo, hi, lvl) end
-  if state == "low" then return format(" |cff8a8a96(nivel %d-%d: te queda baja)|r", lo, hi) end
-  return format(" |cff8a8a96(nivel %d-%d)|r", lo, hi)
+  if state == "danger" then return format(L["zone.danger"], lo, hi, lvl) end
+  if state == "hard" then return format(L["zone.hard"], lo, hi, lvl) end
+  if state == "low" then return format(L["zone.low"], lo, hi) end
+  return format(L["zone.plain"], lo, hi)
 end
 
 -- Anade el nivel a cada zona que aparezca en un texto ("Silverpine Forest, The Barrens o Ashenvale")
@@ -1584,22 +1584,22 @@ end
 -- Texto del paso: fabricar (Cocina, Peleteria...) o recolectar (Pesca, Desuello...).
 local function StepText(e)
   if e.game then
-    local costTxt = e.cost > 0 and (", ~" .. ShortMoney(e.cost) .. (e.unknown and "+" or "") .. " c/u") or ""
-    local canTxt = e.craftable > 0 and (", puedes hacer " .. e.craftable) or ""
-    return format("fabrica %s (%s)%s%s", e.recipe, e.color, costTxt, canTxt)
+    local costTxt = e.cost > 0 and format(L["step.cost"], ShortMoney(e.cost), e.unknown and "+" or "") or ""
+    local canTxt = e.craftable > 0 and format(L["step.can"], e.craftable) or ""
+    return format(L["step.craft"], e.recipe, e.color, costTxt, canTxt)
   end
-  if e.trainOnly then return "entrena el siguiente rango" end
+  if e.trainOnly then return L["step.trainNext"] end
   if e.gather then
     local p = e.prof:lower()
     local isSkin = p:find("skin", 1, true)
-    local verb = p:find("fish", 1, true) and "pesca en" or (isSkin and "mata y desuella en"
-      or (p:find("min", 1, true) and "mina en" or (p:find("herb", 1, true) and "recolecta hierbas en" or "recoge en")))
+    local verb = p:find("fish", 1, true) and L["step.fish"] or (isSkin and L["step.skin"]
+      or (p:find("min", 1, true) and L["step.mine"] or (p:find("herb", 1, true) and L["step.herb"] or L["step.gather"])))
     local mob = (e.mob and isSkin) and (" (" .. e.mob .. ")") or ""
     local x, y = tonumber(e.x), tonumber(e.y)
     local where = (x and y) and format("%s (%.1f, %.1f)", e.zone, x, y) or tostring(e.zone)
     return verb .. " " .. where .. mob .. ZoneTag(e.zone) .. (e.note and (" (" .. e.note .. ")") or "")
   end
-  return format("crea %d %s", e.qty, e.what)
+  return format(L["step.make"], e.qty, e.what)
 end
 
 -- VENTANA FLOTANTE del siguiente paso (opcional). Cada fila es pulsable:
@@ -1608,7 +1608,7 @@ end
 local function OpenProfession(e)
   if InCombatLockdown() then return end
   if not e.skillLine then
-    Print("Abre una vez la ventana de " .. e.prof .. " para que GoldFinder aprenda a abrirla.")
+    Print(format(L["nav.openOnce"], e.prof))
     return
   end
   pcall(function()
@@ -1623,7 +1623,7 @@ end
 
 local function SearchMaterials(e)
   if not (AuctionHouseFrame and AuctionHouseFrame:IsShown()) then
-    Print("Abre la casa de subastas para buscar los materiales.")
+    Print(L["search.openAH"])
     return
   end
   local names = {}
@@ -1634,12 +1634,12 @@ local function SearchMaterials(e)
     end
   end
   if #names == 0 then
-    Print("Ya tienes los materiales de este paso (o sus nombres aun no estan cargados).")
+    Print(L["search.have"])
     return
   end
   local v1 = AHApi()
   local ok, err = pcall(function() v1.MultiSearchExact(CALLER, names) end)
-  if not ok then Print("No pude buscar en Auctionator: " .. tostring(err)) end
+  if not ok then Print(format(L["search.failed"], tostring(err))) end
 end
 
 -- AYUDAS DE RUTA: textos y calculos que comparten la guia, las compras, el aviso de receta aprendida y Fabricar.
@@ -1710,11 +1710,11 @@ local function SetDestination(e)
   if id and not (x and y) then
     -- zona conocida pero sin coordenadas (por ejemplo una mazmorra): se abre su mapa
     pcall(function() if OpenWorldMap then OpenWorldMap(id) end end)
-    Print(format("Destino: %s (sin coordenadas exactas)%s", d.zone, d.npc and (" - " .. d.npc) or ""))
+    Print(format(L["dest.noCoords"], d.zone, d.npc and format(L["dest.npcSuffix"], d.npc) or ""))
     return
   end
   if not (x and y and id) then
-    Print("No pude ubicar en el mapa: " .. tostring(d.zone) .. ".")
+    Print(format(L["dest.noMap"], tostring(d.zone)))
     return
   end
   local title = d.npc or e.prof
@@ -1730,32 +1730,31 @@ local function SetDestination(e)
   end)
   local lo, hi, state, lvl = ZoneInfo(d.zone)
   local warn = ""
-  if state == "danger" then warn = format(" |cffff6666Aviso: zona de nivel %d-%d, tu nivel es %d.|r", lo, hi, lvl)
-  elseif state == "hard" then warn = format(" |cffffa640Ojo: zona de nivel %d-%d, tu nivel es %d.|r", lo, hi, lvl) end
-  Print(format("Destino: %s (%.1f, %.1f) - %s%s%s", d.zone, x, y, title,
-    ok and "" or ". No pude marcarlo; busca esas coordenadas en el mapa.", warn))
+  if state == "danger" then warn = format(L["dest.warnDanger"], lo, hi, lvl)
+  elseif state == "hard" then warn = format(L["dest.warnHard"], lo, hi, lvl) end
+  Print(format(L["dest.line"], d.zone, x, y, title, ok and "" or L["dest.noMark"], warn))
 end
 
 local trackerRows = {}
 local TRACK_W = 306
 local function LearnText(e)
   local l = e.learn
-  if not l or not (l.zone or l.npc or l.item) then return "aprendela antes de fabricarla" end
+  if not l or not (l.zone or l.npc or l.item) then return L["obj.learnFirst"] end
   local where
   local x, y = tonumber(l.x), tonumber(l.y)
   if l.zone and x and y then where = format("%s (%.1f, %.1f)", l.zone, x, y)
   elseif l.zone then where = l.zone end
-  local at = where and (" en " .. where) or ""
+  local at = where and format(L["learn.at"], where) or ""
   if l.item then
     local nm = C_Item.GetItemInfo(l.item)
     if not nm and C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(l.item) end
-    return format("compra %s y aprendela%s%s", nm or "la receta", at, l.npc and (" (" .. l.npc .. ")") or "")
+    return format(L["learn.buy"], nm or L["learn.theRecipe"], at, l.npc and (" (" .. l.npc .. ")") or "")
   end
   if l.trainer then
-    return "aprendela con el instructor de la profesion: " .. (l.npc or "instructor") .. at
+    return format(L["learn.trainer"], l.npc or L["learn.instructor"]) .. at
       .. ((l.cost and l.cost > 0) and (" (" .. Money(l.cost) .. ")") or "")
   end
-  return (l.npc and ("habla con " .. l.npc) or "entrenador") .. at
+  return (l.npc and format(L["learn.talk"], l.npc) or L["learn.trainerWord"]) .. at
 end
 
 -- Instructores alternativos del mismo rango (GoldFinderTrainers): primero los de la zona donde estas
@@ -1800,7 +1799,7 @@ local function OtherTrainersText(prof, d)
     local x, y = tonumber(a.x), tonumber(a.y)
     parts[#parts + 1] = format("%s (%s%s)", a.npc, a.zone, (x and y) and format(" %.1f, %.1f", x, y) or "")
   end
-  return " Otros: " .. table.concat(parts, "; ") .. "."
+  return format(L["train.others"], table.concat(parts, "; "))
 end
 
 local function TrainText(e)
@@ -1811,16 +1810,16 @@ local function TrainText(e)
   local rq = TrainReq(e.prof, d.max)
   local st = e.trainState
   local head
-  if st == "cap" then head = "Tope de habilidad alcanzado"
-  elseif st == "ready" then head = "Ya puedes entrenar el siguiente rango"
+  if st == "cap" then head = L["train.cap"]
+  elseif st == "ready" then head = L["train.ready"]
   else
     local miss = {}
-    if rq and UnitLevel("player") < rq.lvl then miss[#miss + 1] = "nivel " .. rq.lvl end
-    if rq and (e.rank or 0) < rq.skill then miss[#miss + 1] = "habilidad " .. rq.skill end
-    head = "Cerca del tope, pero aun te falta " .. (#miss > 0 and table.concat(miss, " y ") or "cumplir los requisitos")
+    if rq and UnitLevel("player") < rq.lvl then miss[#miss + 1] = format(L["train.level"], rq.lvl) end
+    if rq and (e.rank or 0) < rq.skill then miss[#miss + 1] = format(L["train.skill"], rq.skill) end
+    head = format(L["train.near"], #miss > 0 and table.concat(miss, L["train.and"]) or L["train.reqs"])
   end
-  local who = d.npc and (" con " .. d.npc) or ""
-  return format("%s: entrena %s%s en %s.%s", head, d.name, who, where, OtherTrainersText(e.prof, d))
+  local who = d.npc and format(L["obj.with"], d.npc) or ""
+  return format(L["train.line"], head, d.name, who, where, OtherTrainersText(e.prof, d))
 end
 
 -- ZONA ALTERNATIVA: si una zona es muy alta para tu nivel, sugiere las zonas del MISMO tramo (segun las guias de
@@ -1851,10 +1850,9 @@ local function AltZoneText(prof, rank, badZone)
   if #fits > 0 then
     local parts = {}
     for _, name in ipairs(fits) do parts[#parts + 1] = name .. ZoneTag(name) end
-    return format("Para tu nivel %d, mientras tanto: %s (hasta el nivel %d).", lvl, table.concat(parts, " o "), lo)
+    return format(L["alt.fits"], lvl, table.concat(parts, L["alt.or"]), lo)
   elseif easiest then
-    return format("Ninguna zona de este tramo encaja con tu nivel %d: la mas asequible es %s%s. Sube de nivel antes.",
-      lvl, easiest, ZoneTag(easiest))
+    return format(L["alt.none"], lvl, easiest, ZoneTag(easiest))
   end
   return nil
 end
@@ -1866,18 +1864,18 @@ local function LeaveText(e)
   local p = e.prof:lower()
   local todo = {}
   if e.train and e.trainState ~= "blocked" and e.trainState ~= "capblocked" then
-    todo[#todo + 1] = "entrena " .. e.train.name .. (e.train.npc and (" con " .. e.train.npc) or "")
+    todo[#todo + 1] = format(L["leave.train"], e.train.name) .. (e.train.npc and format(L["obj.with"], e.train.npc) or "")
       .. (e.train.zone and (" (" .. e.train.zone .. ")") or "")
   end
   if p:find("min", 1, true) then
-    if (C_Item.GetItemCount(2901) or 0) == 0 then todo[#todo + 1] = "compra un Mining Pick" end
-    if e.rank < 105 then todo[#todo + 1] = "funde el mineral en una forja (aun da habilidad)" end
+    if (C_Item.GetItemCount(2901) or 0) == 0 then todo[#todo + 1] = L["leave.buyPick"] end
+    if e.rank < 105 then todo[#todo + 1] = L["leave.smelt"] end
   end
-  if p:find("fish", 1, true) then todo[#todo + 1] = "guarda el pescado que le sirva a Cocina" end
-  todo[#todo + 1] = "revisa Bolsas: vende, deposita o envia al banquero lo que sobre"
-  local out = "Antes de irte de " .. tostring(e.zone or "esta zona") .. ": " .. table.concat(todo, "; ") .. "."
+  if p:find("fish", 1, true) then todo[#todo + 1] = L["leave.fish"] end
+  todo[#todo + 1] = L["leave.bags"]
+  local out = format(L["leave.head"], tostring(e.zone or L["leave.thisZone"]), table.concat(todo, "; "))
   if e.nxt and e.nxt.zone then
-    out = out .. " Siguiente: " .. e.nxt.zone .. ZoneTag(e.nxt.zone)
+    out = out .. format(L["leave.next"], e.nxt.zone, ZoneTag(e.nxt.zone))
     local alt = AltZoneText(e.prof, e.rank, e.nxt.zone)
     if alt then out = out .. " " .. alt end
   end
@@ -1893,7 +1891,7 @@ local function SessionLine(e)
   if not ss or not ss.start then return "" end
   local parts = {}
   local gain = e.rank - ss.start
-  if gain > 0 then parts[#parts + 1] = "|cff59eb8d+" .. gain .. " esta sesion|r" end
+  if gain > 0 then parts[#parts + 1] = format(L["sess.gain"], gain) end
   if e.upto and e.upto > e.rank then
     local left = e.upto - e.rank
     local el = GetTime() - ss.t
@@ -1959,17 +1957,17 @@ local function TrackerRow(f, i)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:AddLine(e.prof .. " " .. e.rank, 1, 0.82, 0.25)
     if e.game then
-      GameTooltip:AddLine("Receta mas barata ahora que aun te sube, segun tus recetas y la subasta: " .. StepText(e) .. ".", 1, 1, 1, true)
+      GameTooltip:AddLine(format(L["trk.cheapest"], StepText(e)), 1, 1, 1, true)
     else
-      GameTooltip:AddLine(format("Siguiente paso de tu ruta: %s hasta habilidad %d.", StepText(e), e.upto), 1, 1, 1, true)
+      GameTooltip:AddLine(format(L["trk.next"], StepText(e), e.upto), 1, 1, 1, true)
     end
     if e.train then GameTooltip:AddLine(TrainText(e), 1, 0.65, 0.25, true) end
     if e.unknown then
-      GameTooltip:AddLine("No sabes esta receta: " .. LearnText(e), 1, 0.4, 0.4, true)
+      GameTooltip:AddLine(format(L["trk.unknown"], LearnText(e)), 1, 0.4, 0.4, true)
     end
     if #e.mats > 0 then
       GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(e.game and "Materiales por fabricacion (bolsas + banco):" or "Materiales de este tramo (bolsas + banco):", 0.7, 0.7, 0.7)
+      GameTooltip:AddLine(e.game and L["trk.matsCraft"] or L["trk.matsBand"], 0.7, 0.7, 0.7)
       for _, m in ipairs(e.mats) do
         local nm = C_Item.GetItemInfo(m.id) or ("item:" .. m.id)
         local done = m.have >= m.need
@@ -1988,15 +1986,14 @@ local function TrackerRow(f, i)
       end
     end
     GameTooltip:AddLine(" ")
-    GameTooltip:AddLine("Ctrl+clic: abrir la guia completa de la profesion", 0.7, 0.7, 0.7)
+    GameTooltip:AddLine(L["trk.ctrl"], 0.7, 0.7, 0.7)
     if Destination(e) then
-      GameTooltip:AddLine(e.gather and "Clic: marcar el destino en el mapa"
-        or "Mayus+clic: marcar en el mapa donde aprender la receta o al instructor", 0.7, 0.7, 0.7)
+      GameTooltip:AddLine(e.gather and L["trk.clickMap"] or L["trk.shiftMap"], 0.7, 0.7, 0.7)
     end
     if not e.gather then
       GameTooltip:AddLine(" ")
-      GameTooltip:AddLine("Clic: abrir o cerrar la ventana de la profesion", 0.7, 0.7, 0.7)
-      GameTooltip:AddLine("Clic derecho: buscar en la subasta lo que falta", 0.7, 0.7, 0.7)
+      GameTooltip:AddLine(L["trk.openClose"], 0.7, 0.7, 0.7)
+      GameTooltip:AddLine(L["trk.rightClick"], 0.7, 0.7, 0.7)
     end
     GameTooltip:Show()
   end)
