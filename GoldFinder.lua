@@ -1494,6 +1494,7 @@ local function MakeList(parent)
         local a, b = d.actions and d.actions[k], row.act[k]
         if a then
           b.label:SetText(a[1])
+          b:SetWidth(#a[1] > 6 and 68 or 50)   -- etiquetas de estado (Checking, Posting) algo mas anchas
           b:SetScript("OnClick", function() a[2]() end)
           -- opcional: a.tip(tooltip) al pasar el raton y a.disabled (boton apagado; el tooltip sigue saliendo)
           if b.gfEnter == nil then b.gfEnter, b.gfLeave = b:GetScript("OnEnter") or false, b:GetScript("OnLeave") or false end
@@ -3367,11 +3368,12 @@ local function CreateUI(parent, opts)
           local A = Skin.Auction
           local okP, pl = pcall(A.Plan, r.id)
           shift = function() SellItem(r.id) end
+          local stA = A.State and A.State(r.id)
           acts[#acts + 1] = {
-            L["win.btnPost"],
+            stA == "checking" and L["win.btnChecking"] or (stA == "posting" and L["win.btnPosting"] or L["win.btnPost"]),
             function() if IsShiftKeyDown() then SellItem(r.id) else A.Post(r.id) end end,
             tip = function(tt) A.Tooltip(tt, r.id, r.toBanker) end,
-            disabled = not (okP and pl and pl.post),
+            disabled = stA ~= nil or not (okP and pl and pl.post),
           }
         end
         if r.manual then

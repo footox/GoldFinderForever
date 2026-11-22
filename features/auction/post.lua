@@ -168,6 +168,7 @@ function GF.InitAuction(d)
     if not ok then return false end
     check = { id = id, commodity = commodity, key = key, at = GetTime() }
     Print(L["auction.checking"])
+    RefreshShown()
     local mine = check
     C_Timer.After(CHECK_WAIT, function()
       if check == mine then
@@ -243,7 +244,7 @@ function GF.InitAuction(d)
       if busy.serial == serial and (busy.on or busy.post) then busy.on = false; PostDone(); RefreshShown() end
     end)
     local name = C_Item.GetItemInfo(id) or format(L["auction.item"], id)
-    local q = { what = format(L["auction.what"], name, Money(p.unit), p.hours),
+    local q = { what = format(L["auction.what"], name, Money(p.unit), p.hours), id = id,
       per = commodity and p.qty or 1, n = 0, tick = 0 }
     busy.post = q
     local ok, res
@@ -313,7 +314,16 @@ function GF.InitAuction(d)
     end
   end
 
+  -- estado del boton de un objeto: "checking" (consulta en vivo en curso), "posting" (publicacion en curso) o nil
+  local function State(id)
+    if check and check.id == id then return "checking" end
+    local q = busy.post
+    if q and q.id == id then return "posting" end
+    return nil
+  end
+
   Skin.Auction = {
+    State = State,
     Plan = function(id) return Plan(id, FindLoc(id)) end,
     Tooltip = Tooltip,
     Post = Post,
