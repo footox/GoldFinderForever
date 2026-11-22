@@ -12,6 +12,7 @@
 
 core/config.lua
 core/slash.lua
+core/welcome.lua
 core/locale.lua
 locales/enUS.lua
 locales/esES.lua
@@ -46,6 +47,7 @@ features/guide/hybrid.lua
 features/route/helpers.lua
 features/route/plan.lua
 features/tracker/objectives.lua
+features/welcome/window.lua
 GoldFinderRoutes.lua
 GoldFinderTrainers.lua
 GoldFinderRecipes.lua

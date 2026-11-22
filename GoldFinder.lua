@@ -4467,6 +4467,10 @@ f:SetScript("OnEvent", function(_, event, arg1)
     GoldFinderForeverDB.log, GoldFinderForeverDB.items, GoldFinderForeverDB.lastScan = nil, nil, nil
   elseif event == "PLAYER_LOGIN" then
     pcall(MarkSessionBaseline)
+    -- first run: a short window that lists what the addon does (shown once, a few seconds after login)
+    C_Timer.After(6, function()
+      if GF.WelcomeDue(GoldFinderForeverDB) then pcall(GF.ShowWelcome) end
+    end)
     C_Timer.After(1, function() pcall(CleanPhantomChars) end)
     C_Timer.After(2, function()
       pcall(ReadSkills); xpcall(UpdateTracker, geterrorhandler())
@@ -4576,6 +4580,8 @@ SlashCmdList["GOLDFINDERFOREVER"] = function(msg)
       end
     end
     if not OpenOptions(inWindow) then inWindow() end
+  elseif cmd == "bienvenida" or cmd == "welcome" then
+    GF.ShowWelcome()
   elseif cmd == "guia" or cmd == "guide" then
     OpenGuide(rest)
   elseif cmd == "icono" or cmd == "minimap" then

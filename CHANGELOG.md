@@ -2,6 +2,9 @@
 
 ## 2.3.0
 
+### Features
+- A welcome window opens once the first time you log in and lists what the addon does and which features are on. Open it again with /gff welcome.
+
 ### Changes
 - The addon folder is now GoldFinderForever (it was GoldFinder). Delete the old GoldFinder folder after updating.
 - Saved data starts fresh: nothing is imported from the old version. Professions are read again by themselves; the keep and hide lists and the options have to be set again.
