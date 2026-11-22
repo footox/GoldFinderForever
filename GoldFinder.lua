@@ -3892,11 +3892,6 @@ GF.InitAuctionTab({
   CreateUI = function(...) return CreateUI(...) end,
   Print = function(...) return Print(...) end,
 })
-GF.InitTrainerMarks({
-  Sections = function(...) return TrainerSections(...) end,
-  Cfg = function(...) return Cfg(...) end,
-  Money = function(...) return ShortMoney(...) end,
-})
 GF.InitAuctionMaterials({
   CreateUI = function(...) return CreateUI(...) end,
   Cfg = function(...) return Cfg(...) end,
@@ -4246,6 +4241,15 @@ pcall(trainerEvents.RegisterEvent, trainerEvents, "TRAINER_SHOW")
 trainerEvents:SetScript("OnEvent", function()
   C_Timer.After(0.2, function() xpcall(RecordTrainer, geterrorhandler()); InvalidateRoutes() end)
 end)
+
+-- The panel next to the trainer. It must come AFTER the local function TrainerSections above: a closure only sees the
+-- locals declared before it, and an earlier one would call a nil global (and fail silently).
+GF.InitTrainerMarks({
+  Sections = function(...) return TrainerSections(...) end,
+  Cfg = function(...) return Cfg(...) end,
+  Money = function(...) return ShortMoney(...) end,
+  Print = function(...) return Print(...) end,
+})
 
 ---------------------------------------------------------------------------
 -- OPCIONES en Opciones > AddOns > GoldFinder, con la API nativa Settings (casillas, secciones, Predeterminados

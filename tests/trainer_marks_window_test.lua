@@ -40,7 +40,7 @@ local function session(opts)
   env._G = env
   if opts.trainerFrame then env.ClassTrainerFrame = newFrame("ClassTrainerFrame") end
   local GF = {
-    L = setmetatable({ ["tm.title"] = "TITLE" }, { __index = function(_, k) return k end }),
+    L = setmetatable({ ["tm.title"] = "TITLE", ["tm.fail"] = "FAIL %s" }, { __index = function(_, k) return k end }),
     UI = {
       PAL = { gold = {}, text = {} },
       Skin = { Panel = function(name) S.panels = S.panels + 1; local p = newFrame(name); S.panel = p; return p end },
@@ -57,6 +57,7 @@ local function session(opts)
     Sections = function() S.calls = S.calls + 1; if opts.fail then error("boom") end; return sections end,
     Cfg = function(k) if k == "trainerMarks" then return opts.cfg ~= false end end,
     Money = function(c) return c end,
+    Print = function(line) S.prints = S.prints or {}; S.prints[#S.prints + 1] = line end,
   })
   S.env, S.GF = env, GF
   S.events = S.frames[1]
@@ -113,6 +114,10 @@ local Sf = session({ fail = true })
 Sf.fire("TRAINER_SHOW")
 local ok = pcall(Sf.flush)
 check("an error while reading the trainer never escapes", ok and Sf.panels == 0)
+check("and it is shown to the player, not swallowed", Sf.prints and #Sf.prints == 1 and Sf.prints[1]:find("boom", 1, true) ~= nil)
+local Sg = session({ fail = false })
+Sg.fire("TRAINER_SHOW"); Sg.flush()
+check("a normal run prints nothing", Sg.prints == nil)
 
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")

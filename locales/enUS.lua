@@ -313,6 +313,7 @@ GF.locales.enUS = {
   ["dbg.redrawsOn"] = "Counting what redraws the windows. Wait about 10 seconds and type /gff redraws again.",
   ["dbg.redrawsReport"] = "Redraws by cause (most frequent first):",
   ["dbg.redrawsNone"] = "No redraw happened in that time.",
+  ["tm.fail"] = "The panel next to the trainer failed: %s",
   ["tm.title"] = "Your guide uses here",
   ["tm.item"] = "- %s |cff9aa0a6(skill %d)|r %s",
   ["tm.itemNoReq"] = "- %s %s",

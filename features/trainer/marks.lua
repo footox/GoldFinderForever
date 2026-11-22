@@ -6,7 +6,7 @@ local _, GF = ...
 
 local W = 290
 
--- d: Sections() -> { { prof, recs, wanted, known }, ... } for the trainer that is open, Cfg(key), Money(copper)
+-- d: Sections() -> { { prof, recs, wanted, known }, ... } for the trainer that is open, Cfg(key), Money(copper), Print(line)
 function GF.InitTrainerMarks(d)
   local L = GF.L
   local panel, title, body
@@ -68,6 +68,10 @@ function GF.InitTrainerMarks(d)
     end
     isOpen = true
     -- after the trainer has been recorded (the addon does that 0.2 s after the window opens)
-    C_Timer.After(0.8, function() pcall(Refresh) end)
+    C_Timer.After(0.8, function()
+      local ok, err = pcall(Refresh)
+      -- never fail in silence: a pcall that swallows the error is how a broken wiring went unnoticed
+      if not ok and d.Print then d.Print(string.format(L["tm.fail"], tostring(err))) end
+    end)
   end)
 end

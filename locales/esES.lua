@@ -313,6 +313,7 @@ GF.locales.esES = {
   ["dbg.redrawsOn"] = "Contando que redibuja las ventanas. Espera unos 10 segundos y escribe /gff redraws otra vez.",
   ["dbg.redrawsReport"] = "Redibujados por causa (los mas frecuentes primero):",
   ["dbg.redrawsNone"] = "No hubo ningun redibujado en ese tiempo.",
+  ["tm.fail"] = "El panel junto al instructor fallo: %s",
   ["tm.title"] = "Tu guia usa aqui",
   ["tm.item"] = "- %s |cff9aa0a6(habilidad %d)|r %s",
   ["tm.itemNoReq"] = "- %s %s",

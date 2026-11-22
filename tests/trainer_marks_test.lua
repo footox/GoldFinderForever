@@ -93,10 +93,18 @@ check("the main file starts the panel with the trainer sections", main:find("GF.
   and main:find("local function TrainerSections()", 1, true) ~= nil and main:find("GF.WantedRecipes(", 1, true) ~= nil)
 check("the option is on by default and on both option pages", read("core/config.lua"):find("trainerMarks = true", 1, true) ~= nil
   and main:find('{ "trainerMarks", L["set.trainerMarks"] }', 1, true) ~= nil and main:find('check("trainerMarks"', 1, true) ~= nil)
-for _, k in ipairs({ "tm.title", "tm.item", "tm.itemNoReq", "tm.noPrice", "tm.total", "tm.none", "tm.others", "tm.known",
+for _, k in ipairs({ "tm.title", "tm.item", "tm.itemNoReq", "tm.noPrice", "tm.total", "tm.none", "tm.others", "tm.known", "tm.fail",
   "set.trainerMarks", "opt.trainerMarks.l", "opt.trainerMarks.t" }) do
   check("both languages have " .. k, en:find('["' .. k .. '"]', 1, true) ~= nil and es:find('["' .. k .. '"]', 1, true) ~= nil)
 end
+
+-- the panel must be started AFTER the local function it is handed: a closure only sees the locals declared before it, so an
+-- earlier call would reach for a nil global (and the pcall around the panel hid it)
+local defAt = main:find("local function TrainerSections()", 1, true)
+local callAt = main:find("GF.InitTrainerMarks({", 1, true)
+check("TrainerSections is defined before the panel is started", defAt ~= nil and callAt ~= nil and defAt < callAt)
+check("the panel is started once", select(2, main:gsub("GF.InitTrainerMarks%(", "")) == 1)
+check("the panel gets a way to print its errors", main:find("Print = function(...) return Print(...) end,\n})", callAt or 1, true) ~= nil)
 
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")
