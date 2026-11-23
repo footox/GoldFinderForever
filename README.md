@@ -88,6 +88,10 @@ Nothing is sent from the game: the addon makes no network calls (see Privacy). D
 
 ### Unreleased
 
+**Fixes**
+- The Scan button of the main window no longer shows a Lua error when the auction house is closed: it tells you to open the auction house first (Auctionator only scans from there).
+- The summary window had four titles written in Spanish whatever the game language ("To sell", "To keep", the leather session and "What to do now"); they are now translated.
+
 **Features**
 - Penguin winks: a short penguin line in the chat now and then at login (one login in four, never the first time) and when a scan starts, plus a small hidden command. You can switch them off in the options ("Penguin winks") for plain messages.
 - Waylaid Crates are never advised for sale: the addon keeps them and says they serve Favor, whatever they would fetch at the auction house or the vendor.
