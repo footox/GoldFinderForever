@@ -93,6 +93,7 @@ GF.locales.esES = {
   ["auction.tab.width"] = "La pestana medía %d px; la ajusto a 110.",
   ["auction.tab.fail"] = "No pude crear la pestana: %s",
   ["decision.manual"] = "lo guardaste tu",
+  ["decision.variant"] = "solo se conoce el precio de la variante mas barata: mira el tuyo en la subasta antes de venderlo",
   ["decision.tool"] = "herramienta de profesion",
   ["decision.questLabel"] = "mision(es) %s",
   ["decision.quest"] = "para la mision %s",

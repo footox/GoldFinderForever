@@ -93,6 +93,7 @@ GF.locales.enUS = {
   ["auction.tab.width"] = "The tab measured %d px; I set it to 110.",
   ["auction.tab.fail"] = "Could not create the tab: %s",
   ["decision.manual"] = "you chose to keep it",
+  ["decision.variant"] = "only the price of the cheapest variant is known: check yours at the auction house before selling",
   ["decision.tool"] = "profession tool",
   ["decision.questLabel"] = "quest(s) %s",
   ["decision.quest"] = "for the quest %s",

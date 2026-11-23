@@ -3320,9 +3320,9 @@ local function CreateUI(parent, opts)
 
   -- FILTRO DE BOLSAS
   -- Fila visible en Bolsas: todo menos los objetos sin precio (ligados, de mision...); los que piden escanear la
-  -- subasta se listan con su motivo. Solo filtra la lista: el vendedor y el correo siguen sin verlos (no son AH/VENDOR).
+  -- subasta, y el equipo del que solo se conoce el precio de la variante mas barata, se listan con su motivo. Solo filtra la lista: el vendedor y el correo siguen sin verlos (no son AH/VENDOR).
   local function BagListed(r)
-    return r.verdict ~= "NONE" or r.code == "scan"
+    return r.verdict ~= "NONE" or r.code == "scan" or r.code == "variant"
   end
   -- FIN DE FILTRO DE BOLSAS
   local verdictText = {

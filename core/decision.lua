@@ -78,15 +78,23 @@ function GF.NewDecision(d)
   -- The auction price of an item. Equipment has one entry per variant (suffix, item level), so it is asked by the
   -- item's LINK, which finds that variant's own entry; asked by id it reads the generic entry, which can be an old
   -- price or another variant's. Without a link, or when the link has no price, the id is used as before.
+  -- Second value: true when the price is only the generic entry of an item that can have variants (equipment). That entry is
+  -- the cheapest variant seen, so it is a floor, not the price of this item: it must not decide a sale to the vendor by itself.
   local function AuctionPrice(v1, id, link)
-    if link and v1.GetAuctionPriceByItemLink then
-      local classID = select(6, d.ItemInfoInstant(id))
-      if classID == 2 or classID == 4 then   -- weapon or armor
-        local ok, price = pcall(v1.GetAuctionPriceByItemLink, CALLER, link)
-        if ok and type(price) == "number" and price > 0 then return price end
-      end
+    local classID = select(6, d.ItemInfoInstant(id))
+    local gear = classID == 2 or classID == 4   -- weapon or armor
+    if gear and link and v1.GetAuctionPriceByItemLink then
+      local ok, price = pcall(v1.GetAuctionPriceByItemLink, CALLER, link)
+      if ok and type(price) == "number" and price > 0 then return price, false end
     end
-    return v1.GetAuctionPriceByItemID(CALLER, id)
+    return v1.GetAuctionPriceByItemID(CALLER, id), gear
+  end
+
+  -- A vendor verdict that rests only on the generic price of equipment is not firm: say so instead of advising the sale.
+  local function Unsure(r)
+    if r.generic and r.verdict == "VENDOR" then
+      r.verdict, r.code, r.reason = "NONE", "variant", L["decision.variant"]
+    end
   end
 
   -- reserva de un objeto: { own, alts, total, label, su, z, rg, o }
@@ -113,12 +121,14 @@ function GF.NewDecision(d)
 
   function Decide(id, bags, bank, bound, link)
     local v1 = AHApi()
-    local ah = (not bound and v1) and AuctionPrice(v1, id, link) or nil
+    local ah, generic
+    if not bound and v1 then ah, generic = AuctionPrice(v1, id, link) end
     if ah and ah <= 0 then ah = nil end
     local vendor = VendorPrice(id) or 0
     local ahNet = ah and ah * (1 - AH_CUT) or 0
     local have = bags + bank
     local d = { ahNet = ahNet, vendor = vendor, unit = math.max(ahNet, vendor), verdict = "NONE", sellQty = 0 }
+    d.generic = (ah and generic) or nil
 
     if GoldFinderForeverDB and Char().keep[id] then
       d.verdict, d.code, d.reason, d.manual = "KEEP", "manual", L["decision.manual"], true
@@ -206,6 +216,7 @@ function GF.NewDecision(d)
     end
     if vendor > 0 and vendor >= ahNet and not utility then
       d.verdict, d.unit = "VENDOR", vendor
+      Unsure(d)
       return d
     end
     if ah then
@@ -222,6 +233,7 @@ function GF.NewDecision(d)
       end
     end
     if vendor > 0 and not utility then d.verdict, d.unit = "VENDOR", vendor end
+    Unsure(d)
     return d
   end
 

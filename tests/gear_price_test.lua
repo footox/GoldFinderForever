@@ -66,22 +66,41 @@ check("the link was asked", S.calls.link == 1)
 
 S.calls.link, S.calls.id = 0, 0
 d = Decide(STAFF, 1, 0, false)
-check("without a link it is priced by id, as before (the old advice)", d.verdict == "VENDOR" and S.calls.link == 0 and S.calls.id == 1)
+check("without a link equipment gets only the generic price: it is not a firm vendor verdict", d.verdict == "NONE" and d.code == "variant" and S.calls.link == 0 and S.calls.id == 1)
+check("and the reason says only the cheapest variant is known", d.reason ~= nil and d.reason:find("cheapest variant", 1, true) ~= nil)
 
 -- fallbacks
 S.byLink[LINK] = nil
 d = Decide(STAFF, 1, 0, false, LINK)
-check("a link with no price falls back to the id price", d.verdict == "VENDOR" and S.calls.id >= 2)
+check("a link with no price falls back to the id price, marked as not firm", d.verdict == "NONE" and d.code == "variant" and S.calls.id >= 2)
 S.byLink[LINK] = 0
 d = Decide(STAFF, 1, 0, false, LINK)
-check("a link price of zero falls back to the id price", d.verdict == "VENDOR")
+check("a link price of zero falls back to the id price, marked as not firm", d.verdict == "NONE" and d.code == "variant")
 S.byLink[LINK] = 15000; S.linkError = true
 d = Decide(STAFF, 1, 0, false, LINK)
-check("an error in the link API falls back to the id price, never breaks the advice", d.verdict == "VENDOR")
+check("an error in the link API falls back to the id price, never breaks the advice", d.verdict == "NONE" and d.code == "variant")
 S.linkError = false; S.linkApi = false
 d = Decide(STAFF, 1, 0, false, LINK)
-check("an Auctionator without the link function falls back to the id price", d.verdict == "VENDOR")
+check("an Auctionator without the link function falls back to the id price, marked as not firm", d.verdict == "NONE" and d.code == "variant")
 S.linkApi = true
+
+-- the generic price is a floor: it can still recommend an auction, never a sale by itself
+S.linkApi = true; S.byLink[LINK] = nil; S.byId[STAFF], S.vendor[STAFF] = 50000, 4210
+d = Decide(STAFF, 1, 0, false, LINK)
+check("a generic price that already beats the vendor still recommends the auction", d.verdict == "AH")
+S.byId[STAFF], S.vendor[STAFF] = 4000, 4210
+d = Decide(STAFF, 1, 0, false, LINK)
+check("a generic price below the vendor is not enough to say sell (vendor >= auction path)", d.verdict == "NONE" and d.code == "variant")
+S.byId[STAFF], S.vendor[STAFF] = 4400, 4210
+d = Decide(STAFF, 1, 0, false, LINK)
+check("a generic price that gains too little is not enough either (worth-it path)", d.verdict == "NONE" and d.code == "variant")
+S.byLink[LINK] = 4400
+d = Decide(STAFF, 1, 0, false, LINK)
+check("the same price coming from the variant itself IS a firm vendor verdict", d.verdict == "VENDOR" and d.code == nil)
+S.byId[CLOTH], S.vendor[CLOTH] = 100, 95
+d = Decide(CLOTH, 1, 0, false)
+check("a material with a low auction price is still a plain vendor verdict", d.verdict == "VENDOR" and d.code == nil)
+check("the not-firm state is recorded on the decision", (function() S.byLink[LINK] = nil; S.byId[STAFF] = 4000; return Decide(STAFF, 1, 0, false, LINK).generic == true end)())
 
 -- only equipment is asked by link
 S.calls.link = 0
@@ -104,7 +123,13 @@ S.byId[STAFF], S.byLink[LINK], S.vendor[STAFF] = 50000, 1000, 4210
 d = Decide(STAFF, 1, 0, false, LINK)
 check("when the variant is cheaper than the generic entry, the vendor wins", d.verdict == "VENDOR")
 
+S.byId[STAFF], S.byLink[LINK] = nil, nil
+d = Decide(STAFF, 1, 0, false, LINK)
+check("with no auction price at all the decision is not marked as generic", d.generic == nil)
+
 -- wiring
+check("the bag list shows these rows with their reason instead of hiding them", read("GoldFinder.lua"):find('r.code == "scan" or r.code == "variant"', 1, true) ~= nil)
+check("both languages have decision.variant", read("locales/enUS.lua"):find('["decision.variant"]', 1, true) ~= nil and read("locales/esES.lua"):find('["decision.variant"]', 1, true) ~= nil)
 check("the bag adapter keeps the link of each slot", read("adapters/bags.lua"):find("link = info.hyperlink", 1, true) ~= nil)
 local main = read("GoldFinder.lua")
 check("the bag rows pass the link to the decision", main:find("{ bags = 0, bound = s.bound, link = s.link }", 1, true) ~= nil
