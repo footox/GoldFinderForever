@@ -104,10 +104,6 @@ Nothing is sent from the game: the addon makes no network calls (see Privacy). D
 - Optional data addon support: if GoldFinderForeverData is installed, the guide also says where to get a recipe item from the vendors and drops its players recorded, next to what QuestieDB knows (it fills the gaps, for example recipes QuestieDB does not list).
 - /gff data <command> runs a command of the data addon (for example /gff data help or /gff data near vendor).
 
-**Changes**
-- New option "Minimum margin over the vendor (%)" (default 10, the value that was fixed before): the auction is recommended only if its price, after the cut, beats the vendor price by more than that percentage. It works together with "Minimum auction profit", which is the profit of the whole lot.
-- The default minimum auction profit is now 10 silver (it was 20): it weighs less for a player who is still levelling. It is the profit of the whole lot, so more units reach it; change it in Options > AddOns > GoldFinder Forever ("Minimum auction profit"). If you never changed it, the new default applies.
-
 ### 2.3.1
 
 **Fixes**

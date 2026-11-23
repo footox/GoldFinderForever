@@ -58,7 +58,7 @@ local main = read("GoldFinder.lua")
 local hyb = read("features/guide/hybrid.lua")
 check("the file is in the toc", read("GoldFinderForever.toc"):find("core/guide_search.lua", 1, true) ~= nil)
 check("the guide window has the search box", main:find('local sb = CreateFrame("EditBox", nil, f, "InputBoxTemplate")', 1, true) ~= nil)
-check("typing redraws the guide, Esc clears it", main:find("if user then f.query = txt; RefreshGuide() end", 1, true) ~= nil
+check("typing redraws the guide, Esc clears it", main:find("if user then f.query = txt; f.searchTries = 0; RefreshGuide() end", 1, true) ~= nil
   and main:find('self:SetText(""); self:ClearFocus(); f.query = ""; RefreshGuide()', 1, true) ~= nil)
 check("the list is filtered after it is built", main:find("GF.GuideBandsUsing(items, GoldFinderRecipes and GoldFinderRecipes.spells, SearchName, f.query)", 1, true) ~= nil)
 check("an unknown material name is asked for only once", main:find("if not askedSearch[id] and C_Item.RequestLoadItemDataByID then askedSearch[id] = true", 1, true) ~= nil)
@@ -66,6 +66,12 @@ check("a step shows which material it uses", hyb:find("if it.uses then", 1, true
 for _, k in ipairs({ "gsearch.hint", "gsearch.found", "gsearch.none", "gsearch.uses" }) do
   check("both languages have " .. k, read("locales/enUS.lua"):find('["' .. k .. '"]', 1, true) ~= nil and read("locales/esES.lua"):find('["' .. k .. '"]', 1, true) ~= nil)
 end
+
+-- a name that was not loaded yet: the guide is drawn again a moment later, three times at most for what was typed
+check("an unknown material name flags a retry", main:find("searchMissing = true", 1, true) ~= nil)
+check("the retry is bounded and only while the same text is typed in an open guide", main:find("if f.searchTries < 3 then", 1, true) ~= nil
+  and main:find("g and g:IsShown() and g.query == asked", 1, true) ~= nil and main:find("C_Timer.After(1.5, function()", 1, true) ~= nil)
+check("typing resets the number of retries", main:find("f.searchTries = 0; RefreshGuide()", 1, true) ~= nil)
 
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")

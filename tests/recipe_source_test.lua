@@ -128,5 +128,24 @@ do
   check("an entry that already has a place is left alone", GF3.WithRecipeSource({ item = 777, zone = "X", npc = "Y" }).npc == "Y")
 end
 
+-- the faction of a vendor: one whose faction is known beats one whose faction is not (the data addon records none)
+do
+  local npcs = {
+    [3] = { name = "Data Vendor", zone = "Somewhere", x = 1, y = 2 },
+    [10] = { name = "Horde Vendor", zone = "Orgrimmar", x = 50, y = 60, level = 30, friendly = "H" },
+    [11] = { name = "Alliance Vendor", zone = "Stormwind City", x = 10, y = 20, level = 30, friendly = "A" },
+  }
+  local function mix(ids) return { vendors = function() return ids end, drops = function() return nil end, npc = function(id) return npcs[id] end } end
+  local r1 = GF.PickRecipeSource(mix({ 3, 10 }), 1, "Horde")
+  check("a vendor with a known faction beats one with none, even with a higher id", r1 and r1.name == "Horde Vendor")
+  check("the one with no faction is still counted among the other places", r1 and r1.others == 1)
+  local r2 = GF.PickRecipeSource(mix({ 3 }), 1, "Horde")
+  check("with only a vendor of unknown faction, it is used", r2 and r2.name == "Data Vendor")
+  local r3 = GF.PickRecipeSource(mix({ 3, 11 }), 1, "Horde")
+  check("a vendor of the other faction is never used, and the unknown one fills the gap", r3 and r3.name == "Data Vendor")
+  local r4 = GF.PickRecipeSource(mix({ 11, 10 }), 1, "Horde")
+  check("among vendors of known faction the lowest id still wins", r4 and r4.name == "Horde Vendor")
+end
+
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")

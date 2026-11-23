@@ -57,13 +57,28 @@ function GF.InitTrainerMarks(d)
     panel:Show()
   end
 
+  local updating = false
   local events = CreateFrame("Frame")
   events:RegisterEvent("TRAINER_SHOW")
   events:RegisterEvent("TRAINER_CLOSED")
+  events:RegisterEvent("TRAINER_UPDATE")
   events:SetScript("OnEvent", function(_, event)
     if event == "TRAINER_CLOSED" then
       isOpen = false
       if panel then panel:Hide() end
+      return
+    end
+    if event == "TRAINER_UPDATE" then
+      -- the list changed (a recipe you just learned leaves it): refresh once, not once per event
+      if isOpen and not updating then
+        updating = true
+        C_Timer.After(0.5, function()
+          updating = false
+          if not isOpen then return end
+          local ok, err = pcall(Refresh)
+          if not ok and d.Print then d.Print(string.format(L["tm.fail"], tostring(err))) end
+        end)
+      end
       return
     end
     isOpen = true
