@@ -1191,13 +1191,14 @@ local function StartFullScan()
     Print(L["scan.notReady"])
     return
   end
-  local ok, err = pcall(function()
-    if Auctionator.Config.Get(Auctionator.Config.Options.REPLICATE_SCAN) then
-      Auctionator.State.FullScanFrameRef:InitiateScan()
-    else
-      Auctionator.State.IncrementalScanFrameRef:InitiateScan()
-    end
+  -- Auctionator builds the frames that scan when the auction house opens: with it closed there is nothing to call
+  local frame
+  local okFrame, errFrame = pcall(function()
+    frame = GF.ScanFrameFor(Auctionator.State, Auctionator.Config.Get(Auctionator.Config.Options.REPLICATE_SCAN))
   end)
+  if not okFrame then Print(format(L["scan.failed"], tostring(errFrame))); return end
+  if not frame then Print(L["scan.openAH"]); return end
+  local ok, err = pcall(frame.InitiateScan, frame)
   if ok then Print((Cfg("penguin") and GF.PenguinPhrase("penguin.scan")) or L["scan.requested"])
   else Print(format(L["scan.failed"], tostring(err))) end
 end
@@ -1593,9 +1594,9 @@ end
 local function MakeSummary(parent)
   local v = CreateFrame("Frame", nil, parent)
   v:SetAllPoints(parent)
-  v.c1 = Card(v, "PARA VENDER")
-  v.c2 = Card(v, "PARA GUARDAR")
-  v.c3 = Card(v, "SESION DE CUERO")
+  v.c1 = Card(v, L["win.sumSellTitle"])
+  v.c2 = Card(v, L["win.sumKeepTitle"])
+  v.c3 = Card(v, L["win.sumSessionTitle"])
   local function layout(w)
     local cw = math.max(150, math.floor(((w or 744) - 24) / 3))
     for i, c in ipairs({ v.c1, v.c2, v.c3 }) do
@@ -1606,7 +1607,7 @@ local function MakeSummary(parent)
   end
   layout()
   v:SetScript("OnSizeChanged", function(_, w) if w and w > 0 then layout(w) end end)
-  local tt = Text(v, 13, PAL.gold); tt:SetPoint("TOPLEFT", v, "TOPLEFT", 0, -122); tt:SetText("Que hacer ahora")
+  local tt = Text(v, 13, PAL.gold); tt:SetPoint("TOPLEFT", v, "TOPLEFT", 0, -122); tt:SetText(L["win.sumNowTitle"])
   v.tips = Text(v, 13, PAL.text)
   v.tips:SetPoint("TOPLEFT", v, "TOPLEFT", 0, -148)
   v.tips:SetPoint("TOPRIGHT", v, "TOPRIGHT", 0, -148)
