@@ -99,5 +99,53 @@ do
   check("line: no npc or no entry gives nil", GF.RecipeSourceLine({}, LL, where) == nil and GF.RecipeSourceLine(nil, LL, where) == nil)
 end
 
+-- 3. WithRecipeSource with the data addon (and without QuestieDB)
+do
+  local DATA = { { type = "RECIPE_SOLD", npcId = 3366, itemId = 777, zone = 1454, x = 0.6304, y = 0.4547, name = "Tamar", confirmations = 1 } }
+  local clearCb
+  local G3 = {
+    UnitFactionGroup = function() return "Horde" end,
+    C_Map = { GetMapInfo = function() return { name = "Orgrimmar" } end },
+    GoldFinderForeverData = { FindItem = function(id)
+        local out = {}
+        for _, p in ipairs(DATA) do if p.itemId == id then out[#out + 1] = p end end
+        return out
+      end,
+      Subscribe = function(fn) clearCb = fn; return 1 end },
+  }
+  local GF3 = {}
+  run("core/recipe_source.lua", G3, GF3)
+  run("adapters/questie.lua", G3, GF3)
+  run("adapters/gfdata.lua", G3, GF3)
+  local l = GF3.WithRecipeSource({ item = 777 })
+  check("data only: the entry gets npc, zone and place", l.npc == "Tamar" and l.zone == "Orgrimmar" and l.x == 63.0 and l.y == 45.5)
+  check("data only: the data addon is watched for changes", clearCb ~= nil)
+  local none = GF3.WithRecipeSource({ item = 888 })
+  check("data only: an item nobody recorded stays without a place", none.npc == nil and none.zone == nil)
+  DATA[#DATA + 1] = { type = "RECIPE_SOLD", npcId = 3367, itemId = 888, zone = 1454, x = 0.5, y = 0.5, name = "New", confirmations = 1 }
+  local later = GF3.WithRecipeSource({ item = 888 })
+  check("data only: nothing is cached without QuestieDB, so a new point shows at once", later.npc == "New")
+  check("an entry that already has a place is left alone", GF3.WithRecipeSource({ item = 777, zone = "X", npc = "Y" }).npc == "Y")
+end
+
+-- the faction of a vendor: one whose faction is known beats one whose faction is not (the data addon records none)
+do
+  local npcs = {
+    [3] = { name = "Data Vendor", zone = "Somewhere", x = 1, y = 2 },
+    [10] = { name = "Horde Vendor", zone = "Orgrimmar", x = 50, y = 60, level = 30, friendly = "H" },
+    [11] = { name = "Alliance Vendor", zone = "Stormwind City", x = 10, y = 20, level = 30, friendly = "A" },
+  }
+  local function mix(ids) return { vendors = function() return ids end, drops = function() return nil end, npc = function(id) return npcs[id] end } end
+  local r1 = GF.PickRecipeSource(mix({ 3, 10 }), 1, "Horde")
+  check("a vendor with a known faction beats one with none, even with a higher id", r1 and r1.name == "Horde Vendor")
+  check("the one with no faction is still counted among the other places", r1 and r1.others == 1)
+  local r2 = GF.PickRecipeSource(mix({ 3 }), 1, "Horde")
+  check("with only a vendor of unknown faction, it is used", r2 and r2.name == "Data Vendor")
+  local r3 = GF.PickRecipeSource(mix({ 3, 11 }), 1, "Horde")
+  check("a vendor of the other faction is never used, and the unknown one fills the gap", r3 and r3.name == "Data Vendor")
+  local r4 = GF.PickRecipeSource(mix({ 11, 10 }), 1, "Horde")
+  check("among vendors of known faction the lowest id still wins", r4 and r4.name == "Horde Vendor")
+end
+
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")

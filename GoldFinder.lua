@@ -244,11 +244,13 @@ local function ToBanker()
   return not IsMe(b)
 end
 
+local missingNow = {}   -- ids whose name was missing in the drawing in progress
 local nameMissing = false   -- se activa si algun nombre de objeto aun no esta cargado
 -- Respaldo para objetos que el cliente aun no conoce (GetItemInfo no devuelve nada): el tooltip
 -- si los pregunta al servidor, asi que se lee el nombre de un tooltip oculto.
 local scanTip
 local nameCache = {}
+local linkCache = {}   -- links the client has given us once: it sometimes forgets them, and a name must not flicker back to item:123
 local function TooltipName(id)
   if nameCache[id] then return nameCache[id] end
   if not scanTip then
@@ -269,10 +271,12 @@ end
 
 local function ItemLink(id)
   local _, link = C_Item.GetItemInfo(id)
-  if link then return link end
+  if link then linkCache[id] = link; return link end
+  if linkCache[id] then return linkCache[id] end
   local nm = TooltipName(id)
   if nm then return nm end
   nameMissing = true
+  missingNow[id] = true
   if C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(id) end
   return "item:" .. id
 end
@@ -292,6 +296,14 @@ local function DayStats(entry)
     vals[#vals + 1] = (entry.l and entry.l[day]) or hi
   end
   return Median(vals), #vals
+end
+
+-- minutos desde el ultimo escaneo de Auctionator (nil si no hay ninguno)
+local function ScanAgeMinutes()
+  local st = Auctionator and Auctionator.SavedState
+  local t = st and math.max(st.TimeOfLastReplicateScan or 0, st.TimeOfLastBrowseScan or 0) or 0
+  if t == 0 then return nil end
+  return (time() - t) / 60
 end
 
 local function AHApi()
@@ -912,7 +924,7 @@ local function RecipeForOthers(id, includeMine, all)
           if not known then
             local rank = data.rank or 0
             out[#out + 1] = {
-              who = (c == mine) and "Tu" or (ckey:match("^([^-]+)") or ckey), prof = prof, rank = rank, req = req,
+              who = (c == mine) and L["tip.recipeWhoYou"] or (ckey:match("^([^-]+)") or ckey), prof = prof, rank = rank, req = req,
               ready = (not req) or rank >= req,
             }
           end
@@ -929,7 +941,10 @@ local function RecipeForOthers(id, includeMine, all)
       end
     end
   end
-  if all then return out end
+  if all then
+    -- second value: the characters that already know it (the tooltip and the merchant box say so)
+    return out, GF.RecipeKnownBy(GoldFinderForeverDB.chars, mine, key, target, NormRecipe)
+  end
   for _, ro in ipairs(out) do if not ro.unknown then return ro end end
   return out[1]
 end
@@ -963,6 +978,7 @@ local Decide, SellQty = GF.NewDecision({
   ItemInfoInstant = GF.ItemInfoInstant,
   ItemQuality = GF.ItemQuality,
   VariantKnown = GF.VariantKnown,
+  ScanAgeMin = function() return ScanAgeMinutes() end,
 })
 -- FIN DE DECISION
 
@@ -972,8 +988,9 @@ local Decide, SellQty = GF.NewDecision({
 -- Recetas: quien (tu u otro personaje) aun no la sabe, con el nivel que pide la receta
 local function RecipeLines(tooltip, id)
   if not Cfg("crossChars") then return end
-  local list = RecipeForOthers(id, true, true)
-  if not list or #list == 0 then return end
+  local list, knownBy = RecipeForOthers(id, true, true)
+  -- nothing to say only when it is not a recipe; if everybody already knows it, the line below still tells so
+  if not list or (#list == 0 and #(knownBy or {}) == 0) then return end
   for _, ro in ipairs(list) do
     if ro.unknown then
       tooltip:AddLine("  " .. ro.note, 1, 0.82, 0)
@@ -984,6 +1001,8 @@ local function RecipeLines(tooltip, id)
         ro.ready and 0.35 or 1, ro.ready and 0.92 or 0.65, ro.ready and 0.55 or 0.25)
     end
   end
+  local known = GF.KnownByText(knownBy, L)
+  if known then tooltip:AddLine("  " .. known, 0.7, 0.7, 0.7) end
 end
 
 -- Lo que llevan tus otros personajes (bolsas y banco), leido de BagBrother (el addon de Bagnon): sirve para
@@ -1026,6 +1045,7 @@ local function TipAdvice(tooltip, data)
   local d = Decide(id, bags, bank, false, link)
   if d.verdict == "NONE" then
     if d.reason then tooltip:AddLine("GoldFinder: " .. d.reason, 0.6, 0.6, 0.6) end
+    RecipeLines(tooltip, id)   -- a recipe is not only a thing to keep: who already knows it matters for any advice
     return
   end
 
@@ -1103,6 +1123,7 @@ local function TipAdvice(tooltip, data)
     tooltip:AddLine(format(L["tip.otherNeeds"],
       o.who, o.need, o.prof, math.min(bags + bank, o.need)), 0.42, 0.71, 1, true)
   end
+  RecipeLines(tooltip, id)   -- who of your characters already knows this recipe (nothing for an item that is not a recipe)
 end
 
 if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
@@ -1181,23 +1202,16 @@ local function StartFullScan()
     Print(L["scan.notReady"])
     return
   end
-  local ok, err = pcall(function()
-    if Auctionator.Config.Get(Auctionator.Config.Options.REPLICATE_SCAN) then
-      Auctionator.State.FullScanFrameRef:InitiateScan()
-    else
-      Auctionator.State.IncrementalScanFrameRef:InitiateScan()
-    end
+  -- Auctionator builds the frames that scan when the auction house opens: with it closed there is nothing to call
+  local frame
+  local okFrame, errFrame = pcall(function()
+    frame = GF.ScanFrameFor(Auctionator.State, Auctionator.Config.Get(Auctionator.Config.Options.REPLICATE_SCAN))
   end)
-  if ok then Print(L["scan.requested"])
+  if not okFrame then Print(format(L["scan.failed"], tostring(errFrame))); return end
+  if not frame then Print(L["scan.openAH"]); return end
+  local ok, err = pcall(frame.InitiateScan, frame)
+  if ok then Print((Cfg("penguin") and GF.PenguinPhrase("penguin.scan")) or L["scan.requested"])
   else Print(format(L["scan.failed"], tostring(err))) end
-end
-
--- minutos desde el ultimo escaneo de Auctionator (nil si no hay ninguno)
-local function ScanAgeMinutes()
-  local st = Auctionator and Auctionator.SavedState
-  local t = st and math.max(st.TimeOfLastReplicateScan or 0, st.TimeOfLastBrowseScan or 0) or 0
-  if t == 0 then return nil end
-  return (time() - t) / 60
 end
 
 local function ScanAgeText()
@@ -1300,7 +1314,7 @@ local function SkinRank()
   return nil
 end
 
-local function LeatherRows()
+local function MaterialRows(cat)
   local v1 = AHApi()
   if not (v1 and Auctionator.Database and Auctionator.Database.db) then return {} end
   local rows = {}
@@ -1308,7 +1322,7 @@ local function LeatherRows()
     if type(key) == "string" and key:match("^%d+$") and entry.m and entry.m > 0 then
       local id = tonumber(key)
       local _, _, _, _, _, classID, subClassID = C_Item.GetItemInfoInstant(id)
-      if classID == 7 and subClassID == 6 then
+      if GF.MaterialMatches(cat, classID, subClassID) then
         local vendor = VendorPrice(id)
         local region = TSMValue("DBRegionSaleAvg", id)
         local ref = RefPrice(id)
@@ -1321,6 +1335,7 @@ local function LeatherRows()
         if d.verdict == "KEEP" then
           if d.forOther then advice = format(L["advice.keepFor"], d.forOther)
           elseif d.manual then advice = L["advice.keepByHand"]
+          elseif d.code == "crate" then advice = L["advice.keepCrate"]
           elseif d.code == "lowprice" then advice = L["advice.keepCheap"]
           else advice = L["advice.keepRecipe"] end
         elseif d.verdict == "VENDOR" then advice = L["advice.vendor"]
@@ -1329,13 +1344,14 @@ local function LeatherRows()
         else advice = "-" end
         rows[#rows + 1] = {
           id = id, price = entry.m, region = region, advice = advice,
-          stack = math.max(netAH, vendor or 0) * 20, owned = bags + bank, farm = FarmText(id),
+          stack = math.max(netAH, vendor or 0) * 20, owned = bags + bank,
+          farm = (cat.id == "leather") and FarmText(id) or nil,   -- where to skin it: only leather has that data
         }
       end
     end
   end
   -- primero lo que tienes, luego lo que tu Desuello alcanza, y despues el resto; en cada grupo por valor de pila
-  local rank = SkinRank()
+  local rank = (cat.id == "leather") and SkinRank() or nil
   local function group(r)
     if r.owned > 0 then return 1 end
     if r.farm and r.farm.req and rank and r.farm.req <= rank then return 2 end
@@ -1373,11 +1389,12 @@ GF.InitAuction({
 
 local ROW_H, ACT_W = 30, 112
 -- Las columnas se estrechan cuando hay poco ancho (por ejemplo dentro de la casa de subastas).
-local function PlaceCols(owner, name, c1, c2, c3, hasIcon, w, act)
+local function PlaceCols(owner, name, c1, c2, c3, hasIcon, w, act, c1w)
   act = act or ACT_W   -- espacio de los botones (poco si la lista no tiene botones)
   local narrow = (w or 900) < 720
   -- estrecho (por ejemplo la pestana de la subasta con su panel lateral): columnas cortas para que el nombre quepa
   local w3, w2, w1 = narrow and 96 or 150, narrow and 78 or 150, narrow and 46 or 110
+  if c1w then w1 = c1w end   -- a view that needs a wider first column (prices per unit) asks for it
   c3:ClearAllPoints(); c3:SetPoint("RIGHT", owner, "RIGHT", -act, 0); c3:SetWidth(w3); c3:SetJustifyH("RIGHT")
   c2:ClearAllPoints(); c2:SetPoint("RIGHT", owner, "RIGHT", -(act + w3 + 8), 0); c2:SetWidth(w2); c2:SetJustifyH("RIGHT")
   c1:ClearAllPoints(); c1:SetPoint("RIGHT", owner, "RIGHT", -(act + w3 + w2 + 16), 0); c1:SetWidth(w1); c1:SetJustifyH("RIGHT")
@@ -1406,9 +1423,10 @@ local function MakeList(parent)
   local rowFrames = {}
   local curW = 700
   local curAct = ACT_W
+  local curC1   -- width asked for the first number column by the current view (nil: the default)
   local function relayout()
-    PlaceCols(head, hName, h1, h2, h3, true, curW, curAct)
-    for _, r in ipairs(rowFrames) do PlaceCols(r, r.name, r.c1, r.c2, r.c3, true, curW, curAct) end
+    PlaceCols(head, hName, h1, h2, h3, true, curW, curAct, curC1)
+    for _, r in ipairs(rowFrames) do PlaceCols(r, r.name, r.c1, r.c2, r.c3, true, curW, curAct, curC1) end
   end
   sf:SetScript("OnSizeChanged", function(_, w)
     if w and w > 0 then content:SetWidth(w); curW = w; relayout() end
@@ -1436,7 +1454,7 @@ local function MakeList(parent)
     row.icon:SetPoint("LEFT", row, "LEFT", 10, 0)
     row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     row.name, row.c1, row.c2, row.c3 = Text(row, 12), Text(row, 12), Text(row, 12), Text(row, 12)
-    PlaceCols(row, row.name, row.c1, row.c2, row.c3, true, curW, curAct)
+    PlaceCols(row, row.name, row.c1, row.c2, row.c3, true, curW, curAct, curC1)
     row.act = {}
     for k = 1, 2 do
       local b = Btn(row, "", 50, 20)
@@ -1467,7 +1485,13 @@ local function MakeList(parent)
     return row
   end
 
-  function v.setHeaders(a, b, c, d) hName:SetText(a or ""); h1:SetText(b or ""); h2:SetText(c or ""); h3:SetText(d or "") end
+  function v.setHeaders(a, b, c, d)
+    hName:SetText(a or ""); h1:SetText(b or ""); h2:SetText(c or ""); h3:SetText(d or "")
+    if curC1 then curC1 = nil; relayout() end
+  end
+  function v.setC1Width(px)
+    if curC1 ~= px then curC1 = px; relayout() end
+  end
 
   function v.setRows(data, emptyMsg)
     local n = math.min(#data, 200)
@@ -1573,9 +1597,9 @@ end
 local function MakeSummary(parent)
   local v = CreateFrame("Frame", nil, parent)
   v:SetAllPoints(parent)
-  v.c1 = Card(v, "PARA VENDER")
-  v.c2 = Card(v, "PARA GUARDAR")
-  v.c3 = Card(v, "SESION DE CUERO")
+  v.c1 = Card(v, L["win.sumSellTitle"])
+  v.c2 = Card(v, L["win.sumKeepTitle"])
+  v.c3 = Card(v, L["win.sumSessionTitle"])
   local function layout(w)
     local cw = math.max(150, math.floor(((w or 744) - 24) / 3))
     for i, c in ipairs({ v.c1, v.c2, v.c3 }) do
@@ -1586,7 +1610,7 @@ local function MakeSummary(parent)
   end
   layout()
   v:SetScript("OnSizeChanged", function(_, w) if w and w > 0 then layout(w) end end)
-  local tt = Text(v, 13, PAL.gold); tt:SetPoint("TOPLEFT", v, "TOPLEFT", 0, -122); tt:SetText("Que hacer ahora")
+  local tt = Text(v, 13, PAL.gold); tt:SetPoint("TOPLEFT", v, "TOPLEFT", 0, -122); tt:SetText(L["win.sumNowTitle"])
   v.tips = Text(v, 13, PAL.text)
   v.tips:SetPoint("TOPLEFT", v, "TOPLEFT", 0, -148)
   v.tips:SetPoint("TOPRIGHT", v, "TOPRIGHT", 0, -148)
@@ -2250,6 +2274,19 @@ local RoutePlanFeature = GF.InitRoutePlan(setmetatable({
 }, { __index = _G }))
 local FarmCombos, RouteSummary = RoutePlanFeature.FarmCombos, RoutePlanFeature.RouteSummary
 
+-- Name of a material for the guide search: the game's, else the hidden tooltip's; an unknown one is asked for once.
+local askedSearch = {}
+local searchMissing = false   -- a name was unknown on the last search: the guide is drawn again a moment later, a few times at most
+local function SearchName(id)
+  local nm = C_Item.GetItemInfo(id)
+  if nm then return nm end
+  nm = TooltipName(id)
+  if nm then return nm end
+  if not askedSearch[id] and C_Item.RequestLoadItemDataByID then askedSearch[id] = true; C_Item.RequestLoadItemDataByID(id) end
+  searchMissing = true
+  return nil
+end
+
 function RefreshGuide()
   local f = GoldFinderGuide
   if not f or not f:IsShown() then return end
@@ -2344,6 +2381,27 @@ function RefreshGuide()
           break
         end
       end
+    end
+  end
+  if items and f.query and f.query ~= "" then
+    searchMissing = false
+    local found = GF.GuideBandsUsing(items, GoldFinderRecipes and GoldFinderRecipes.spells, SearchName, f.query)
+    if searchMissing then   -- names that were not loaded yet may have arrived: look again (3 times at most for what was typed)
+      searchMissing = false
+      f.searchTries = f.searchTries or 0
+      if f.searchTries < 3 then
+        f.searchTries = f.searchTries + 1
+        local asked = f.query
+        C_Timer.After(1.5, function()
+          local g = GoldFinderGuide
+          if g and g:IsShown() and g.query == asked then pcall(RefreshGuide) end
+        end)
+      end
+    end
+    local q = f.query:gsub("^%s+", ""):gsub("%s+$", "")
+    if found then
+      items = { { kind = "tip", text = (#found > 0) and format(L["gsearch.found"], q, #found) or format(L["gsearch.none"], q) } }
+      for _, it in ipairs(found) do items[#items + 1] = it end
     end
   end
   if not items then
@@ -2521,6 +2579,25 @@ function OpenGuide(name)
     end
     f.title = Text(f, 13, PAL.gold)
     f.title:SetPoint("TOPLEFT", gx, top)
+    -- search by material: leaves only the steps whose recipe uses it
+    local sb = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+    sb:SetSize(150, 20)
+    sb:SetPoint("TOPRIGHT", f, "TOPRIGHT", -18, top - 2)
+    sb:SetAutoFocus(false)
+    sb:SetMaxLetters(40)
+    sb.hint = Text(sb, 11, PAL.dim)
+    sb.hint:SetPoint("LEFT", 4, 0)
+    sb.hint:SetText(L["gsearch.hint"])
+    sb:SetScript("OnTextChanged", function(self, user)
+      local txt = self:GetText() or ""
+      if txt == "" then self.hint:Show() else self.hint:Hide() end
+      if user then f.query = txt; f.searchTries = 0; RefreshGuide() end
+    end)
+    sb:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    sb:SetScript("OnEscapePressed", function(self)
+      self:SetText(""); self:ClearFocus(); f.query = ""; RefreshGuide()
+    end)
+    f.search = sb
     local gy = f.native and -50 or -53
     f.gbg = Flat(f, "BACKGROUND", { 1, 1, 1, 0.10 })
     f.gbg:SetHeight(4)
@@ -2830,6 +2907,9 @@ local function MakeSettings(parent)
     { "routeTab", L["set.routeTab"] },
     { "profTabs", L["set.profTabs"] },
     { "recipeNotes", L["set.recipeNotes"] },
+    { "auctionMaterials", L["set.auctionMaterials"] },
+    { "trainerMarks", L["set.trainerMarks"] },
+    { "penguin", L["set.penguin"] },
     -- eleccion de dos valores como casilla: marcada = seguimiento de objetivos, sin marcar = ventana flotante
     { "trackerMode", L["set.trackerMode"],
       get = function() return Cfg("trackerMode") ~= "flotante" end,
@@ -3112,7 +3192,8 @@ local function CreateUI(parent, opts)
   local function AHViewKeys(shoppingOn, missing)
     local keys = { "bolsas" }
     if shoppingOn or missing then keys[#keys + 1] = "compras" end
-    keys[#keys + 1] = "cuero"
+    -- with the extra Materials window next to the auction house, Materials does not take a view here
+    if not Cfg("auctionMaterials") then keys[#keys + 1] = "cuero" end
     return keys
   end
   -- filas de Bolsas con lo que se subasta aqui primero; luego subasta via banquero o ligado, vendedor, guardar.
@@ -3214,14 +3295,34 @@ local function CreateUI(parent, opts)
       if not (OpenOptions and OpenOptions(nope)) then nope() end
     end)
     bOpts:SetPoint("RIGHT", bScan, "LEFT", -8, 0)
+    ui.bOpts = bOpts
     bExport:ClearAllPoints(); bExport:SetPoint("RIGHT", bOpts, "LEFT", -8, 0)
     ui.status:SetPoint("RIGHT", header, "RIGHT", -330, 0)
   end
 
+  -- Materials: the category selector lives in the header. As a list row with buttons it made every row reserve the
+  -- action column and squeezed the names of the materials.
+  function ui.catStep(step)
+    local cat = GF.CurrentMaterialCategory(Char())
+    Char().matCat = GF.NextMaterialCategory(cat.id, step)
+    ui.refresh()
+  end
+  local catAnchor = ui.bOpts or bScan
+  local catNext = Btn(header, ">", 22, 22, nil, function() ui.catStep(1) end)
+  catNext:SetPoint("RIGHT", catAnchor, "LEFT", -6, 0)
+  local catPrev = Btn(header, "<", 22, 22, nil, function() ui.catStep(-1) end)
+  catPrev:SetPoint("RIGHT", catNext, "LEFT", -2, 0)
+  local catLabel = Text(header, 11, PAL.gold, "RIGHT")
+  catLabel:SetPoint("RIGHT", catPrev, "LEFT", -6, 0)
+  catLabel:SetWidth(84)
+  catLabel:Hide(); catPrev:Hide(); catNext:Hide()
+  ui.catControls = { catLabel, catPrev, catNext }
+  ui.catLabel = catLabel
+
   -- pestanas abajo, como en la ventana de personaje (PanelTabButtonTemplate). Sin la plantilla, botones.
   local navDefs = {
     { "resumen", L["tab.summary"] }, { "bolsas", L["tab.bags"] }, { "compras", L["tab.shopping"] },
-    { "fabricar", L["tab.craft"] }, { "ruta", L["tab.route"] }, { "cuero", L["tab.leather"] },
+    { "fabricar", L["tab.craft"] }, { "ruta", L["tab.route"] }, { "cuero", L["tab.materials"] },
     { "sesion", L["tab.session"] }, { "ajustes", L["tab.settings"] },
   }
   if embedded then navDefs = {} end
@@ -3664,13 +3765,19 @@ local function CreateUI(parent, opts)
     end,
 
     cuero = function()
-      ui.list.setHeaders(L["win.hLeather"], L["win.hAuction"], L["win.hStack"], L["win.hAdvice"])
+      -- the Materials tab (its key stays "cuero"): one category at a time, opening on the one of your professions
+      local cat = GF.CurrentMaterialCategory(Char())
+      ui.list.setHeaders(L["mat." .. cat.id .. ".h"], L["win.hAuction"], L["win.hStack"], L["win.hAdvice"])
+      ui.list.setC1Width(80)   -- the price per unit needs more room than a quantity
+      ui.catLabel:SetText(L["mat." .. cat.id])
+      for _, c in ipairs(ui.catControls) do c:Show() end
       local out = {}
-      for _, r in ipairs(LeatherRows()) do
+      local rows = MaterialRows(cat)
+      for _, r in ipairs(rows) do
         local name = ItemLink(r.id)
         if r.owned > 0 then name = name .. "  " .. DIM .. format(L["win.owned"], r.owned) .. "|r" end
         local lines = {}
-        lines[#lines + 1] = r.farm or L["win.notSkinned"]
+        if cat.id == "leather" then lines[#lines + 1] = r.farm or L["win.notSkinned"] end
         if r.region then lines[#lines + 1] = format(L["win.regionPrice"], Money(r.region)) end
         out[#out + 1] = {
           id = r.id, name = name,
@@ -3678,7 +3785,7 @@ local function CreateUI(parent, opts)
           c1 = ShortMoney(r.price), c2 = ShortMoney(r.stack), c3 = r.advice,
         }
       end
-      ui.list.setRows(out, L["win.leatherEmpty"])
+      ui.list.setRows(out, format(L["win.matEmpty"], L["mat." .. cat.id .. ".l"]))
     end,
 
     sesion = function()
@@ -3743,9 +3850,12 @@ local function CreateUI(parent, opts)
     elseif key == "ajustes" then if ui.settings then ui.settings:Show() end
     else ui.list:Show() end
     if key == "sesion" then bReset:Show() else bReset:Hide() end
+    for _, c in ipairs(ui.catControls) do c:Hide() end
     if key == "bolsas" then bExport:Show() else bExport:Hide() end
     nameMissing = false
+    missingNow = {}
     local ok, err = pcall(ui.loaders[key])
+    ui.namesMissing, ui.missingIds = nameMissing, missingNow   -- the item-info event below redraws this view when one of them arrives
     if not ok then Print(format(L["win.screenError"], key, tostring(err))) end
     -- si algun nombre aun no estaba cargado, se vuelve a dibujar una sola vez
     if nameMissing and (retry or 0) < 4 then
@@ -3756,6 +3866,11 @@ local function CreateUI(parent, opts)
   end
 
   function ui.refresh()
+    if GF.redrawProbe then   -- diagnostic: /gff redraws counts who asks for each redraw
+      local s = debugstack and debugstack(2, 3, 0) or "?"
+      s = s:gsub("Interface\\AddOns\\GoldFinderForever\\", ""):gsub("%s*\n%s*", " <- "):sub(1, 160)
+      GF.redrawProbe[s] = (GF.redrawProbe[s] or 0) + 1
+    end
     local parts = { ScanAgeText(), TSM_API and L["win.tsmOn"] or L["win.tsmOff"] }
     ui.status:SetText(table.concat(parts, "   |   "))
     -- en la subasta, Compras aparece o desaparece segun lo que falte para el paso actual
@@ -3789,7 +3904,7 @@ local function ToggleWindow()
       w.gfNative = true
       -- sin la barra de botones de abajo: el Inset llega hasta el borde y las pestanas cuelgan debajo
       if ButtonFrameTemplate_HideButtonBar then pcall(ButtonFrameTemplate_HideButtonBar, w) end
-      local icon = "Interface\\Icons\\INV_Misc_Coin_01"
+      local icon = "Interface\\AddOns\\GoldFinderForever\\art\\icon_penguin_128.tga"   -- the penguin, instead of a generic coin
       if w.SetPortraitToAsset then
         pcall(w.SetPortraitToAsset, w, icon)
       else
@@ -3855,6 +3970,11 @@ GF.InitAuctionTab({
   CreateUI = function(...) return CreateUI(...) end,
   Print = function(...) return Print(...) end,
 })
+GF.InitAuctionMaterials({
+  CreateUI = function(...) return CreateUI(...) end,
+  Cfg = function(...) return Cfg(...) end,
+  Print = function(...) return Print(...) end,
+})
 
 ---------------------------------------------------------------------------
 -- EVENTOS Y COMANDOS
@@ -3867,7 +3987,7 @@ local minimapReady = false
 local function SetupMinimap()
   if minimapReady or not GoldFinderForeverDB then return end
   GoldFinderForeverDB.minimap = GoldFinderForeverDB.minimap or {}
-  local ICON = "Interface\\Icons\\INV_Misc_Coin_01"
+  local ICON = "Interface\\AddOns\\GoldFinderForever\\art\\icon_penguin_map_64.tga"   -- the penguin's face: the full picture is lost at the size of the minimap button
 
   local function tip(tt)
     tt:AddLine("GoldFinder Forever", 1, 0.82, 0.25)
@@ -4170,11 +4290,44 @@ do
   end
 end
 
+-- What the open trainer teaches, per profession of yours with a guide: the recipes recorded for this trainer, the
+-- ones your guide still needs and the ones you already know (the panel of features/trainer/marks.lua).
+local function TrainerSections()
+  local npc = UnitName("npc")
+  local byFaction = GoldFinderForeverDB and GoldFinderForeverDB.trainerRecipes
+  byFaction = byFaction and byFaction[UnitFactionGroup("player") or "?"]
+  if not (npc and byFaction) then return {} end
+  local c, out = Char(), {}
+  for skill, recs in pairs(byFaction) do
+    local pd = c.prof and c.prof[skill]
+    local list = {}
+    for _, r in pairs(recs) do if type(r) == "table" and r.npc == npc then list[#list + 1] = r end end
+    if pd and pd.rank and #list > 0 then
+      local known = {}
+      for n in pairs(pd.crafts or {}) do known[n:lower()] = true end
+      for n in pairs(pd.learned or {}) do known[n:lower()] = true end
+      local okG, items = pcall(BuildGuide, skill, pd)
+      out[#out + 1] = { prof = skill, recs = list, known = known, wanted = GF.WantedRecipes(okG and items or nil) }
+    end
+  end
+  table.sort(out, function(a, b) return a.prof < b.prof end)
+  return out
+end
+
 local trainerEvents = CreateFrame("Frame")
 pcall(trainerEvents.RegisterEvent, trainerEvents, "TRAINER_SHOW")
 trainerEvents:SetScript("OnEvent", function()
   C_Timer.After(0.2, function() xpcall(RecordTrainer, geterrorhandler()); InvalidateRoutes() end)
 end)
+
+-- The panel next to the trainer. It must come AFTER the local function TrainerSections above: a closure only sees the
+-- locals declared before it, and an earlier one would call a nil global (and fail silently).
+GF.InitTrainerMarks({
+  Sections = function(...) return TrainerSections(...) end,
+  Cfg = function(...) return Cfg(...) end,
+  Money = function(...) return ShortMoney(...) end,
+  Print = function(...) return Print(...) end,
+})
 
 ---------------------------------------------------------------------------
 -- OPCIONES en Opciones > AddOns > GoldFinder, con la API nativa Settings (casillas, secciones, Predeterminados
@@ -4321,6 +4474,9 @@ local function RegisterOptions()
     L["opt.profTabs.t"])
   check("recipeNotes", L["opt.recipeNotes.l"],
     L["opt.recipeNotes.t"])
+  check("auctionMaterials", L["opt.auctionMaterials.l"], L["opt.auctionMaterials.t"])
+  check("trainerMarks", L["opt.trainerMarks.l"], L["opt.trainerMarks.t"])
+  check("penguin", L["opt.penguin.l"], L["opt.penguin.t"])
   number("routeSpan", L["opt.routeSpan.l"], 5, 100, 1,
     L["opt.routeSpan.t"])
   number("sellCap", L["opt.sellCap.l"], 0, 1000, 1,
@@ -4460,13 +4616,15 @@ local function SetOption(key, value)
   for _, u in ipairs(uiInstances) do pcall(u.refresh) end
 end
 
+local namesPending = false   -- a redraw for arrived item names is already scheduled
+local nameTries = {}         -- redraws already made per item id for its name
 local f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
 f:RegisterEvent("PLAYER_LOGIN")
-for _, ev in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_DATA_SOURCE_CHANGED", "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "BAG_UPDATE_DELAYED", "LOOT_OPENED", "ZONE_CHANGED_NEW_AREA", "NEW_RECIPE_LEARNED", "MAIL_SHOW", "PLAYER_LOGOUT" }) do
+for _, ev in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_DATA_SOURCE_CHANGED", "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "BAG_UPDATE_DELAYED", "LOOT_OPENED", "ZONE_CHANGED_NEW_AREA", "NEW_RECIPE_LEARNED", "MAIL_SHOW", "PLAYER_LOGOUT", "GET_ITEM_INFO_RECEIVED" }) do
   pcall(f.RegisterEvent, f, ev)
 end
-f:SetScript("OnEvent", function(_, event, arg1)
+f:SetScript("OnEvent", function(_, event, arg1, arg2)
   if event == "ADDON_LOADED" and arg1 == ADDON then
     GoldFinderForeverDB = GoldFinderForeverDB or {}
     GoldFinderForeverDB.chars = GoldFinderForeverDB.chars or {}
@@ -4485,8 +4643,20 @@ f:SetScript("OnEvent", function(_, event, arg1)
     -- that is already taken is never overridden
     if not GF.CommandTaken(SlashCmdList, _G, "GOLDFINDERFOREVER", "/gf") then SLASH_GOLDFINDERFOREVER2 = "/gf" end
     -- first run: a short window that lists what the addon does (shown once, a few seconds after login)
+    local firstRun = GF.WelcomeDue(GoldFinderForeverDB)
     C_Timer.After(6, function()
       if GF.WelcomeDue(GoldFinderForeverDB) then pcall(GF.ShowWelcome) end
+    end)
+    -- a penguin wink in the chat, now and then (never on the first run, where the welcome window is shown)
+    C_Timer.After(9, function()
+      if GF.PenguinLoginDue(Cfg("penguin"), firstRun) then
+        local line = GF.PenguinPhrase("penguin.hello")
+        if line then Print(line) end
+      end
+    end)
+    -- no scan on record: say once what to do (every price of the auction house comes from Auctionator's scan)
+    C_Timer.After(12, function()
+      if GF.ScanHintDue(ScanAgeMinutes()) then Print(L["scan.loginHint"]) end
     end)
     C_Timer.After(1, function() pcall(CleanPhantomChars) end)
     C_Timer.After(2, function()
@@ -4514,6 +4684,23 @@ f:SetScript("OnEvent", function(_, event, arg1)
         for _, u in ipairs(uiInstances) do pcall(u.refresh) end
         xpcall(UpdateTracker, geterrorhandler())
       end)
+    end
+  elseif event == "GET_ITEM_INFO_RECEIVED" then
+    -- arg1 = item id; arg2 = false when the client could not load it (those are never worth a redraw). Redraw only the open
+    -- windows that were waiting for THIS item, once per half second at most and at most 3 times per item, so a name that
+    -- never settles can never keep a window redrawing.
+    if arg2 ~= false and type(arg1) == "number" and not namesPending and (nameTries[arg1] or 0) < 3 then
+      for _, u in ipairs(uiInstances) do
+        if u.missingIds and u.missingIds[arg1] and u:IsVisible() then
+          nameTries[arg1] = (nameTries[arg1] or 0) + 1
+          namesPending = true
+          C_Timer.After(0.5, function()
+            namesPending = false
+            for _, w in ipairs(uiInstances) do if w.missingIds and w.missingIds[arg1] and w:IsVisible() then pcall(w.refresh) end end
+          end)
+          break
+        end
+      end
     end
   elseif event == "PLAYER_LOGOUT" then
     -- also fires on /reload, just before the game writes the saved variables: keep only what the player changed
@@ -4598,8 +4785,33 @@ SlashCmdList["GOLDFINDERFOREVER"] = function(msg)
       end
     end
     if not OpenOptions(inWindow) then inWindow() end
+  elseif cmd == "redraws" then
+    -- diagnostic: the first call starts counting what asks the windows to redraw, the second one reports it
+    if GF.redrawProbe then
+      local rows = {}
+      for k, n in pairs(GF.redrawProbe) do rows[#rows + 1] = { k, n } end
+      table.sort(rows, function(a, b) return a[2] > b[2] end)
+      GF.redrawProbe = nil
+      Print(L["dbg.redrawsReport"])
+      if #rows == 0 then Print(L["dbg.redrawsNone"]) end
+      for i = 1, math.min(6, #rows) do Print(format("%d x %s", rows[i][2], rows[i][1])) end
+    else
+      GF.redrawProbe = {}
+      Print(L["dbg.redrawsOn"])
+    end
+  elseif cmd == "penguin" or cmd == "pingu" or cmd == "pinguino" then
+    -- an easter egg: it is not in the help and it answers even when the winks are switched off
+    Print(GF.PenguinPhrase("penguin.cmd") or "Noot noot!")
   elseif cmd == "bienvenida" or cmd == "welcome" then
     GF.ShowWelcome()
+  elseif cmd == "data" or cmd == "datos" then
+    -- the shared database lives in its own addon; its commands are reached through its public API
+    local lines, why = GF.RunDataCommand(_G.GoldFinderForeverData, rest)
+    if lines then
+      for _, line in ipairs(lines) do Print(line) end
+    else
+      Print(L[why == "failed" and "cmd.dataFailed" or "cmd.dataMissing"])
+    end
   elseif cmd == "guia" or cmd == "guide" then
     OpenGuide(rest)
   elseif cmd == "icono" or cmd == "minimap" then

@@ -23,6 +23,7 @@ loadCore("core/config.lua", GF)
 loadCore("core/locale.lua", GF)
 loadCore("locales/enUS.lua", GF)
 loadCore("core/quest_need.lua", GF)
+loadCore("core/crates.lua", GF)   -- the decision asks it whether an item is a Waylaid Crate
 loadCore("core/decision.lua", GF, { GoldFinderForeverDB = {} })
 
 local S   -- per-test state

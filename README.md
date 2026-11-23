@@ -21,8 +21,9 @@ GoldFinder Forever reads your bags and the auction prices and tells you, item by
 - **Auction house**: a GoldFinder tab with one-click posting (price and quantity worked out like a TSM operation). If your last scan is old, the first click checks the live price and the second one posts. A collapsible side panel holds the navigation and the posting options, and the Scan button shows its progress.
 - **Mailbox** (off by default): send what should be auctioned to your banker character, with a checkbox per item.
 - **Bags**: an X button hides an item from the list (per character) and a Show button brings it back.
+- **Materials**: leather, cloth, ore and herbs with their auction price, the value of a stack and the advice; it opens on the category of your professions.
 - **Shopping**: what you are missing for each profession, with a List button that sends it (exact names and quantities) to an Auctionator shopping list, plus one list per profession.
-- **Professions**: Route and Craft tabs in the professions window, skill-up chance and cost per point on each recipe, and a 1-300 guide with your own prices. It includes Fishing and, with QuestieDB, where to get the recipes that are taught by an item.
+- **Professions**: Route and Craft tabs in the professions window, skill-up chance and cost per point on each recipe, and a 1-300 guide with your own prices. It includes Fishing and, with QuestieDB or the data addon, where to get the recipes that are taught by an item.
 - **Tracking**: your next profession step in the objective tracker, with the icon of each material, the cost of what you are missing and the skill-up chance per craft.
 - **Welcome window**: opens once the first time you log in and lists what the addon does and which features are on.
 
@@ -32,7 +33,7 @@ GoldFinder Forever reads your bags and the auction prices and tells you, item by
 |---|---|
 | Client | WoW: Forever (Interface `16001`) |
 | Required | [Auctionator](https://www.curseforge.com/wow/addons/auctionator) for auction prices |
-| Optional | QuestieDB (quest items and recipe sources), TradeSkillMaster (market prices) |
+| Optional | QuestieDB (quest items and recipe sources), TradeSkillMaster (market prices), GoldFinderForeverData (vendors, trainers and recipe sources recorded by players) |
 
 Install it from [CurseForge](https://www.curseforge.com/wow/addons/goldfinder-forever), or copy the folder **`GoldFinderForever`** (the one that contains `GoldFinderForever.toc`) into `Interface/AddOns`.
 
@@ -49,8 +50,29 @@ Coming from 2.2.x? The folder was renamed, so delete the old `GoldFinder` folder
 | `/gff cap N` | Units of each crafted item valued at auction price in the Route |
 | `/gff welcome` | Opens the welcome window again |
 | `/gff minimap` | Shows or hides the minimap icon |
+| `/gff data <command>` | Runs a command of the optional data addon, GoldFinderForeverData (for example `/gff data help`) |
 
 The Spanish aliases (`ajustes`, `guia`, `ruta`, `tope`, `bienvenida`) work too.
+
+## Privacy
+
+Everything the addon knows stays in the saved variables on your PC: your own characters, their professions and what they carry. It sends nothing anywhere and collects no information about other players.
+
+## Feedback and bug reports
+
+Found something wrong, or have an idea? Tell us, it helps a lot:
+
+- **Report a problem or suggest something:** [open an issue on GitHub](https://github.com/footox/GoldFinderForever/issues/new/choose). The form asks for what is useful and takes a minute.
+- **Quick comment or question:** the comments of the [CurseForge page](https://www.curseforge.com/wow/addons/goldfinder-forever).
+
+What makes a report easy to act on:
+
+- **The addon version** (the Addons list at the character screen shows it) and, if you know it, the game client version.
+- **What you did, what you expected and what happened.** For advice about prices, a screenshot of the item's tooltip with the GoldFinder line visible says almost everything.
+- **Any error text** (from BugGrabber or the Lua error window), copied as it is.
+- Which of **Auctionator** and **TradeSkillMaster** you have loaded.
+
+Nothing is sent from the game: the addon makes no network calls (see Privacy). Do not post passwords or account data; character names are not needed.
 
 ## Known limitations
 
@@ -64,6 +86,25 @@ The Spanish aliases (`ajustes`, `guia`, `ruta`, `tope`, `bienvenida`) work too.
 
 <!-- changelog:start -->
 
+### 2.4.0
+
+**Fixes**
+- The Scan button of the main window no longer shows a Lua error when the auction house is closed: it tells you to open the auction house first (Auctionator only scans from there).
+- The summary window had four titles written in Spanish whatever the game language ("To sell", "To keep", the leather session and "What to do now"); they are now translated.
+
+**Features**
+- No scan yet? Now it says what to do: the tooltip says "no auction prices yet: open the auction house and press Scan" (instead of a bare "scan"), the main window status line says the same, and one chat line at login reminds you while Auctionator has no scan on record. One scan fills the prices of every item.
+- Penguin winks: a short penguin line in the chat now and then at login (one login in four, never the first time) and when a scan starts, plus a small hidden command. You can switch them off in the options ("Penguin winks") for plain messages.
+- Waylaid Crates are never advised for sale: the addon keeps them and says they serve Favor, whatever they would fetch at the auction house or the vendor.
+- The addon has an icon of its own: the penguin with its treasure shows in the game's addon list and in the main window, and the minimap button has a closer picture of the penguin's face, because the full picture is lost at that size. It replaces the generic coin.
+- The profession guide has a search box (top right): type part of a material's name, such as "thread" or "heavy leather", and the guide shows only the steps whose recipe uses it, with the amount per craft. Esc clears it.
+- A recipe's tooltip now also says, whatever the advice is (keep, auction, vendor or no data), which of your own characters already know it ("Already known by: you, Ashes"), and the merchant's recipe box shows the same line. It only reads what the addon saved from your own profession windows; nothing is sent to anyone.
+- Next to a profession trainer's window, a small panel lists the recipes it teaches that your guide still needs, with what they cost together, and how many others are not in your guide, so you do not pay for the useless ones. Option: Panel at the profession trainer.
+- In the auction house, Materials opens in a window of its own next to it and closes with it, so the GoldFinder tab keeps its space. You can drag it, and it remembers where you left it. Option: Materials window at the auction house.
+- The Leather tab is now the Materials tab: leather, cloth, ore and herbs, with their auction price, the value of a stack and the advice. A selector at the top (< and >) changes the category, and it opens on the one of your professions (the one with the highest skill; leather if none).
+- Optional data addon support: if GoldFinderForeverData is installed, the guide also says where to get a recipe item from the vendors and drops its players recorded, next to what QuestieDB knows (it fills the gaps, for example recipes QuestieDB does not list).
+- /gff data <command> runs a command of the data addon (for example /gff data help or /gff data near vendor).
+
 ### 2.3.1
 
 **Fixes**
@@ -76,6 +117,9 @@ The Spanish aliases (`ajustes`, `guia`, `ruta`, `tope`, `bienvenida`) work too.
 - New option "Minimum margin over the vendor (%)" (default 10, the value that was fixed before): the auction is recommended only if its price, after the cut, beats the vendor price by more than that percentage. It works together with "Minimum auction profit", which is the profit of the whole lot.
 - The default minimum auction profit is now 10 silver (it was 20): it weighs less for a player who is still levelling. It is the profit of the whole lot, so more units reach it; change it in Options > AddOns > GoldFinder Forever ("Minimum auction profit"). If you never changed it, the new default applies.
 
+<details>
+<summary>Older versions (2.3.0 to 2.0)</summary>
+
 ### 2.3.0
 
 **Features**
@@ -87,9 +131,6 @@ The Spanish aliases (`ajustes`, `guia`, `ruta`, `tope`, `bienvenida`) work too.
 - On by default now: the next profession step in the objective tracker, the Shopping tab with its List button, and the warning about materials your other characters need. All can be turned off in the options; the mailbox panel stays off by default.
 - The main command is now /gff. /gf keeps working only while no other addon uses it.
 - The minimap button and the option entries have their own names, so they no longer share them with other addons.
-
-<details>
-<summary>Older versions (2.2.1 to 2.0)</summary>
 
 ### 2.2.1
 
@@ -179,7 +220,7 @@ for t in tests/*.lua; do lua5.1 "$t"; done
 
 Build the release zip with `python tools/build_zip.py` (it writes `dist/GoldFinderForever-<version>.zip` with a single `GoldFinderForever/` folder). After editing `CHANGELOG.md`, refresh the section above with `python tools/sync_readme_changelog.py`.
 
-Branches: `develop` is the default branch, where work is integrated; feature branches start from it, and **pull requests always go to `develop`**. `main` holds what is published and every version is tagged (`v2.3.0`); it only receives merges from `develop` when a version is released, or from a `hotfix/*` branch cut from `main` for a patch that must not carry unreleased work (a check rejects any other pull request into `main`). Commit subjects are `ID - task` (for example `GF-112 - Fix findings of the 2.3.0 code review`).
+Branches: `develop` is the default branch, where work is integrated; feature branches start from it, and **pull requests always go to `develop`**. `main` holds what is published and every version is tagged (`v2.3.0`); it only receives merges from `develop` when a version is released (a check rejects any other pull request into `main`). Commit subjects are `ID - task` (for example `GF-112 - Fix findings of the 2.3.0 code review`).
 
 ## Data sources
 
@@ -215,5 +256,12 @@ GoldFinder Forever lee tus bolsas y los precios de la subasta y te dice, objeto 
 Instálalo desde [CurseForge](https://www.curseforge.com/wow/addons/goldfinder-forever) o copia la carpeta **`GoldFinderForever`** en `Interface/AddOns`. Requiere Auctionator; QuestieDB y TradeSkillMaster son opcionales. El comando principal es `/gff`: las opciones se abren con `/gff ajustes`, la guía con `/gff guia` y la bienvenida con `/gff bienvenida`.
 
 Si vienes de la 2.2.x, la carpeta cambió de nombre: borra la carpeta `GoldFinder` antigua. Los datos guardados empiezan limpios en la 2.3.0.
+
+### Avisar de un problema o sugerir algo
+
+- **Fallos y sugerencias:** [abre una incidencia en GitHub](https://github.com/footox/GoldFinderForever/issues/new/choose). El formulario pide lo que hace falta y lleva un minuto.
+- **Comentario rápido o duda:** los comentarios de la [página de CurseForge](https://www.curseforge.com/wow/addons/goldfinder-forever).
+
+Para que un aviso sea fácil de atender: la **versión del addon** (sale en la lista de addons de la pantalla de personajes), **qué hiciste, qué esperabas y qué pasó**, una **captura del tooltip** del objeto con la línea de GoldFinder si es un consejo de precios, el **texto del error** tal cual (de BugGrabber o de la ventana de errores de Lua) y si tienes **Auctionator** y **TradeSkillMaster** cargados. El addon no envía nada desde el juego; no publiques contraseñas ni datos de cuenta, y no hacen falta los nombres de tus personajes.
 
 El historial de versiones está en la sección **Changelog** de arriba y completo en [CHANGELOG.md](CHANGELOG.md).

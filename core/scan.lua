@@ -25,3 +25,18 @@ function GF.ScanPercent(state)
   if state.on and p >= 100 then p = 99 end
   return math.min(math.max(p, 0), 100)
 end
+
+-- The Auctionator frame that starts a scan, or nil when it does not exist. Auctionator builds these frames when the auction
+-- house opens, so asking for one with the auction house closed gives nil. replicate: Auctionator's "replicate scan" option.
+function GF.ScanFrameFor(state, replicate)
+  if type(state) ~= "table" then return nil end
+  local frame
+  if replicate then frame = state.FullScanFrameRef else frame = state.IncrementalScanFrameRef end
+  if (type(frame) == "table" or type(frame) == "userdata") and type(frame.InitiateScan) == "function" then return frame end
+  return nil
+end
+
+-- true when no scan of the auction house is on record (minutes since the last one: nil), so the player is told what to do once
+function GF.ScanHintDue(ageMinutes)
+  return ageMinutes == nil
+end

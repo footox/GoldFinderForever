@@ -236,9 +236,13 @@ local items = {
   [100] = { name = "Pattern: Bolt of Silk Cloth", req = 125 },
 }
 local curItem
+-- RecipeForOthers also asks the real core/recipe_known.lua who already knows the recipe
+local KnownGF = {}
+assert(loadfile("core/recipe_known.lua"))("GoldFinderForever", KnownGF)
 local function recipeEnv(db, me)
   return load(recipeChunk, {
     L = GFL.L,
+    GF = KnownGF,
     GoldFinderForeverDB = db, format = string.format,
     Char = function() return db.chars[me] end,
     ProfOn = function() return true end,

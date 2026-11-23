@@ -18,7 +18,7 @@ local OPTIONS = {
   { "postCapDays", "side.cap", 1, 14 },
   { "postDuration", "side.duration", 12, 24 },
 }
-local VIEWS = { { "bolsas", "tab.bags" }, { "compras", "tab.shopping" }, { "cuero", "tab.leather" } }
+local VIEWS = { { "bolsas", "tab.bags" }, { "compras", "tab.shopping" }, { "cuero", "tab.materials" } }
 
 GF.SidePanel = {}
 

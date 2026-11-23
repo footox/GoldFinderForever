@@ -87,5 +87,13 @@ check("no leftover migration texts", not en:find("migrate.", 1, true) and not es
 local readmeBody = readme:gsub("<!%-%- changelog:start %-%->.*<!%-%- changelog:end %-%->", ""):gsub("`/gf` also works", "")
 check("player-facing texts do not tell to type /gf", not en:find("/gf[^f]") and not es:find("/gf[^f]") and not readmeBody:find("/gf[^f]"))
 
+-- the /gff data entry is wired and has its texts in both languages
+check("the handler dispatches /gff data", main:find('cmd == "data"', 1, true) ~= nil
+  and main:find("GF.RunDataCommand(_G.GoldFinderForeverData, rest)", 1, true) ~= nil)
+for _, k in ipairs({ "cmd.dataMissing", "cmd.dataFailed" }) do
+  check("both languages have " .. k, en:find('["' .. k .. '"]', 1, true) ~= nil and es:find('["' .. k .. '"]', 1, true) ~= nil)
+end
+check("the help text lists /gff data", en:find("/gff data help", 1, true) ~= nil and es:find("/gff data help", 1, true) ~= nil)
+
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")

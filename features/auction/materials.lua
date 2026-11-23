@@ -1,0 +1,150 @@
+-- features/auction/materials.lua: the extra Materials window that appears next to the auction house when it opens and
+-- goes away when it closes. It hosts the Materials view alone (the same list as the Materials tab of the GoldFinder
+-- window) in a frame of its own, so the auction tab keeps its space. Movable; where you leave it is remembered.
+-- Switched off by the option auctionMaterials, in which case Materials stays inside the GoldFinder tab.
+
+local _, GF = ...
+
+local W_DEFAULT, H_DEFAULT = 600, 520
+
+-- d: CreateUI(parent, opts), Cfg(key), Print(line)
+function GF.InitAuctionMaterials(d)
+  local format = string.format
+  local L = GF.L
+  local win, ui
+  local isOpen, hooked = false, false
+
+  -- The rectangle of a frame in UIParent units (frames can have different scales): left, right, top, bottom, or nil.
+  local function Rect(f)
+    local ok, l, r, t, b, s = pcall(function() return f:GetLeft(), f:GetRight(), f:GetTop(), f:GetBottom(), f:GetEffectiveScale() end)
+    if not (ok and type(l) == "number" and type(r) == "number" and type(t) == "number" and type(b) == "number" and type(s) == "number") then
+      return nil
+    end
+    local pe = UIParent:GetEffectiveScale() or 1
+    if type(pe) ~= "number" or pe <= 0 then pe = 1 end
+    local k = s / pe
+    return l * k, r * k, t * k, b * k
+  end
+
+  -- The right edge of the auction house UI: the auction house frame and any visible frame that overlays it (a replacement
+  -- UI draws a window of its own, often wider than Blizzard's). Frames that are nearly as wide as the screen, that are not
+  -- over the auction house (less than half of its height in common) or that end before its right edge are ignored.
+  local function RightEdge(ah)
+    local left, right, top, bottom = Rect(ah)
+    if not right then return nil end
+    local screenW = UIParent:GetWidth()
+    if type(screenW) ~= "number" or screenW <= 0 then screenW = 1e9 end
+    local edge = right
+    local ok, children = pcall(function() return { UIParent:GetChildren() } end)
+    for _, f in ipairs(ok and children or {}) do
+      -- every child of UIParent is asked inside its own pcall: a forbidden frame raises when a read-only method is called on it
+      local okF, wider = pcall(function()
+        if f == win or f == ah or type(f) ~= "table" then return nil end
+        if f.IsForbidden and f:IsForbidden() then return nil end
+        if not (f.IsShown and f:IsShown()) then return nil end
+        local l, r, t, b = Rect(f)
+        if l and l < right and r > edge and (r - l) < screenW * 0.9 and (math.min(t, top) - math.max(b, bottom)) > (top - bottom) * 0.5 then
+          return r
+        end
+        return nil
+      end)
+      if okF and wider then edge = wider end
+    end
+    return edge, top, bottom
+  end
+
+  -- Default: to the right of the auction house UI (including any window that covers it), as tall as the auction house.
+  -- A position you dragged it to wins.
+  local function Place()
+    local ah = rawget(_G, "AuctionHouseFrame")
+    local h = ah and ah.GetHeight and ah:GetHeight()
+    if type(h) ~= "number" or h < 100 then h = H_DEFAULT end
+    win:SetSize(W_DEFAULT, h)
+    win:SetFrameStrata("HIGH")
+    win:ClearAllPoints()
+    local pos = GoldFinderForeverDB and GoldFinderForeverDB.matsPos
+    if type(pos) == "table" and type(pos[1]) == "string" and type(pos[2]) == "string"
+        and type(pos[3]) == "number" and type(pos[4]) == "number" then
+      win:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4])
+    elseif ah then
+      local edge, top = RightEdge(ah)
+      local _, ahRight = Rect(ah)
+      -- no room for the whole window on the right: it would be pushed back over the auction house, so it must not take its clicks
+      local screenW = UIParent:GetWidth()
+      local rightmost = (edge and ahRight and edge > ahRight + 0.5) and edge or ahRight
+      if type(screenW) == "number" and screenW > 0 and rightmost and rightmost + 6 + W_DEFAULT > screenW then win:SetFrameStrata("MEDIUM") end
+      if edge and ahRight and edge > ahRight + 0.5 then
+        win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", edge + 6, top)   -- something wider covers it: go beyond that
+      else
+        win:SetPoint("TOPLEFT", ah, "TOPRIGHT", 6, 0)
+      end
+    else
+      win:SetPoint("CENTER", UIParent, "CENTER", 300, 0)
+    end
+  end
+
+  local function Build()
+    local UI = GF.UI
+    local w = CreateFrame("Frame", "GoldFinderMaterials", UIParent)
+    w:SetFrameStrata("HIGH")
+    w:SetClampedToScreen(true)
+    w:SetMovable(true)
+    w:EnableMouse(true)
+    w:RegisterForDrag("LeftButton")
+    w:SetScript("OnDragStart", w.StartMoving)
+    w:SetScript("OnDragStop", function(self)
+      self:StopMovingOrSizing()
+      local point, _, relPoint, x, y = self:GetPoint()
+      if GoldFinderForeverDB and point then GoldFinderForeverDB.matsPos = { point, relPoint, x, y } end
+    end)
+    local edge = UI.Flat(w, "BACKGROUND", { 1, 0.82, 0.25, 0.40 })
+    edge:SetPoint("TOPLEFT", -1, 1)
+    edge:SetPoint("BOTTOMRIGHT", 1, -1)
+    local bg = UI.Flat(w, "BORDER", UI.PAL.bg)
+    bg:SetAllPoints()
+    w.gfPadRight = 30   -- room for the close button at the right of the header
+    local ok, res = pcall(d.CreateUI, w, { embedded = true, only = { "cuero" } })
+    if not ok then
+      w:Hide()
+      d.Print(format(L["auction.tab.fail"], tostring(res)))
+      return nil
+    end
+    local close = CreateFrame("Button", nil, w, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", 2, 2)
+    close:SetFrameLevel(w:GetFrameLevel() + 50)
+    win, ui = w, res
+    return w
+  end
+
+  local function Show()
+    if not isOpen or not d.Cfg("auctionMaterials") then return end
+    if not win and not Build() then return end
+    Place()
+    win:Show()
+    if ui and ui.refresh then pcall(ui.refresh) end   -- the prices may have changed since the last time
+    local ah = rawget(_G, "AuctionHouseFrame")
+    if not hooked and ah and ah.HookScript then
+      hooked = true
+      ah:HookScript("OnHide", function() if win then win:Hide() end end)   -- however the auction house closes
+    end
+  end
+
+  local events = CreateFrame("Frame")
+  events:RegisterEvent("AUCTION_HOUSE_SHOW")
+  events:RegisterEvent("AUCTION_HOUSE_CLOSED")
+  events:SetScript("OnEvent", function(_, event)
+    if event == "AUCTION_HOUSE_CLOSED" then
+      isOpen = false
+      if win then win:Hide() end
+      return
+    end
+    isOpen = true
+    -- a moment after the auction house opens, like the tab: its own frame must exist first
+    C_Timer.After(0.5, function()
+      local ok, err = pcall(Show)
+      if not ok then d.Print(format(L["auction.tab.fail"], tostring(err))) end
+    end)
+  end)
+
+  GF.AuctionMaterialsWindow = function() return win end
+end

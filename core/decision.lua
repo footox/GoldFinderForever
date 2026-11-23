@@ -66,6 +66,11 @@ function GF.NewDecision(d)
   end
 
   local Quality = d.ItemQuality
+  -- no scan on record at all: the usual reason ("scan") is explained in full, because every other item is in the same case
+  local function ScanReason(code)
+    if code == "scan" and d.ScanAgeMin and d.ScanAgeMin() == nil then return L["decision.scanNever"] end
+    return code and L["decision." .. code] or nil
+  end
 
   -- sin precio de Auctionator: TSM decide si compensa la subasta; sin ningun dato no se manda al vendedor
   -- (salvo la basura gris). Sin precio de vendedor (vendor 0) y TSM sin valor que compense: NONE "escanea".
@@ -152,6 +157,11 @@ function GF.NewDecision(d)
       d.verdict, d.code, d.reason = "KEEP", "tool", L["decision.tool"]
       return d
     end
+    -- a Waylaid Crate serves Favor: it is never advised to sell, whatever it would fetch
+    if GF.IsWaylaidCrate(id) then
+      d.verdict, d.code, d.reason = "KEEP", "crate", L["decision.crate"]
+      return d
+    end
     local r = Reserve(id)
     d.reserve, d.reserveFor, d.reserveOther = r.total, r.label, r.otherLabel
     if r.q then d.quest = r.q end
@@ -221,7 +231,7 @@ function GF.NewDecision(d)
       if not (tsm and tsm > 0) then tsm = TSMValue("DBRegionMarketAvg", id) end
       local verdict, code, unit = NoAuctionVerdict(vendor, tsm, Quality(id), qty)
       d.verdict, d.code, d.unit = verdict, code, unit
-      d.reason = code and L["decision." .. code] or nil
+      d.reason = ScanReason(code)
       if verdict == "AH" then
         d.ahNet = unit
         d.toBanker = ToBanker() or nil
@@ -258,7 +268,7 @@ function GF.NewDecision(d)
     local bags, bank = Counts(id)
     if withBank then bags, bank = bags + bank, 0 end
     if bags <= 0 then return 0 end
-    if Char().keep[id] or IsProfessionTool(id) then return 0 end
+    if Char().keep[id] or IsProfessionTool(id) or GF.IsWaylaidCrate(id) then return 0 end
     local r = Reserve(id)
     return math.max(0, math.min(bags, bags + bank - r.total))
   end

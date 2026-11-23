@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.4.0
+
+### Fixes
+- The Scan button of the main window no longer shows a Lua error when the auction house is closed: it tells you to open the auction house first (Auctionator only scans from there).
+- The summary window had four titles written in Spanish whatever the game language ("To sell", "To keep", the leather session and "What to do now"); they are now translated.
+
+### Features
+- No scan yet? Now it says what to do: the tooltip says "no auction prices yet: open the auction house and press Scan" (instead of a bare "scan"), the main window status line says the same, and one chat line at login reminds you while Auctionator has no scan on record. One scan fills the prices of every item.
+- Penguin winks: a short penguin line in the chat now and then at login (one login in four, never the first time) and when a scan starts, plus a small hidden command. You can switch them off in the options ("Penguin winks") for plain messages.
+- Waylaid Crates are never advised for sale: the addon keeps them and says they serve Favor, whatever they would fetch at the auction house or the vendor.
+- The addon has an icon of its own: the penguin with its treasure shows in the game's addon list and in the main window, and the minimap button has a closer picture of the penguin's face, because the full picture is lost at that size. It replaces the generic coin.
+- The profession guide has a search box (top right): type part of a material's name, such as "thread" or "heavy leather", and the guide shows only the steps whose recipe uses it, with the amount per craft. Esc clears it.
+- A recipe's tooltip now also says, whatever the advice is (keep, auction, vendor or no data), which of your own characters already know it ("Already known by: you, Ashes"), and the merchant's recipe box shows the same line. It only reads what the addon saved from your own profession windows; nothing is sent to anyone.
+- Next to a profession trainer's window, a small panel lists the recipes it teaches that your guide still needs, with what they cost together, and how many others are not in your guide, so you do not pay for the useless ones. Option: Panel at the profession trainer.
+- In the auction house, Materials opens in a window of its own next to it and closes with it, so the GoldFinder tab keeps its space. You can drag it, and it remembers where you left it. Option: Materials window at the auction house.
+- The Leather tab is now the Materials tab: leather, cloth, ore and herbs, with their auction price, the value of a stack and the advice. A selector at the top (< and >) changes the category, and it opens on the one of your professions (the one with the highest skill; leather if none).
+- Optional data addon support: if GoldFinderForeverData is installed, the guide also says where to get a recipe item from the vendors and drops its players recorded, next to what QuestieDB knows (it fills the gaps, for example recipes QuestieDB does not list).
+- /gff data <command> runs a command of the data addon (for example /gff data help or /gff data near vendor).
+
 ## 2.3.1
 
 ### Fixes

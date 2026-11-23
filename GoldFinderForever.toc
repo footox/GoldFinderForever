@@ -1,24 +1,29 @@
 ## Interface: 16001
+## IconTexture: Interface\AddOns\GoldFinderForever\art\icon_penguin_64.tga
 ## Title: GoldFinder Forever
 ## Notes: Decide si vender, subastar o guardar lo que llevas, con paneles en el vendedor, la subasta, el correo y las profesiones. Nada se vende ni se publica sin tu clic.
 ## Notes-enUS: Decides whether to vendor, auction or keep what you carry, with panels at the merchant, auction house, mailbox and professions. Nothing is sold or posted without your click.
 ## Author: footox
-## Version: 2.3.1
+## Version: 2.4.0
 ## X-License: MIT
 ## X-Curse-Project-ID: 1820519
 ## Dependencies: Auctionator
-## OptionalDeps: TradeSkillMaster, QuestieDB
+## OptionalDeps: TradeSkillMaster, QuestieDB, GoldFinderForeverData
 ## SavedVariables: GoldFinderForeverDB
 
 core/config.lua
 core/slash.lua
 core/welcome.lua
+core/penguin.lua
+core/materials.lua
+core/trainer_marks.lua
 core/locale.lua
 locales/enUS.lua
 locales/esES.lua
 locales/notes_enUS.lua
 core/money.lua
 core/quest_need.lua
+core/crates.lua
 core/decision.lua
 core/vendor.lua
 core/mail.lua
@@ -26,15 +31,18 @@ core/hidden.lua
 core/scan.lua
 core/shopping.lua
 core/recipe_source.lua
+core/recipe_known.lua
 core/auction.lua
 core/proftabs.lua
 core/guide.lua
+core/guide_search.lua
 core/objective_text.lua
 core/routeplanner.lua
 adapters/wow.lua
 adapters/bags.lua
 adapters/quests.lua
 adapters/questie.lua
+adapters/gfdata.lua
 adapters/auctionator_keys.lua
 ui/widgets.lua
 features/vendor/panel.lua
@@ -43,6 +51,8 @@ features/auction/post.lua
 features/auction/sidepanel.lua
 features/auction/scanprogress.lua
 features/auction/tab.lua
+features/auction/materials.lua
+features/trainer/marks.lua
 features/professions/tabs.lua
 features/guide/hybrid.lua
 features/route/helpers.lua
