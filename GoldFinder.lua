@@ -3864,7 +3864,7 @@ local function ToggleWindow()
       w.gfNative = true
       -- sin la barra de botones de abajo: el Inset llega hasta el borde y las pestanas cuelgan debajo
       if ButtonFrameTemplate_HideButtonBar then pcall(ButtonFrameTemplate_HideButtonBar, w) end
-      local icon = "Interface\\Icons\\INV_Misc_Coin_01"
+      local icon = "Interface\\AddOns\\GoldFinderForever\\art\\icon_penguin_128.tga"   -- the penguin, instead of a generic coin
       if w.SetPortraitToAsset then
         pcall(w.SetPortraitToAsset, w, icon)
       else
@@ -3947,7 +3947,7 @@ local minimapReady = false
 local function SetupMinimap()
   if minimapReady or not GoldFinderForeverDB then return end
   GoldFinderForeverDB.minimap = GoldFinderForeverDB.minimap or {}
-  local ICON = "Interface\\Icons\\INV_Misc_Coin_01"
+  local ICON = "Interface\\AddOns\\GoldFinderForever\\art\\icon_penguin_64.tga"   -- the penguin, instead of a generic coin
 
   local function tip(tt)
     tt:AddLine("GoldFinder Forever", 1, 0.82, 0.25)
