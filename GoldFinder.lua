@@ -1036,6 +1036,7 @@ local function TipAdvice(tooltip, data)
   local d = Decide(id, bags, bank, false, link)
   if d.verdict == "NONE" then
     if d.reason then tooltip:AddLine("GoldFinder: " .. d.reason, 0.6, 0.6, 0.6) end
+    RecipeLines(tooltip, id)   -- a recipe is not only a thing to keep: who already knows it matters for any advice
     return
   end
 
@@ -1113,6 +1114,7 @@ local function TipAdvice(tooltip, data)
     tooltip:AddLine(format(L["tip.otherNeeds"],
       o.who, o.need, o.prof, math.min(bags + bank, o.need)), 0.42, 0.71, 1, true)
   end
+  RecipeLines(tooltip, id)   -- who of your characters already knows this recipe (nothing for an item that is not a recipe)
 end
 
 if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
