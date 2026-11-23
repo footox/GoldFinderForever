@@ -58,16 +58,35 @@ check("no price: nil, never an error", GF.UnitsForAuction(nil, 95, 2000) == nil 
 check("a minimum of nothing: one unit is enough", GF.UnitsForAuction(492, 95, nil) == 1 and GF.UnitsForAuction(492, 95, 0) == 1)
 check("it never says zero units", GF.UnitsForAuction(5000, 10, 1) >= 1)
 
+-- the margin is configurable (default 10%)
+check("the margin factor: 10 -> 1.10, 0 -> 1, 30 -> 1.30", GF.MarginFactor(10) == 1.10 and GF.MarginFactor(0) == 1 and GF.MarginFactor(30) == 1.30)
+check("a missing, bad or negative margin gives the default 10%", GF.MarginFactor(nil) == 1.10 and GF.MarginFactor("x") == 1.10 and GF.MarginFactor(-5) == 1.10)
+check("with a 30% margin, 120 over 100 never compensates", GF.UnitsForAuction(120, 100, 0, 30) == nil and GF.UnitsForAuction(131, 100, 0, 30) == 1)
+check("with no margin at all, any gain counts", GF.UnitsForAuction(101, 100, 0, 0) == 1)
+check("the default margin is 10 when none is given", GF.UnitsForAuction(105, 100, 0) == nil and GF.UnitsForAuction(111, 100, 0) == 1)
+check("the units follow the rule for every margin", (function()
+  for _, m in ipairs({ 0, 5, 10, 30, 100 }) do for _, a in ipairs({ 120, 200, 492, 4177 }) do for _, v in ipairs({ 87, 95, 1500 }) do
+    local n = GF.UnitsForAuction(a, v, 1000, m)
+    local f = GF.MarginFactor(m)
+    if a > v * f then
+      if not n or not ((a - v) * n >= 1000) then return false end
+      if n > 1 and (a - v) * (n - 1) >= 1000 then return false end
+    elseif n ~= nil then return false end
+  end end end
+  return true
+end)())
+
 -- the tooltip
 local main = read("GoldFinder.lua")
-check("the tooltip asks how many units are needed", main:find('GF.UnitsForAuction(d.ahNet, d.vendor, minGain)', 1, true) ~= nil)
+check("the tooltip asks how many units are needed", main:find('GF.UnitsForAuction(d.ahNet, d.vendor, minGain, Cfg("minMargin"))', 1, true) ~= nil)
 check("the detailed line is shown only when more units than you have would be needed", main:find("elseif need > n then", 1, true) ~= nil)
-check("under 10% it says the margin is the problem", main:find('tooltip:AddLine(L["tip.littleMargin"], 1, 0.8, 0.4)', 1, true) ~= nil)
+check("under the margin it says the margin is the problem, with the configured percentage", main:find('tooltip:AddLine(format(L["tip.littleMargin"],', 1, true) ~= nil
+  and main:find('GF.UnitsForAuction(d.ahNet, d.vendor, minGain, Cfg("minMargin"))', 1, true) ~= nil)
 check("otherwise it says the gain, the quantity and the minimum", main:find('format(L["tip.littleGainDetail"], Money(gain), n, Money(minGain))', 1, true) ~= nil)
 check("and how many units would do, only when it is a reasonable number", main:find('if need <= 1000 then tooltip:AddLine(format(L["tip.littleGainNeed"], need)', 1, true) ~= nil)
 check("the old generic line stays as a last fallback", main:find('tooltip:AddLine(L["tip.littleGain"], 1, 0.8, 0.4)', 1, true) ~= nil)
 local en, es = GF.locales.enUS, GF.locales.esES or (function() loadCore("locales/esES.lua", GF); return GF.locales.esES end)()
-for _, k in ipairs({ "tip.littleMargin", "tip.littleGainDetail", "tip.littleGainNeed" }) do
+for _, k in ipairs({ "tip.littleMargin", "tip.littleGainDetail", "tip.littleGainNeed", "opt.minMargin.l", "opt.minMargin.t" }) do
   check("both languages have " .. k, en[k] ~= nil and es[k] ~= nil)
 end
 check("the detail line has three placeholders in order (gain, units, minimum)", select(2, en["tip.littleGainDetail"]:gsub("%%[sd]", "")) == 3

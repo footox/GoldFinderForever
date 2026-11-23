@@ -1082,9 +1082,9 @@ local function TipAdvice(tooltip, data)
     if d.verdict == "VENDOR" and d.ahNet > d.vendor then
       -- say how little, what the minimum is and how many units would make it worth posting
       local minGain = Cfg("minGain") or 0
-      local need = GF.UnitsForAuction(d.ahNet, d.vendor, minGain)
+      local need = GF.UnitsForAuction(d.ahNet, d.vendor, minGain, Cfg("minMargin"))
       if not need then
-        tooltip:AddLine(L["tip.littleMargin"], 1, 0.8, 0.4)
+        tooltip:AddLine(format(L["tip.littleMargin"], floor(((GF.MarginFactor(Cfg("minMargin")) - 1) * 100) + 0.5)), 1, 0.8, 0.4)
       elseif need > n then
         tooltip:AddLine(format(L["tip.littleGainDetail"], Money(gain), n, Money(minGain)), 1, 0.8, 0.4)
         if need <= 1000 then tooltip:AddLine(format(L["tip.littleGainNeed"], need), 1, 0.8, 0.4) end
@@ -4358,6 +4358,7 @@ local function RegisterOptions()
     end)
   slider(gain, 0, 5000, 5, function(silver) return Money(floor(silver + 0.5) * 100) end,
     L["opt.minGain.t"])
+  number("minMargin", L["opt.minMargin.l"], 0, 200, 1, L["opt.minMargin.t"])
   -- boton Subastar de la lista Bolsas (como una operacion de TSM)
   number("postMinPct", L["opt.postMin.l"], 0, 100, 5,
     L["opt.postMin.t"])

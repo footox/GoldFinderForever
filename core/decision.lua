@@ -17,11 +17,19 @@ function GF.TooltipItemLink(data, tooltip)
   return nil
 end
 
+-- The margin the auction must have over the vendor, as a factor: 10 (percent) -> 1.10. A missing, bad or negative value gives 10%.
+function GF.MarginFactor(pct)
+  pct = tonumber(pct)
+  if not pct or pct < 0 then pct = 10 end
+  return 1 + pct / 100
+end
+
 -- How many units make the auction worth it, by the same rule Decide uses: the net price must beat the vendor by more than
--- 10% and the gain on the lot must reach minGain. nil when no quantity can (the margin is under 10%), else the units.
-function GF.UnitsForAuction(ahNet, vendor, minGain)
+-- the margin (default 10%) and the gain on the lot must reach minGain. nil when no quantity can (the margin is not reached),
+-- else the units.
+function GF.UnitsForAuction(ahNet, vendor, minGain, marginPct)
   if type(ahNet) ~= "number" or type(vendor) ~= "number" or ahNet <= 0 then return nil end
-  if not (ahNet > vendor * 1.10) then return nil end
+  if not (ahNet > vendor * GF.MarginFactor(marginPct)) then return nil end
   local each = ahNet - vendor
   if each <= 0 then return nil end
   return math.max(1, math.ceil((minGain or 0) / each - 0.000001))
@@ -66,7 +74,7 @@ function GF.NewDecision(d)
     if quality == 0 and vendor > 0 then return "VENDOR", nil, vendor end
     if tsm and tsm > 0 then
       local net = tsm * (1 - AH_CUT)
-      if net > vendor * 1.10 and (net - vendor) * math.max(qty, 1) >= Cfg("minGain") then
+      if net > vendor * GF.MarginFactor(Cfg("minMargin")) and (net - vendor) * math.max(qty, 1) >= Cfg("minGain") then
         return "AH", "tsm", net
       end
       if vendor > 0 then return "VENDOR", nil, vendor end
@@ -225,7 +233,7 @@ function GF.NewDecision(d)
         d.verdict, d.code, d.reason = "KEEP", "lowprice", L["decision.lowprice"]
         return d
       end
-      local worth = ahNet > vendor * 1.10 and (ahNet - vendor) * qty >= Cfg("minGain")
+      local worth = ahNet > vendor * GF.MarginFactor(Cfg("minMargin")) and (ahNet - vendor) * qty >= Cfg("minGain")
       if vendor == 0 or worth then
         d.verdict, d.unit = "AH", ahNet
         d.toBanker = ToBanker() or nil
