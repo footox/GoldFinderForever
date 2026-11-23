@@ -179,7 +179,7 @@ for t in tests/*.lua; do lua5.1 "$t"; done
 
 Build the release zip with `python tools/build_zip.py` (it writes `dist/GoldFinderForever-<version>.zip` with a single `GoldFinderForever/` folder). After editing `CHANGELOG.md`, refresh the section above with `python tools/sync_readme_changelog.py`.
 
-Branches: `develop` is the default branch, where work is integrated; feature branches start from it, and **pull requests always go to `develop`**. `main` holds what is published and every version is tagged (`v2.3.0`); it only receives merges from `develop` when a version is released (a check rejects any other pull request into `main`). Commit subjects are `ID - task` (for example `GF-112 - Fix findings of the 2.3.0 code review`).
+Branches: `develop` is the default branch, where work is integrated; feature branches start from it, and **pull requests always go to `develop`**. `main` holds what is published and every version is tagged (`v2.3.0`); it only receives merges from `develop` when a version is released, or from a `hotfix/*` branch cut from `main` for a patch that must not carry unreleased work (a check rejects any other pull request into `main`). Commit subjects are `ID - task` (for example `GF-112 - Fix findings of the 2.3.0 code review`).
 
 ## Data sources
 

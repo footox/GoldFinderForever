@@ -8,11 +8,15 @@ jobs:
   pr-source:
     runs-on: ubuntu-latest
     steps:
-      - name: Only develop may be merged into main
+      - name: Only develop (or a hotfix branch) may be merged into main
         env:
           HEAD_REF: ${{ github.head_ref }}
         run: |
-          if [ "$HEAD_REF" != "develop" ]; then
-            echo "::error::Pull requests into main must come from develop. Open yours against develop instead."
-            exit 1
-          fi
+          # develop carries every release; a hotfix/* branch carries a patch cut from main (it must not drag unreleased work)
+          case "$HEAD_REF" in
+            develop|hotfix/*) ;;
+            *)
+              echo "::error::Pull requests into main must come from develop, or from a hotfix/* branch for a patch. Open yours against develop instead."
+              exit 1
+              ;;
+          esac
