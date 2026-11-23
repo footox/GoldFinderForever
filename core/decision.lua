@@ -5,6 +5,36 @@ local _, GF = ...
 
 -- d: AHApi, VendorPrice, TSMValue, Cfg, Char, Counts, SkillUpNeed, RouteNeedFor, ReagentInfo, QuestNeed,
 --    RecipeToLearn, RecipeForOthers, OtherNeed, IsUtilityItem, RefPrice, ToBanker, ItemInfoInstant, ItemQuality
+-- The link of the item a tooltip is showing: the one the tooltip data carries or, failing that, the tooltip's own item.
+-- GameTooltip:GetItem() returns the NAME first and the link second, and pcall puts its own true/false in front of both.
+function GF.TooltipItemLink(data, tooltip)
+  local link = data and data.hyperlink
+  if type(link) == "string" and link ~= "" then return link end
+  if tooltip and tooltip.GetItem then
+    local ok, _, l = pcall(tooltip.GetItem, tooltip)
+    if ok and type(l) == "string" and l ~= "" then return l end
+  end
+  return nil
+end
+
+-- The margin the auction must have over the vendor, as a factor: 10 (percent) -> 1.10. A missing, bad or negative value gives 10%.
+function GF.MarginFactor(pct)
+  pct = tonumber(pct)
+  if not pct or pct < 0 then pct = 10 end
+  return 1 + pct / 100
+end
+
+-- How many units make the auction worth it, by the same rule Decide uses: the net price must beat the vendor by more than
+-- the margin (default 10%) and the gain on the lot must reach minGain. nil when no quantity can (the margin is not reached),
+-- else the units.
+function GF.UnitsForAuction(ahNet, vendor, minGain, marginPct)
+  if type(ahNet) ~= "number" or type(vendor) ~= "number" or ahNet <= 0 then return nil end
+  if not (ahNet > vendor * GF.MarginFactor(marginPct)) then return nil end
+  local each = ahNet - vendor
+  if each <= 0 then return nil end
+  return math.max(1, math.ceil((minGain or 0) / each - 0.000001))
+end
+
 function GF.NewDecision(d)
   local CALLER, AH_CUT, QUEST_ALL = GF.CALLER, GF.AH_CUT, GF.QUEST_ALL
   local format = string.format
@@ -44,7 +74,7 @@ function GF.NewDecision(d)
     if quality == 0 and vendor > 0 then return "VENDOR", nil, vendor end
     if tsm and tsm > 0 then
       local net = tsm * (1 - AH_CUT)
-      if net > vendor * 1.10 and (net - vendor) * math.max(qty, 1) >= Cfg("minGain") then
+      if net > vendor * GF.MarginFactor(Cfg("minMargin")) and (net - vendor) * math.max(qty, 1) >= Cfg("minGain") then
         return "AH", "tsm", net
       end
       if vendor > 0 then return "VENDOR", nil, vendor end
@@ -52,6 +82,34 @@ function GF.NewDecision(d)
     return "NONE", "scan", 0
   end
   -- FIN DE REGLAS DE VENTA
+
+  -- The auction price of an item. Equipment has one entry per variant (suffix, item level), so it is asked by the
+  -- item's LINK, which finds that variant's own entry; asked by id it reads the generic entry, which can be an old
+  -- price or another variant's. Without a link, or when the link has no price, the id is used as before.
+  -- Second value: true when the price is only the generic entry of an item that can have variants (equipment). That entry is
+  -- the cheapest variant seen, so it is a floor, not the price of this item: it must not decide a sale to the vendor by itself.
+  local function AuctionPrice(v1, id, link)
+    local classID = select(6, d.ItemInfoInstant(id))
+    local gear = classID == 2 or classID == 4   -- weapon or armor
+    if gear and link and v1.GetAuctionPriceByItemLink then
+      local ok, price = pcall(v1.GetAuctionPriceByItemLink, CALLER, link)
+      if ok and type(price) == "number" and price > 0 then
+        -- Auctionator answers a link with the generic entry when the variant has no entry of its own, so a price
+        -- is not proof of a variant price: VariantKnown(link) says whether the variant's own entry exists (nil: cannot tell)
+        local asked, known = true, nil
+        if d.VariantKnown then asked, known = pcall(d.VariantKnown, link) end
+        return price, (asked and known == false)
+      end
+    end
+    return v1.GetAuctionPriceByItemID(CALLER, id), gear
+  end
+
+  -- A vendor verdict that rests only on the generic price of equipment is not firm: say so instead of advising the sale.
+  local function Unsure(r)
+    if r.generic and r.verdict == "VENDOR" then
+      r.verdict, r.code, r.reason = "NONE", "variant", L["decision.variant"]
+    end
+  end
 
   -- reserva de un objeto: { own, alts, total, label, su, z, rg, o }
   local function Reserve(id)
@@ -75,14 +133,16 @@ function GF.NewDecision(d)
     return r
   end
 
-  function Decide(id, bags, bank, bound)
+  function Decide(id, bags, bank, bound, link)
     local v1 = AHApi()
-    local ah = (not bound and v1) and v1.GetAuctionPriceByItemID(CALLER, id) or nil
+    local ah, generic
+    if not bound and v1 then ah, generic = AuctionPrice(v1, id, link) end
     if ah and ah <= 0 then ah = nil end
     local vendor = VendorPrice(id) or 0
     local ahNet = ah and ah * (1 - AH_CUT) or 0
     local have = bags + bank
     local d = { ahNet = ahNet, vendor = vendor, unit = math.max(ahNet, vendor), verdict = "NONE", sellQty = 0 }
+    d.generic = (ah and generic) or nil
 
     if GoldFinderForeverDB and Char().keep[id] then
       d.verdict, d.code, d.reason, d.manual = "KEEP", "manual", L["decision.manual"], true
@@ -170,6 +230,7 @@ function GF.NewDecision(d)
     end
     if vendor > 0 and vendor >= ahNet and not utility then
       d.verdict, d.unit = "VENDOR", vendor
+      Unsure(d)
       return d
     end
     if ah then
@@ -178,7 +239,7 @@ function GF.NewDecision(d)
         d.verdict, d.code, d.reason = "KEEP", "lowprice", L["decision.lowprice"]
         return d
       end
-      local worth = ahNet > vendor * 1.10 and (ahNet - vendor) * qty >= Cfg("minGain")
+      local worth = ahNet > vendor * GF.MarginFactor(Cfg("minMargin")) and (ahNet - vendor) * qty >= Cfg("minGain")
       if vendor == 0 or worth then
         d.verdict, d.unit = "AH", ahNet
         d.toBanker = ToBanker() or nil
@@ -186,6 +247,7 @@ function GF.NewDecision(d)
       end
     end
     if vendor > 0 and not utility then d.verdict, d.unit = "VENDOR", vendor end
+    Unsure(d)
     return d
   end
 

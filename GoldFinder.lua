@@ -966,6 +966,7 @@ local Decide, SellQty = GF.NewDecision({
   QuestNeed = GF.QuestNeed,
   ItemInfoInstant = GF.ItemInfoInstant,
   ItemQuality = GF.ItemQuality,
+  VariantKnown = GF.VariantKnown,
 })
 -- FIN DE DECISION
 
@@ -1024,7 +1025,9 @@ local function TipAdvice(tooltip, data)
   if not Cfg("tip") or not (data and data.id) then return end
   local id = data.id
   local bags, bank = Counts(id)
-  local d = Decide(id, bags, bank, false)
+  -- the link of the item under the cursor, so equipment is priced by its own variant
+  local link = GF.TooltipItemLink(data, tooltip)
+  local d = Decide(id, bags, bank, false, link)
   if d.verdict == "NONE" then
     if d.reason then tooltip:AddLine("GoldFinder: " .. d.reason, 0.6, 0.6, 0.6) end
     return
@@ -1082,7 +1085,17 @@ local function TipAdvice(tooltip, data)
       n, Money(d.ahNet * n), Money(d.vendor * n), gain >= 0 and "+" or "-", Money(math.abs(gain))),
       0.8, 0.8, 0.8)
     if d.verdict == "VENDOR" and d.ahNet > d.vendor then
-      tooltip:AddLine(L["tip.littleGain"], 1, 0.8, 0.4)
+      -- say how little, what the minimum is and how many units would make it worth posting
+      local minGain = Cfg("minGain") or 0
+      local need = GF.UnitsForAuction(d.ahNet, d.vendor, minGain, Cfg("minMargin"))
+      if not need then
+        tooltip:AddLine(format(L["tip.littleMargin"], floor(((GF.MarginFactor(Cfg("minMargin")) - 1) * 100) + 0.5)), 1, 0.8, 0.4)
+      elseif need > n then
+        tooltip:AddLine(format(L["tip.littleGainDetail"], Money(gain), n, Money(minGain)), 1, 0.8, 0.4)
+        if need <= 1000 then tooltip:AddLine(format(L["tip.littleGainNeed"], need), 1, 0.8, 0.4) end
+      else
+        tooltip:AddLine(L["tip.littleGain"], 1, 0.8, 0.4)
+      end
     end
   end
   if d.verdict == "AH" then
@@ -1256,13 +1269,13 @@ local function BagRows()
   local items = {}
   for _, s in ipairs(GF.BagSlots()) do
     local e = items[s.id]
-    if not e then e = { bags = 0, bound = s.bound }; items[s.id] = e end
+    if not e then e = { bags = 0, bound = s.bound, link = s.link }; items[s.id] = e end
     e.bags = e.bags + s.count
   end
   local rows = {}
   for id, e in pairs(items) do
     local _, bank = Counts(id)
-    local d = Decide(id, e.bags, bank, e.bound)
+    local d = Decide(id, e.bags, bank, e.bound, e.link)
     -- vender y subastar: solo lo que sobra de la reserva (Decide ya lo calcula igual que SellQty)
     local selling = d.verdict == "AH" or d.verdict == "VENDOR"
     d.id, d.count, d.bank, d.bound = id, e.bags, bank, e.bound
@@ -3382,9 +3395,9 @@ local function CreateUI(parent, opts)
 
   -- FILTRO DE BOLSAS
   -- Fila visible en Bolsas: todo menos los objetos sin precio (ligados, de mision...); los que piden escanear la
-  -- subasta se listan con su motivo. Solo filtra la lista: el vendedor y el correo siguen sin verlos (no son AH/VENDOR).
+  -- subasta, y el equipo del que solo se conoce el precio de la variante mas barata, se listan con su motivo. Solo filtra la lista: el vendedor y el correo siguen sin verlos (no son AH/VENDOR).
   local function BagListed(r)
-    return r.verdict ~= "NONE" or r.code == "scan"
+    return r.verdict ~= "NONE" or r.code == "scan" or r.code == "variant"
   end
   -- FIN DE FILTRO DE BOLSAS
   local verdictText = {
@@ -4474,6 +4487,7 @@ local function RegisterOptions()
     end)
   slider(gain, 0, 5000, 5, function(silver) return Money(floor(silver + 0.5) * 100) end,
     L["opt.minGain.t"])
+  number("minMargin", L["opt.minMargin.l"], 0, 200, 1, L["opt.minMargin.t"])
   -- boton Subastar de la lista Bolsas (como una operacion de TSM)
   number("postMinPct", L["opt.postMin.l"], 0, 100, 5,
     L["opt.postMin.t"])
