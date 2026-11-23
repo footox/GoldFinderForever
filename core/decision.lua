@@ -53,6 +53,20 @@ function GF.NewDecision(d)
   end
   -- FIN DE REGLAS DE VENTA
 
+  -- The auction price of an item. Equipment has one entry per variant (suffix, item level), so it is asked by the
+  -- item's LINK, which finds that variant's own entry; asked by id it reads the generic entry, which can be an old
+  -- price or another variant's. Without a link, or when the link has no price, the id is used as before.
+  local function AuctionPrice(v1, id, link)
+    if link and v1.GetAuctionPriceByItemLink then
+      local classID = select(6, d.ItemInfoInstant(id))
+      if classID == 2 or classID == 4 then   -- weapon or armor
+        local ok, price = pcall(v1.GetAuctionPriceByItemLink, CALLER, link)
+        if ok and type(price) == "number" and price > 0 then return price end
+      end
+    end
+    return v1.GetAuctionPriceByItemID(CALLER, id)
+  end
+
   -- reserva de un objeto: { own, alts, total, label, su, z, rg, o }
   local function Reserve(id)
     local r = { su = SkillUpNeed(id), z = RouteNeedFor(Char(), id), rg = ReagentInfo(id) }
@@ -75,9 +89,9 @@ function GF.NewDecision(d)
     return r
   end
 
-  function Decide(id, bags, bank, bound)
+  function Decide(id, bags, bank, bound, link)
     local v1 = AHApi()
-    local ah = (not bound and v1) and v1.GetAuctionPriceByItemID(CALLER, id) or nil
+    local ah = (not bound and v1) and AuctionPrice(v1, id, link) or nil
     if ah and ah <= 0 then ah = nil end
     local vendor = VendorPrice(id) or 0
     local ahNet = ah and ah * (1 - AH_CUT) or 0

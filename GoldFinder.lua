@@ -1020,7 +1020,10 @@ local function TipAdvice(tooltip, data)
   if not Cfg("tip") or not (data and data.id) then return end
   local id = data.id
   local bags, bank = Counts(id)
-  local d = Decide(id, bags, bank, false)
+  -- the link of the item under the cursor, so equipment is priced by its own variant
+  local link = data.hyperlink
+  if not link and tooltip.GetItem then local _, l = pcall(tooltip.GetItem, tooltip); link = type(l) == "string" and l or nil end
+  local d = Decide(id, bags, bank, false, link)
   if d.verdict == "NONE" then
     if d.reason then tooltip:AddLine("GoldFinder: " .. d.reason, 0.6, 0.6, 0.6) end
     return
@@ -1252,13 +1255,13 @@ local function BagRows()
   local items = {}
   for _, s in ipairs(GF.BagSlots()) do
     local e = items[s.id]
-    if not e then e = { bags = 0, bound = s.bound }; items[s.id] = e end
+    if not e then e = { bags = 0, bound = s.bound, link = s.link }; items[s.id] = e end
     e.bags = e.bags + s.count
   end
   local rows = {}
   for id, e in pairs(items) do
     local _, bank = Counts(id)
-    local d = Decide(id, e.bags, bank, e.bound)
+    local d = Decide(id, e.bags, bank, e.bound, e.link)
     -- vender y subastar: solo lo que sobra de la reserva (Decide ya lo calcula igual que SellQty)
     local selling = d.verdict == "AH" or d.verdict == "VENDOR"
     d.id, d.count, d.bank, d.bound = id, e.bags, bank, e.bound
