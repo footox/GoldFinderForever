@@ -47,6 +47,19 @@ function GF.ScanProgress.Start(onChange)
   }
   local ok = pcall(A.EventBus.Register, A.EventBus, listener, names)
   started = ok
+  -- Closing the auction house mid-scan leaves Auctionator without a ScanComplete: clear the indicator right away
+  -- instead of waiting for STALE (a scan that continues after reopening reports progress again by itself).
+  if ok and type(CreateFrame) == "function" then
+    local closer = CreateFrame("Frame")
+    closer:RegisterEvent("AUCTION_HOUSE_CLOSED")
+    closer:SetScript("OnEvent", function()
+      if state.on then
+        serial = serial + 1
+        state = GF.ScanNext(state, "stop")
+        pcall(onChange, state)
+      end
+    end)
+  end
   return ok
 end
 
