@@ -5,6 +5,16 @@ local _, GF = ...
 
 -- d: AHApi, VendorPrice, TSMValue, Cfg, Char, Counts, SkillUpNeed, RouteNeedFor, ReagentInfo, QuestNeed,
 --    RecipeToLearn, RecipeForOthers, OtherNeed, IsUtilityItem, RefPrice, ToBanker, ItemInfoInstant, ItemQuality
+-- How many units make the auction worth it, by the same rule Decide uses: the net price must beat the vendor by more than
+-- 10% and the gain on the lot must reach minGain. nil when no quantity can (the margin is under 10%), else the units.
+function GF.UnitsForAuction(ahNet, vendor, minGain)
+  if type(ahNet) ~= "number" or type(vendor) ~= "number" or ahNet <= 0 then return nil end
+  if not (ahNet > vendor * 1.10) then return nil end
+  local each = ahNet - vendor
+  if each <= 0 then return nil end
+  return math.max(1, math.ceil((minGain or 0) / each - 0.000001))
+end
+
 function GF.NewDecision(d)
   local CALLER, AH_CUT, QUEST_ALL = GF.CALLER, GF.AH_CUT, GF.QUEST_ALL
   local format = string.format

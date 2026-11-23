@@ -1081,7 +1081,17 @@ local function TipAdvice(tooltip, data)
       n, Money(d.ahNet * n), Money(d.vendor * n), gain >= 0 and "+" or "-", Money(math.abs(gain))),
       0.8, 0.8, 0.8)
     if d.verdict == "VENDOR" and d.ahNet > d.vendor then
-      tooltip:AddLine(L["tip.littleGain"], 1, 0.8, 0.4)
+      -- say how little, what the minimum is and how many units would make it worth posting
+      local minGain = Cfg("minGain") or 0
+      local need = GF.UnitsForAuction(d.ahNet, d.vendor, minGain)
+      if not need then
+        tooltip:AddLine(L["tip.littleMargin"], 1, 0.8, 0.4)
+      elseif need > n then
+        tooltip:AddLine(format(L["tip.littleGainDetail"], Money(gain), n, Money(minGain)), 1, 0.8, 0.4)
+        if need <= 1000 then tooltip:AddLine(format(L["tip.littleGainNeed"], need), 1, 0.8, 0.4) end
+      else
+        tooltip:AddLine(L["tip.littleGain"], 1, 0.8, 0.4)
+      end
     end
   end
   if d.verdict == "AH" then
