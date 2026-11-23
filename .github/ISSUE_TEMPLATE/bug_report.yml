@@ -1,0 +1,69 @@
+name: Report a problem
+description: Something does not work, or the advice looks wrong
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. The more of this you fill in, the faster it can be fixed.
+        The addon sends nothing from the game, so everything here is what you choose to write. Please do not post passwords or account data; character names are not needed.
+  - type: input
+    id: addon_version
+    attributes:
+      label: Addon version
+      description: Shown in the Addons list at the character screen (for example 2.3.1).
+    validations:
+      required: true
+  - type: input
+    id: client_version
+    attributes:
+      label: Game client version
+      description: If you know it (for example 1.60.1).
+  - type: dropdown
+    id: language
+    attributes:
+      label: Game language
+      options:
+        - English
+        - Español
+        - Other
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it happen?
+      options:
+        - Advice on an item (tooltip, Bags list)
+        - Auction house (tab, Materials window, posting)
+        - Merchant panel
+        - Mailbox
+        - Profession guide, route or Materials
+        - Options or commands
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened
+      description: What you did and what you saw.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+  - type: textarea
+    id: details
+    attributes:
+      label: Screenshots, tooltip text or error text
+      description: For advice about prices, a screenshot of the tooltip with the GoldFinder line visible says almost everything. For errors, paste the text exactly as it appears (BugGrabber or the Lua error window).
+  - type: checkboxes
+    id: other_addons
+    attributes:
+      label: Loaded at the time
+      options:
+        - label: Auctionator
+        - label: TradeSkillMaster
+        - label: QuestieDB
+        - label: GoldFinderForeverData

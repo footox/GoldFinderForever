@@ -1,0 +1,21 @@
+name: Suggest something
+description: An idea or an improvement
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like it to do?
+      description: Describe the situation first (what you were doing), then what you wish happened.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why would it help?
+  - type: input
+    id: addon_version
+    attributes:
+      label: Addon version
+      description: Shown in the Addons list at the character screen.

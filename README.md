@@ -58,6 +58,22 @@ The Spanish aliases (`ajustes`, `guia`, `ruta`, `tope`, `bienvenida`) work too.
 
 Everything the addon knows stays in the saved variables on your PC: your own characters, their professions and what they carry. It sends nothing anywhere and collects no information about other players.
 
+## Feedback and bug reports
+
+Found something wrong, or have an idea? Tell us, it helps a lot:
+
+- **Report a problem or suggest something:** [open an issue on GitHub](https://github.com/footox/GoldFinderForever/issues/new/choose). The form asks for what is useful and takes a minute.
+- **Quick comment or question:** the comments of the [CurseForge page](https://www.curseforge.com/wow/addons/goldfinder-forever).
+
+What makes a report easy to act on:
+
+- **The addon version** (the Addons list at the character screen shows it) and, if you know it, the game client version.
+- **What you did, what you expected and what happened.** For advice about prices, a screenshot of the item's tooltip with the GoldFinder line visible says almost everything.
+- **Any error text** (from BugGrabber or the Lua error window), copied as it is.
+- Which of **Auctionator** and **TradeSkillMaster** you have loaded.
+
+Nothing is sent from the game: the addon makes no network calls (see Privacy). Do not post passwords or account data; character names are not needed.
+
 ## Known limitations
 
 - It is made for WoW: Forever; other clients are not tested.
@@ -235,5 +251,12 @@ GoldFinder Forever lee tus bolsas y los precios de la subasta y te dice, objeto 
 Instálalo desde [CurseForge](https://www.curseforge.com/wow/addons/goldfinder-forever) o copia la carpeta **`GoldFinderForever`** en `Interface/AddOns`. Requiere Auctionator; QuestieDB y TradeSkillMaster son opcionales. El comando principal es `/gff`: las opciones se abren con `/gff ajustes`, la guía con `/gff guia` y la bienvenida con `/gff bienvenida`.
 
 Si vienes de la 2.2.x, la carpeta cambió de nombre: borra la carpeta `GoldFinder` antigua. Los datos guardados empiezan limpios en la 2.3.0.
+
+### Avisar de un problema o sugerir algo
+
+- **Fallos y sugerencias:** [abre una incidencia en GitHub](https://github.com/footox/GoldFinderForever/issues/new/choose). El formulario pide lo que hace falta y lleva un minuto.
+- **Comentario rápido o duda:** los comentarios de la [página de CurseForge](https://www.curseforge.com/wow/addons/goldfinder-forever).
+
+Para que un aviso sea fácil de atender: la **versión del addon** (sale en la lista de addons de la pantalla de personajes), **qué hiciste, qué esperabas y qué pasó**, una **captura del tooltip** del objeto con la línea de GoldFinder si es un consejo de precios, el **texto del error** tal cual (de BugGrabber o de la ventana de errores de Lua) y si tienes **Auctionator** y **TradeSkillMaster** cargados. El addon no envía nada desde el juego; no publiques contraseñas ni datos de cuenta, y no hacen falta los nombres de tus personajes.
 
 El historial de versiones está en la sección **Changelog** de arriba y completo en [CHANGELOG.md](CHANGELOG.md).
