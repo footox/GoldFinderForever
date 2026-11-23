@@ -43,7 +43,13 @@ check("it is the 64x64 one", rel and rel:find("icon_penguin_64.tga", 1, true) ~=
 
 local main = read("GoldFinder.lua")
 check("the main window uses the penguin icon", main:find('local icon = "Interface\\\\AddOns\\\\GoldFinderForever\\\\art\\\\icon_penguin_128.tga"', 1, true) ~= nil)
-check("the minimap button uses the penguin icon", main:find([[local ICON = "Interface\\AddOns\\GoldFinderForever\\art\\icon_penguin_64.tga"]], 1, true) ~= nil)
+check("the minimap button uses the face-only icon", main:find([[local ICON = "Interface\\AddOns\\GoldFinderForever\\art\\icon_penguin_map_64.tga"]], 1, true) ~= nil)
+-- the face icon is a valid game texture too
+do
+  local h = tga("art/icon_penguin_map_64.tga")
+  check("icon_penguin_map_64.tga exists, uncompressed true colour, 64x64, 32 bits", h and h.type == 2 and h.w == 64 and h.h == 64 and h.bpp == 32)
+  check("and its size matches the header", h and h.size >= 18 + 64 * 64 * 4 and h.size <= 18 + 64 * 64 * 4 + 600)
+end
 check("the generic coin icon is gone", not main:find("INV_Misc_Coin_01", 1, true))
 
 local pkg = read(".pkgmeta") or ""
