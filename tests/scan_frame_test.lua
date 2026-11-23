@@ -32,7 +32,7 @@ check("no state, or a state that is not a table: nil", GF.ScanFrameFor(nil, fals
 -- the button, run against a fake Auctionator: the real function is taken from the main file
 local src = read("GoldFinder.lua")
 local a = assert(src:find("local function StartFullScan()", 1, true), "start marker")
-local b = assert(src:find("-- minutos desde el ultimo escaneo de Auctionator", a, true), "end marker")
+local b = assert(src:find("local function ScanAgeText()", a, true), "end marker")
 local chunk = src:sub(a, b - 1) .. "\nreturn StartFullScan"
 
 local function session(auctionator, penguin)

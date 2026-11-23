@@ -7,6 +7,7 @@
 - The summary window had four titles written in Spanish whatever the game language ("To sell", "To keep", the leather session and "What to do now"); they are now translated.
 
 ### Features
+- No scan yet? Now it says what to do: the tooltip says "no auction prices yet: open the auction house and press Scan" (instead of a bare "scan"), the main window status line says the same, and one chat line at login reminds you while Auctionator has no scan on record. One scan fills the prices of every item.
 - Penguin winks: a short penguin line in the chat now and then at login (one login in four, never the first time) and when a scan starts, plus a small hidden command. You can switch them off in the options ("Penguin winks") for plain messages.
 - Waylaid Crates are never advised for sale: the addon keeps them and says they serve Favor, whatever they would fetch at the auction house or the vendor.
 - The addon has an icon of its own: the penguin with its treasure shows in the game's addon list and in the main window, and the minimap button has a closer picture of the penguin's face, because the full picture is lost at that size. It replaces the generic coin.
