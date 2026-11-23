@@ -962,6 +962,7 @@ local Decide, SellQty = GF.NewDecision({
   QuestNeed = GF.QuestNeed,
   ItemInfoInstant = GF.ItemInfoInstant,
   ItemQuality = GF.ItemQuality,
+  VariantKnown = GF.VariantKnown,
 })
 -- FIN DE DECISION
 

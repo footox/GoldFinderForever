@@ -52,6 +52,7 @@ local deps = {
   QuestNeed = function() return nil end, RecipeToLearn = function() return nil end, RecipeForOthers = function() return nil end,
   OtherNeed = function() return nil end, IsUtilityItem = function() return false end, RefPrice = function() return nil end,
   ToBanker = function() return nil end,
+  VariantKnown = function(link) if S.variantThrows then error("boom") end return S.variantKnown end,
   ItemInfoInstant = function(id) return id, "x", "y", "z", 0, S.class[id] end,
   ItemQuality = function() return 2 end,
 }
@@ -101,6 +102,30 @@ S.byId[CLOTH], S.vendor[CLOTH] = 100, 95
 d = Decide(CLOTH, 1, 0, false)
 check("a material with a low auction price is still a plain vendor verdict", d.verdict == "VENDOR" and d.code == nil)
 check("the not-firm state is recorded on the decision", (function() S.byLink[LINK] = nil; S.byId[STAFF] = 4000; return Decide(STAFF, 1, 0, false, LINK).generic == true end)())
+
+-- the real Auctionator answers a link with the GENERIC entry when the variant has no entry of its own: a price is not proof
+reset()
+S.byLink[LINK], S.byId[STAFF], S.vendor[STAFF] = 4400, 4400, 4210   -- the link call answers 4400 (the generic entry)
+S.variantKnown = false
+d = Decide(STAFF, 1, 0, false, LINK)
+check("a link price that is really the generic entry is not a firm vendor verdict", d.verdict == "NONE" and d.code == "variant" and d.generic == true)
+S.variantKnown = true
+d = Decide(STAFF, 1, 0, false, LINK)
+check("the same price from the variant's own entry is a firm vendor verdict", d.verdict == "VENDOR" and d.code == nil and d.generic ~= true)
+S.variantKnown = nil
+d = Decide(STAFF, 1, 0, false, LINK)
+check("when it cannot be told, the price is trusted as before", d.verdict == "VENDOR" and d.code == nil)
+S.variantKnown = false; S.variantThrows = true
+d = Decide(STAFF, 1, 0, false, LINK)
+check("a failing VariantKnown never breaks the advice and counts as 'cannot tell'", d.verdict == "VENDOR")
+S.variantThrows = false; S.variantKnown = false
+S.byLink[LINK], S.byId[STAFF] = 15000, 4400
+d = Decide(STAFF, 1, 0, false, LINK)
+check("a generic floor that already beats the vendor still recommends the auction", d.verdict == "AH")
+S.variantKnown = false; S.byId[CLOTH], S.vendor[CLOTH], S.class[CLOTH] = 100, 95, 7
+d = Decide(CLOTH, 1, 0, false, LINK)
+check("a material is never marked, whatever VariantKnown says", d.verdict == "VENDOR" and d.code == nil)
+S.variantKnown = nil
 
 -- only equipment is asked by link
 S.calls.link = 0

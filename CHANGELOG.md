@@ -4,7 +4,7 @@
 
 ### Fixes
 - Equipment with variants (random suffix, item level) is now priced by its own variant at the auction house instead of the generic entry, which could be an old or a much lower price. A staff worth 1 gold 50 was advised for the vendor at 42 silver because the generic entry said 44 silver.
-- Equipment whose own variant price cannot be read is no longer advised for the vendor on the strength of the generic price alone (the cheapest variant seen): the tooltip says only that price is known and to check yours at the auction house, and the item stays in the Bags list with that note.
+- Equipment whose own variant has no price yet in Auctionator (never scanned) is no longer advised for the vendor on the strength of the generic price alone (the cheapest variant seen): the tooltip says only that price is known and to check yours at the auction house, and the item stays in the Bags list with that note. Equipment with a single entry (no variants) is unaffected.
 - When the auction is not recommended because it gains too little, the tooltip now says how much it gains, what the minimum is (the "Minimum auction profit" option) and about how many units would make it worth posting. Before it only said "gains little".
 - Options that you never changed are no longer saved as if you had chosen them, so a default that changes in a later version reaches everyone. Only the values that differ from the default are kept.
 

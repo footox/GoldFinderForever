@@ -35,6 +35,7 @@ adapters/wow.lua
 adapters/bags.lua
 adapters/quests.lua
 adapters/questie.lua
+adapters/auctionator_keys.lua
 ui/widgets.lua
 features/vendor/panel.lua
 features/mail/panel.lua

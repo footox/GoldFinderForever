@@ -93,7 +93,13 @@ function GF.NewDecision(d)
     local gear = classID == 2 or classID == 4   -- weapon or armor
     if gear and link and v1.GetAuctionPriceByItemLink then
       local ok, price = pcall(v1.GetAuctionPriceByItemLink, CALLER, link)
-      if ok and type(price) == "number" and price > 0 then return price, false end
+      if ok and type(price) == "number" and price > 0 then
+        -- Auctionator answers a link with the generic entry when the variant has no entry of its own, so a price
+        -- is not proof of a variant price: VariantKnown(link) says whether the variant's own entry exists (nil: cannot tell)
+        local asked, known = true, nil
+        if d.VariantKnown then asked, known = pcall(d.VariantKnown, link) end
+        return price, (asked and known == false)
+      end
     end
     return v1.GetAuctionPriceByItemID(CALLER, id), gear
   end
