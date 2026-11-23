@@ -18,7 +18,7 @@ function GF.BagSlots()
       local ok, info = pcall(CC.GetContainerItemInfo, bag, slot)
       if ok and info and info.itemID then
         slots[#slots + 1] = { bag = bag, slot = slot, id = info.itemID, count = info.stackCount or 1,
-          locked = info.isLocked, bound = info.isBound, noValue = info.hasNoValue }
+          locked = info.isLocked, bound = info.isBound, noValue = info.hasNoValue, link = info.hyperlink }
       end
     end
   end

@@ -64,6 +64,18 @@ The Spanish aliases (`ajustes`, `guia`, `ruta`, `tope`, `bienvenida`) work too.
 
 <!-- changelog:start -->
 
+### 2.3.1
+
+**Fixes**
+- Equipment with variants (random suffix, item level) is now priced by its own variant at the auction house instead of the generic entry, which could be an old or a much lower price. A staff worth 1 gold 50 was advised for the vendor at 42 silver because the generic entry said 44 silver.
+- Equipment whose own variant has no price yet in Auctionator (never scanned) is no longer advised for the vendor on the strength of the generic price alone (the cheapest variant seen): the tooltip says only that price is known and to check yours at the auction house, and the item stays in the Bags list with that note. Equipment with a single entry (no variants) is unaffected.
+- When the auction is not recommended because it gains too little, the tooltip now says how much it gains, what the minimum is (the "Minimum auction profit" option) and about how many units would make it worth posting. Before it only said "gains little".
+- Options that you never changed are no longer saved as if you had chosen them, so a default that changes in a later version reaches everyone. Only the values that differ from the default are kept.
+
+**Changes**
+- New option "Minimum margin over the vendor (%)" (default 10, the value that was fixed before): the auction is recommended only if its price, after the cut, beats the vendor price by more than that percentage. It works together with "Minimum auction profit", which is the profit of the whole lot.
+- The default minimum auction profit is now 10 silver (it was 20): it weighs less for a player who is still levelling. It is the profit of the whole lot, so more units reach it; change it in Options > AddOns > GoldFinder Forever ("Minimum auction profit"). If you never changed it, the new default applies.
+
 ### 2.3.0
 
 **Features**
@@ -75,6 +87,9 @@ The Spanish aliases (`ajustes`, `guia`, `ruta`, `tope`, `bienvenida`) work too.
 - On by default now: the next profession step in the objective tracker, the Shopping tab with its List button, and the warning about materials your other characters need. All can be turned off in the options; the mailbox panel stays off by default.
 - The main command is now /gff. /gf keeps working only while no other addon uses it.
 - The minimap button and the option entries have their own names, so they no longer share them with other addons.
+
+<details>
+<summary>Older versions (2.2.1 to 2.0)</summary>
 
 ### 2.2.1
 
@@ -98,9 +113,6 @@ The Spanish aliases (`ajustes`, `guia`, `ruta`, `tope`, `bienvenida`) work too.
 - Wide state buttons no longer overlap the price column.
 - The scan indicator no longer reports a failed scan just because it was quiet for a while.
 - A recipe source that could not be read at login is looked up again later.
-
-<details>
-<summary>Older versions (2.2.0 to 2.0)</summary>
 
 ### 2.2.0
 
@@ -167,7 +179,7 @@ for t in tests/*.lua; do lua5.1 "$t"; done
 
 Build the release zip with `python tools/build_zip.py` (it writes `dist/GoldFinderForever-<version>.zip` with a single `GoldFinderForever/` folder). After editing `CHANGELOG.md`, refresh the section above with `python tools/sync_readme_changelog.py`.
 
-Branches: `develop` is the default branch, where work is integrated; feature branches start from it, and **pull requests always go to `develop`**. `main` holds what is published and every version is tagged (`v2.3.0`); it only receives merges from `develop` when a version is released (a check rejects any other pull request into `main`). Commit subjects are `ID - task` (for example `GF-112 - Fix findings of the 2.3.0 code review`).
+Branches: `develop` is the default branch, where work is integrated; feature branches start from it, and **pull requests always go to `develop`**. `main` holds what is published and every version is tagged (`v2.3.0`); it only receives merges from `develop` when a version is released, or from a `hotfix/*` branch cut from `main` for a patch that must not carry unreleased work (a check rejects any other pull request into `main`). Commit subjects are `ID - task` (for example `GF-112 - Fix findings of the 2.3.0 code review`).
 
 ## Data sources
 

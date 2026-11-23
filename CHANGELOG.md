@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.3.1
+
+### Fixes
+- Equipment with variants (random suffix, item level) is now priced by its own variant at the auction house instead of the generic entry, which could be an old or a much lower price. A staff worth 1 gold 50 was advised for the vendor at 42 silver because the generic entry said 44 silver.
+- Equipment whose own variant has no price yet in Auctionator (never scanned) is no longer advised for the vendor on the strength of the generic price alone (the cheapest variant seen): the tooltip says only that price is known and to check yours at the auction house, and the item stays in the Bags list with that note. Equipment with a single entry (no variants) is unaffected.
+- When the auction is not recommended because it gains too little, the tooltip now says how much it gains, what the minimum is (the "Minimum auction profit" option) and about how many units would make it worth posting. Before it only said "gains little".
+- Options that you never changed are no longer saved as if you had chosen them, so a default that changes in a later version reaches everyone. Only the values that differ from the default are kept.
+
+### Changes
+- New option "Minimum margin over the vendor (%)" (default 10, the value that was fixed before): the auction is recommended only if its price, after the cut, beats the vendor price by more than that percentage. It works together with "Minimum auction profit", which is the profit of the whole lot.
+- The default minimum auction profit is now 10 silver (it was 20): it weighs less for a player who is still levelling. It is the profit of the whole lot, so more units reach it; change it in Options > AddOns > GoldFinder Forever ("Minimum auction profit"). If you never changed it, the new default applies.
+
 ## 2.3.0
 
 ### Features
