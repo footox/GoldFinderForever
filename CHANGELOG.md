@@ -5,6 +5,7 @@
 ### Features
 - Penguin winks: a short penguin line in the chat now and then at login (one login in four, never the first time) and when a scan starts, plus a small hidden command. You can switch them off in the options ("Penguin winks") for plain messages.
 - Waylaid Crates are never advised for sale: the addon keeps them and says they serve Favor, whatever they would fetch at the auction house or the vendor.
+- The addon has an icon of its own: the penguin with its treasure shows in the game's addon list, on the minimap button and in the main window, instead of a generic coin.
 - The profession guide has a search box (top right): type part of a material's name, such as "thread" or "heavy leather", and the guide shows only the steps whose recipe uses it, with the amount per craft. Esc clears it.
 - A recipe's tooltip now also says which of your own characters already know it ("Already known by: you, Ashes"), and the merchant's recipe box shows the same line. It only reads what the addon saved from your own profession windows; nothing is sent to anyone.
 - Next to a profession trainer's window, a small panel lists the recipes it teaches that your guide still needs, with what they cost together, and how many others are not in your guide, so you do not pay for the useless ones. Option: Panel at the profession trainer.

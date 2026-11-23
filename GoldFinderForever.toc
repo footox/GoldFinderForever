@@ -1,4 +1,5 @@
 ## Interface: 16001
+## IconTexture: Interface\AddOns\GoldFinderForever\art\icon_penguin_64.tga
 ## Title: GoldFinder Forever
 ## Notes: Decide si vender, subastar o guardar lo que llevas, con paneles en el vendedor, la subasta, el correo y las profesiones. Nada se vende ni se publica sin tu clic.
 ## Notes-enUS: Decides whether to vendor, auction or keep what you carry, with panels at the merchant, auction house, mailbox and professions. Nothing is sold or posted without your click.
