@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.4.0
 
 ### Fixes
 - The Scan button of the main window no longer shows a Lua error when the auction house is closed: it tells you to open the auction house first (Auctionator only scans from there).
