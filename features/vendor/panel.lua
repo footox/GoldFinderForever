@@ -154,7 +154,8 @@ function GF.InitVendor(d)
     for i = 1, (GetMerchantNumItems() or 0) do
       local link = GetMerchantItemLink(i)
       local id = link and tonumber(link:match("item:(%d+)"))
-      local list = id and RecipeForOthers(id, true, true) or nil
+      local list, knownBy = nil, nil
+      if id then list, knownBy = RecipeForOthers(id, true, true) end
       if list and #list > 0 then
         local price = select(3, GF.MerchantItemInfo(i))
         n = n + 1
@@ -169,6 +170,8 @@ function GF.InitVendor(d)
               ro.ready and L["vendor.recipes.canLearn"] or L["vendor.recipes.lacksSkill"])
           end
         end
+        local known = GF.KnownByText(knownBy, L)
+        if known then lines[#lines + 1] = "   |cffb3b3b3" .. known .. "|r" end
       end
     end
     if n == 0 then

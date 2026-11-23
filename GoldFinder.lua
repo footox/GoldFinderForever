@@ -933,7 +933,10 @@ local function RecipeForOthers(id, includeMine, all)
       end
     end
   end
-  if all then return out end
+  if all then
+    -- second value: the characters that already know it (the tooltip and the merchant box say so)
+    return out, GF.RecipeKnownBy(GoldFinderForeverDB.chars, mine, key, target, NormRecipe)
+  end
   for _, ro in ipairs(out) do if not ro.unknown then return ro end end
   return out[1]
 end
@@ -976,8 +979,9 @@ local Decide, SellQty = GF.NewDecision({
 -- Recetas: quien (tu u otro personaje) aun no la sabe, con el nivel que pide la receta
 local function RecipeLines(tooltip, id)
   if not Cfg("crossChars") then return end
-  local list = RecipeForOthers(id, true, true)
-  if not list or #list == 0 then return end
+  local list, knownBy = RecipeForOthers(id, true, true)
+  -- nothing to say only when it is not a recipe; if everybody already knows it, the line below still tells so
+  if not list or (#list == 0 and #(knownBy or {}) == 0) then return end
   for _, ro in ipairs(list) do
     if ro.unknown then
       tooltip:AddLine("  " .. ro.note, 1, 0.82, 0)
@@ -988,6 +992,8 @@ local function RecipeLines(tooltip, id)
         ro.ready and 0.35 or 1, ro.ready and 0.92 or 0.65, ro.ready and 0.55 or 0.25)
     end
   end
+  local known = GF.KnownByText(knownBy, L)
+  if known then tooltip:AddLine("  " .. known, 0.7, 0.7, 0.7) end
 end
 
 -- Lo que llevan tus otros personajes (bolsas y banco), leido de BagBrother (el addon de Bagnon): sirve para
