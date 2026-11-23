@@ -1192,7 +1192,7 @@ local function StartFullScan()
       Auctionator.State.IncrementalScanFrameRef:InitiateScan()
     end
   end)
-  if ok then Print(L["scan.requested"])
+  if ok then Print((Cfg("penguin") and GF.PenguinPhrase("penguin.scan")) or L["scan.requested"])
   else Print(format(L["scan.failed"], tostring(err))) end
 end
 
@@ -2883,6 +2883,7 @@ local function MakeSettings(parent)
     { "recipeNotes", L["set.recipeNotes"] },
     { "auctionMaterials", L["set.auctionMaterials"] },
     { "trainerMarks", L["set.trainerMarks"] },
+    { "penguin", L["set.penguin"] },
     -- eleccion de dos valores como casilla: marcada = seguimiento de objetivos, sin marcar = ventana flotante
     { "trackerMode", L["set.trackerMode"],
       get = function() return Cfg("trackerMode") ~= "flotante" end,
@@ -4449,6 +4450,7 @@ local function RegisterOptions()
     L["opt.recipeNotes.t"])
   check("auctionMaterials", L["opt.auctionMaterials.l"], L["opt.auctionMaterials.t"])
   check("trainerMarks", L["opt.trainerMarks.l"], L["opt.trainerMarks.t"])
+  check("penguin", L["opt.penguin.l"], L["opt.penguin.t"])
   number("routeSpan", L["opt.routeSpan.l"], 5, 100, 1,
     L["opt.routeSpan.t"])
   number("sellCap", L["opt.sellCap.l"], 0, 1000, 1,
@@ -4615,8 +4617,16 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
     -- that is already taken is never overridden
     if not GF.CommandTaken(SlashCmdList, _G, "GOLDFINDERFOREVER", "/gf") then SLASH_GOLDFINDERFOREVER2 = "/gf" end
     -- first run: a short window that lists what the addon does (shown once, a few seconds after login)
+    local firstRun = GF.WelcomeDue(GoldFinderForeverDB)
     C_Timer.After(6, function()
       if GF.WelcomeDue(GoldFinderForeverDB) then pcall(GF.ShowWelcome) end
+    end)
+    -- a penguin wink in the chat, now and then (never on the first run, where the welcome window is shown)
+    C_Timer.After(9, function()
+      if GF.PenguinLoginDue(Cfg("penguin"), firstRun) then
+        local line = GF.PenguinPhrase("penguin.hello")
+        if line then Print(line) end
+      end
     end)
     C_Timer.After(1, function() pcall(CleanPhantomChars) end)
     C_Timer.After(2, function()
@@ -4759,6 +4769,9 @@ SlashCmdList["GOLDFINDERFOREVER"] = function(msg)
       GF.redrawProbe = {}
       Print(L["dbg.redrawsOn"])
     end
+  elseif cmd == "penguin" or cmd == "pingu" or cmd == "pinguino" then
+    -- an easter egg: it is not in the help and it answers even when the winks are switched off
+    Print(GF.PenguinPhrase("penguin.cmd") or "Noot noot!")
   elseif cmd == "bienvenida" or cmd == "welcome" then
     GF.ShowWelcome()
   elseif cmd == "data" or cmd == "datos" then
