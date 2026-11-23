@@ -916,7 +916,7 @@ local function RecipeForOthers(id, includeMine, all)
           if not known then
             local rank = data.rank or 0
             out[#out + 1] = {
-              who = (c == mine) and "Tu" or (ckey:match("^([^-]+)") or ckey), prof = prof, rank = rank, req = req,
+              who = (c == mine) and L["tip.recipeWhoYou"] or (ckey:match("^([^-]+)") or ckey), prof = prof, rank = rank, req = req,
               ready = (not req) or rank >= req,
             }
           end
@@ -2275,12 +2275,14 @@ local FarmCombos, RouteSummary = RoutePlanFeature.FarmCombos, RoutePlanFeature.R
 
 -- Name of a material for the guide search: the game's, else the hidden tooltip's; an unknown one is asked for once.
 local askedSearch = {}
+local searchMissing = false   -- a name was unknown on the last search: the guide is drawn again a moment later, a few times at most
 local function SearchName(id)
   local nm = C_Item.GetItemInfo(id)
   if nm then return nm end
   nm = TooltipName(id)
   if nm then return nm end
   if not askedSearch[id] and C_Item.RequestLoadItemDataByID then askedSearch[id] = true; C_Item.RequestLoadItemDataByID(id) end
+  searchMissing = true
   return nil
 end
 
@@ -2381,7 +2383,20 @@ function RefreshGuide()
     end
   end
   if items and f.query and f.query ~= "" then
+    searchMissing = false
     local found = GF.GuideBandsUsing(items, GoldFinderRecipes and GoldFinderRecipes.spells, SearchName, f.query)
+    if searchMissing then   -- names that were not loaded yet may have arrived: look again (3 times at most for what was typed)
+      searchMissing = false
+      f.searchTries = f.searchTries or 0
+      if f.searchTries < 3 then
+        f.searchTries = f.searchTries + 1
+        local asked = f.query
+        C_Timer.After(1.5, function()
+          local g = GoldFinderGuide
+          if g and g:IsShown() and g.query == asked then pcall(RefreshGuide) end
+        end)
+      end
+    end
     local q = f.query:gsub("^%s+", ""):gsub("%s+$", "")
     if found then
       items = { { kind = "tip", text = (#found > 0) and format(L["gsearch.found"], q, #found) or format(L["gsearch.none"], q) } }
@@ -2575,7 +2590,7 @@ function OpenGuide(name)
     sb:SetScript("OnTextChanged", function(self, user)
       local txt = self:GetText() or ""
       if txt == "" then self.hint:Show() else self.hint:Hide() end
-      if user then f.query = txt; RefreshGuide() end
+      if user then f.query = txt; f.searchTries = 0; RefreshGuide() end
     end)
     sb:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
     sb:SetScript("OnEscapePressed", function(self)
@@ -4671,12 +4686,12 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
     -- never settles can never keep a window redrawing.
     if arg2 ~= false and type(arg1) == "number" and not namesPending and (nameTries[arg1] or 0) < 3 then
       for _, u in ipairs(uiInstances) do
-        if u.missingIds and u.missingIds[arg1] and u:IsShown() then
+        if u.missingIds and u.missingIds[arg1] and u:IsVisible() then
           nameTries[arg1] = (nameTries[arg1] or 0) + 1
           namesPending = true
           C_Timer.After(0.5, function()
             namesPending = false
-            for _, w in ipairs(uiInstances) do if w.missingIds and w.missingIds[arg1] and w:IsShown() then pcall(w.refresh) end end
+            for _, w in ipairs(uiInstances) do if w.missingIds and w.missingIds[arg1] and w:IsVisible() then pcall(w.refresh) end end
           end)
           break
         end

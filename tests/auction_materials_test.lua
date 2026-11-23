@@ -13,7 +13,9 @@ local function newFrame(kind, name)
   local known = {}
   function known.Show(self) self.shown = true end
   function known.Hide(self) self.shown = false end
-  function known.IsShown(self) return self.shown end
+  function known.IsShown(self) if self.shownBoom then error('forbidden frame') end return self.shown end
+  function known.IsForbidden(self) return self.forbidden == true end
+  function known.SetFrameStrata(self, s) self.strata = s end
   function known.ClearAllPoints(self) self.points = {} end
   function known.SetPoint(self, ...) self.points[#self.points + 1] = { ... } end
   function known.SetSize(self, w, h) self.size = { w, h } end
@@ -196,6 +198,20 @@ Sp, p = placed({ cover(100, 1000, 880, 120, { boom = true }) })
 check("a frame that raises when asked its size is ignored", p[2] == Sp.env.AuctionHouseFrame)
 Sp, p = placed({ "garbage", 42, cover(100, 1000, 880, 120) })
 check("junk among the children does not break it", p[4] == 1006)
+Sp, p = placed({ cover(100, 1000, 880, 120, { shownBoom = true }) })
+check("a frame that raises when asked if it is shown (a forbidden one) is ignored and the window still appears", p[2] == Sp.env.AuctionHouseFrame and #Sp.prints == 0)
+Sp, p = placed({ cover(100, 1000, 880, 120, { forbidden = true }), cover(100, 1000, 880, 120, { shownBoom = true }) })
+check("a forbidden frame is skipped and the next ones are still examined", p[2] == Sp.env.AuctionHouseFrame)
+Sp, p = placed({ cover(100, 1000, 880, 120, { shownBoom = true }), cover(100, 1200, 880, 120) })
+check("a frame that raises does not hide a real cover that comes after it", p[4] == 1206)
+Sp, p = placed({})
+check("with room on the right the window keeps the HIGH strata", Sp.win().strata == "HIGH")
+Sp, p = placed({}, { 0, 1500, 900, 100 })
+check("with no room on the right (the screen ends first) it drops to MEDIUM so the auction house keeps its clicks", Sp.win().strata == "MEDIUM")
+Sp, p = placed({ cover(100, 1000, 880, 120) })
+check("a window pushed beyond a covering UI that still fits stays HIGH", Sp.win().strata == "HIGH")
+Sp, p = placed({ cover(100, 1500, 880, 120) })
+check("a covering UI so wide that the window cannot fit beyond it: MEDIUM", Sp.win().strata == "MEDIUM")
 Sp, p = placed({ cover(100, 1000, 880, 120) }, { 0, 800, 900, 100 })
 check("the height of the window is still the auction house's", Sp.win().size[2] == 600)
 local Sd2 = session({ ahRect = AH, children = { cover(100, 1000, 880, 120) }, db = { matsPos = { "TOPLEFT", "BOTTOMLEFT", 10, 20 } } })

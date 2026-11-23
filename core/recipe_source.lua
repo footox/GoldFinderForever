@@ -18,16 +18,26 @@ function GF.PickRecipeSource(api, itemId, faction)
     return out
   end
   local function pick(ids, isVendor)
-    local best, n = nil, 0
+    local best, unknown, n = nil, nil, 0
     for _, id in ipairs(sorted(ids)) do
       local npc = api.npc(id)
       local usable = npc and npc.name and ((not isVendor) or (not npc.friendly) or npc.friendly:find(letter, 1, true))
       if usable then
         n = n + 1
-        if not best or ((not isVendor) and (npc.level or 999) < (best.level or 999)) then best = npc end
+        if isVendor then
+          -- a vendor with no faction on record (the data addon records none) can belong to the other side:
+          -- the lowest id among the vendors whose faction is known wins, and an unknown one only fills a gap
+          if npc.friendly then
+            if not best then best = npc end
+          elseif not unknown then
+            unknown = npc
+          end
+        elseif not best or (npc.level or 999) < (best.level or 999) then
+          best = npc
+        end
       end
     end
-    return best, n
+    return best or unknown, n
   end
   local v, nv = pick(api.vendors(itemId), true)
   local d, nd = pick(api.drops(itemId), false)

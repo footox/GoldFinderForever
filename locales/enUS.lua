@@ -52,6 +52,7 @@ GF.locales.enUS = {
   ["vendor.item"] = "item %d",
   ["vendor.total"] = "Total: %s",
   ["tip.recipeKnownBy"] = "Already known by: %s",
+  ["tip.recipeWhoYou"] = "You",
   ["tip.recipeYou"] = "you",
   ["vendor.recipes.title"] = "Recipes useful here",
   ["vendor.recipes.req"] = ", requires %s",

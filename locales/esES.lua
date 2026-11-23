@@ -52,6 +52,7 @@ GF.locales.esES = {
   ["vendor.item"] = "objeto %d",
   ["vendor.total"] = "Total: %s",
   ["tip.recipeKnownBy"] = "Ya la saben: %s",
+  ["tip.recipeWhoYou"] = "Tu",
   ["tip.recipeYou"] = "tu",
   ["vendor.recipes.title"] = "Recetas que te sirven aqui",
   ["vendor.recipes.req"] = ", pide %s",

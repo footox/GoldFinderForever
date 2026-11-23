@@ -37,12 +37,18 @@ function GF.InitAuctionMaterials(d)
     local edge = right
     local ok, children = pcall(function() return { UIParent:GetChildren() } end)
     for _, f in ipairs(ok and children or {}) do
-      if f ~= win and f ~= ah and type(f) == "table" and f.IsShown and f:IsShown() then
+      -- every child of UIParent is asked inside its own pcall: a forbidden frame raises when a read-only method is called on it
+      local okF, wider = pcall(function()
+        if f == win or f == ah or type(f) ~= "table" then return nil end
+        if f.IsForbidden and f:IsForbidden() then return nil end
+        if not (f.IsShown and f:IsShown()) then return nil end
         local l, r, t, b = Rect(f)
         if l and l < right and r > edge and (r - l) < screenW * 0.9 and (math.min(t, top) - math.max(b, bottom)) > (top - bottom) * 0.5 then
-          edge = r
+          return r
         end
-      end
+        return nil
+      end)
+      if okF and wider then edge = wider end
     end
     return edge, top, bottom
   end
@@ -54,6 +60,7 @@ function GF.InitAuctionMaterials(d)
     local h = ah and ah.GetHeight and ah:GetHeight()
     if type(h) ~= "number" or h < 100 then h = H_DEFAULT end
     win:SetSize(W_DEFAULT, h)
+    win:SetFrameStrata("HIGH")
     win:ClearAllPoints()
     local pos = GoldFinderForeverDB and GoldFinderForeverDB.matsPos
     if type(pos) == "table" and type(pos[1]) == "string" and type(pos[2]) == "string"
@@ -62,6 +69,10 @@ function GF.InitAuctionMaterials(d)
     elseif ah then
       local edge, top = RightEdge(ah)
       local _, ahRight = Rect(ah)
+      -- no room for the whole window on the right: it would be pushed back over the auction house, so it must not take its clicks
+      local screenW = UIParent:GetWidth()
+      local rightmost = (edge and ahRight and edge > ahRight + 0.5) and edge or ahRight
+      if type(screenW) == "number" and screenW > 0 and rightmost and rightmost + 6 + W_DEFAULT > screenW then win:SetFrameStrata("MEDIUM") end
       if edge and ahRight and edge > ahRight + 0.5 then
         win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", edge + 6, top)   -- something wider covers it: go beyond that
       else

@@ -52,6 +52,9 @@ do
 end
 check("the generic coin icon is gone", not main:find("INV_Misc_Coin_01", 1, true))
 
+local zipScript = read("tools/build_zip.py") or ""
+check("the zip script ships the art folder (the icons are not load files, so the .toc list does not carry them)", zipScript:find("os.listdir(art_dir)", 1, true) ~= nil and zipScript:find("EXTRA + files + art", 1, true) ~= nil)
+check("and it refuses to build when the .toc names an icon that would not be in the zip", zipScript:find("IconTexture", 1, true) ~= nil and zipScript:find("would not be in the zip", 1, true) ~= nil)
 local pkg = read(".pkgmeta") or ""
 check("the package does not ignore the art folder", not pkg:find("%- art") and not pkg:find("art/", 1, true))
 check("the package still ignores the screenshots folder (media)", pkg:find("- media", 1, true) ~= nil)

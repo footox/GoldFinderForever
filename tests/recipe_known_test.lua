@@ -65,5 +65,10 @@ for _, k in ipairs({ "tip.recipeKnownBy", "tip.recipeYou" }) do
 end
 check("nothing is sent to anyone (no chat or mail call)", not read("core/recipe_known.lua"):find("SendChatMessage", 1, true) and not read("core/recipe_known.lua"):find("SendMail", 1, true))
 
+-- the "you" of the recipe rows is localised, not a hard-coded Spanish word
+check("the recipe rows use a localised 'you', not a hard-coded Spanish 'Tu'", not main:find('and "Tu" or', 1, true) and main:find('L["tip.recipeWhoYou"]', 1, true) ~= nil)
+check("both languages have the 'you' of the rows, and it is not the same word", read("locales/enUS.lua"):find('["tip.recipeWhoYou"] = "You"', 1, true) ~= nil
+  and read("locales/esES.lua"):find('["tip.recipeWhoYou"] = "Tu"', 1, true) ~= nil)
+
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")
