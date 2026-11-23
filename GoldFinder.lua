@@ -3968,7 +3968,7 @@ local minimapReady = false
 local function SetupMinimap()
   if minimapReady or not GoldFinderForeverDB then return end
   GoldFinderForeverDB.minimap = GoldFinderForeverDB.minimap or {}
-  local ICON = "Interface\\AddOns\\GoldFinderForever\\art\\icon_penguin_64.tga"   -- the penguin, instead of a generic coin
+  local ICON = "Interface\\AddOns\\GoldFinderForever\\art\\icon_penguin_map_64.tga"   -- the penguin's face: the full picture is lost at the size of the minimap button
 
   local function tip(tt)
     tt:AddLine("GoldFinder Forever", 1, 0.82, 0.25)
