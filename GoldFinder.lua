@@ -298,6 +298,14 @@ local function DayStats(entry)
   return Median(vals), #vals
 end
 
+-- minutos desde el ultimo escaneo de Auctionator (nil si no hay ninguno)
+local function ScanAgeMinutes()
+  local st = Auctionator and Auctionator.SavedState
+  local t = st and math.max(st.TimeOfLastReplicateScan or 0, st.TimeOfLastBrowseScan or 0) or 0
+  if t == 0 then return nil end
+  return (time() - t) / 60
+end
+
 local function AHApi()
   return Auctionator and Auctionator.API and Auctionator.API.v1
 end
@@ -970,6 +978,7 @@ local Decide, SellQty = GF.NewDecision({
   ItemInfoInstant = GF.ItemInfoInstant,
   ItemQuality = GF.ItemQuality,
   VariantKnown = GF.VariantKnown,
+  ScanAgeMin = function() return ScanAgeMinutes() end,
 })
 -- FIN DE DECISION
 
@@ -1203,14 +1212,6 @@ local function StartFullScan()
   local ok, err = pcall(frame.InitiateScan, frame)
   if ok then Print((Cfg("penguin") and GF.PenguinPhrase("penguin.scan")) or L["scan.requested"])
   else Print(format(L["scan.failed"], tostring(err))) end
-end
-
--- minutos desde el ultimo escaneo de Auctionator (nil si no hay ninguno)
-local function ScanAgeMinutes()
-  local st = Auctionator and Auctionator.SavedState
-  local t = st and math.max(st.TimeOfLastReplicateScan or 0, st.TimeOfLastBrowseScan or 0) or 0
-  if t == 0 then return nil end
-  return (time() - t) / 60
 end
 
 local function ScanAgeText()
@@ -4652,6 +4653,10 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
         local line = GF.PenguinPhrase("penguin.hello")
         if line then Print(line) end
       end
+    end)
+    -- no scan on record: say once what to do (every price of the auction house comes from Auctionator's scan)
+    C_Timer.After(12, function()
+      if GF.ScanHintDue(ScanAgeMinutes()) then Print(L["scan.loginHint"]) end
     end)
     C_Timer.After(1, function() pcall(CleanPhantomChars) end)
     C_Timer.After(2, function()

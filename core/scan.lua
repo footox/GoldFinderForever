@@ -35,3 +35,8 @@ function GF.ScanFrameFor(state, replicate)
   if (type(frame) == "table" or type(frame) == "userdata") and type(frame.InitiateScan) == "function" then return frame end
   return nil
 end
+
+-- true when no scan of the auction house is on record (minutes since the last one: nil), so the player is told what to do once
+function GF.ScanHintDue(ageMinutes)
+  return ageMinutes == nil
+end
