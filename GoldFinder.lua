@@ -1331,6 +1331,7 @@ local function MaterialRows(cat)
         if d.verdict == "KEEP" then
           if d.forOther then advice = format(L["advice.keepFor"], d.forOther)
           elseif d.manual then advice = L["advice.keepByHand"]
+          elseif d.code == "crate" then advice = L["advice.keepCrate"]
           elseif d.code == "lowprice" then advice = L["advice.keepCheap"]
           else advice = L["advice.keepRecipe"] end
         elseif d.verdict == "VENDOR" then advice = L["advice.vendor"]
