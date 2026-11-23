@@ -109,9 +109,18 @@ check("the bag adapter keeps the link of each slot", read("adapters/bags.lua"):f
 local main = read("GoldFinder.lua")
 check("the bag rows pass the link to the decision", main:find("{ bags = 0, bound = s.bound, link = s.link }", 1, true) ~= nil
   and main:find("Decide(id, e.bags, bank, e.bound, e.link)", 1, true) ~= nil)
-check("the tooltip passes the link of the item", main:find("local link = data.hyperlink", 1, true) ~= nil
+check("the tooltip passes the link of the item", main:find("local link = GF.TooltipItemLink(data, tooltip)", 1, true) ~= nil
   and main:find("Decide(id, bags, bank, false, link)", 1, true) ~= nil)
-check("the tooltip falls back to the tooltip's own item link", main:find("pcall(tooltip.GetItem, tooltip)", 1, true) ~= nil)
+
+-- the link of a tooltip (behaviour, not text): GetItem returns the NAME first and the link second
+local LK = "|cff1eff00|Hitem:1111::::::::30:::::::::|h[Staff]|h|r"
+check("the tooltip data link is used when present", GF.TooltipItemLink({ hyperlink = LK }, nil) == LK)
+check("without it, the second value of GetItem is the link (not the name)", GF.TooltipItemLink({}, { GetItem = function() return "Staff", LK end }) == LK)
+check("the name is never taken as a link", GF.TooltipItemLink({}, { GetItem = function() return "Staff", nil end }) == nil)
+check("an error in GetItem gives nil, never an error", GF.TooltipItemLink({}, { GetItem = function() error("boom") end }) == nil)
+check("an empty link is no link", GF.TooltipItemLink({ hyperlink = "" }, { GetItem = function() return "Staff", "" end }) == nil)
+check("no data and no tooltip: nil", GF.TooltipItemLink(nil, nil) == nil and GF.TooltipItemLink({}, {}) == nil)
+check("the data link wins over the tooltip item", GF.TooltipItemLink({ hyperlink = LK }, { GetItem = function() return "N", "other" end }) == LK)
 
 if failures > 0 then print(failures .. " FAILED"); os.exit(1) end
 print("ALL PASS")

@@ -1021,8 +1021,7 @@ local function TipAdvice(tooltip, data)
   local id = data.id
   local bags, bank = Counts(id)
   -- the link of the item under the cursor, so equipment is priced by its own variant
-  local link = data.hyperlink
-  if not link and tooltip.GetItem then local _, l = pcall(tooltip.GetItem, tooltip); link = type(l) == "string" and l or nil end
+  local link = GF.TooltipItemLink(data, tooltip)
   local d = Decide(id, bags, bank, false, link)
   if d.verdict == "NONE" then
     if d.reason then tooltip:AddLine("GoldFinder: " .. d.reason, 0.6, 0.6, 0.6) end

@@ -5,6 +5,18 @@ local _, GF = ...
 
 -- d: AHApi, VendorPrice, TSMValue, Cfg, Char, Counts, SkillUpNeed, RouteNeedFor, ReagentInfo, QuestNeed,
 --    RecipeToLearn, RecipeForOthers, OtherNeed, IsUtilityItem, RefPrice, ToBanker, ItemInfoInstant, ItemQuality
+-- The link of the item a tooltip is showing: the one the tooltip data carries or, failing that, the tooltip's own item.
+-- GameTooltip:GetItem() returns the NAME first and the link second, and pcall puts its own true/false in front of both.
+function GF.TooltipItemLink(data, tooltip)
+  local link = data and data.hyperlink
+  if type(link) == "string" and link ~= "" then return link end
+  if tooltip and tooltip.GetItem then
+    local ok, _, l = pcall(tooltip.GetItem, tooltip)
+    if ok and type(l) == "string" and l ~= "" then return l end
+  end
+  return nil
+end
+
 -- How many units make the auction worth it, by the same rule Decide uses: the net price must beat the vendor by more than
 -- 10% and the gain on the lot must reach minGain. nil when no quantity can (the margin is under 10%), else the units.
 function GF.UnitsForAuction(ahNet, vendor, minGain)
